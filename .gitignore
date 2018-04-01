@@ -1,0 +1,20 @@
+
+obsolete/
+
+# ignore Python temporary files
+.ipynb_checkpoints/
+
+# ignore typical data files
+*.dat
+
+# ignore compressed files
+*.zip
+*.tar.gz
+
+# ignore image files
+*.pdf
+*.dvi
+*.eps
+*.fig
+*.jpg
+*.png
