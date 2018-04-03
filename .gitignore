@@ -3,6 +3,7 @@ obsolete/
 
 # ignore Python temporary files
 .ipynb_checkpoints/
+__pycache__/
 
 # ignore typical data files
 *.dat

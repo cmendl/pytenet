@@ -4,17 +4,6 @@ Tensor networks for quantum simulations
 Python 3 implementation of quantum tensor network operations and simulations, using NumPy to handle tensors.
 
 
-License
--------
-Copyright (c) 2018, Christian B. Mendl  
-All rights reserved.  
-http://christian.mendl.net
-
-This program is free software; you can redistribute it and/or
-modify it under the terms of the Simplified BSD License
-http://www.opensource.org/licenses/bsd-license.php
-
-
 References
 ----------
 1. U. Schollwöck  
