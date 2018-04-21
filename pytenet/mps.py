@@ -60,9 +60,9 @@ class MPS(object):
                 assert len(s) == 3
                 Q, C = np.linalg.qr(np.reshape(B, (s[0]*s[1], s[2])), mode='reduced')
                 self.A[i] = np.reshape(Q, (s[0], s[1], Q.shape[1]))
-            # return normalization factor
+            # return normalization factor (real-valued since diagonal of R matrix is real)
             assert C.shape == (1, 1)
-            return C[0, 0]
+            return C[0, 0].real
         elif mode == 'right':
             C = np.identity(self.A[-1].shape[2])
             for i in reversed(range(len(self.A))):
@@ -75,9 +75,9 @@ class MPS(object):
                 Q, C = np.linalg.qr(np.reshape(B, (s[0]*s[1], s[2])), mode='reduced')
                 self.A[i] = np.reshape(Q, (s[0], s[1], Q.shape[1])).transpose((0, 2, 1))
                 C = C.T
-            # return normalization factor
+            # return normalization factor (real-valued since diagonal of R matrix is real)
             assert C.shape == (1, 1)
-            return C[0, 0]
+            return C[0, 0].real
         else:
             raise ValueError('mode = {} invalid; must be "left" or "right".'.format(mode))
 

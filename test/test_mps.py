@@ -17,19 +17,20 @@ class TestMPS(unittest.TestCase):
         # wavefunction on full Hilbert space
         psi = mps0.merge_full()
 
-        print('Performing left-orthonormalization...')
+        # performing left-orthonormalization...
         cL = mps0.orthonormalize(mode='left')
-        print('Normalization factor:', cL)
-        print('New virtual bond dimensions:', mps0.bond_dims)
+
+        self.assertLessEqual(mps0.bond_dims[1], d,
+            msg='virtual bond dimension can only increase by factor of "d" per site')
 
         psiL = mps0.merge_full()
         # wavefunction should now be normalized
         self.assertAlmostEqual(np.linalg.norm(psiL), 1., delta=1e-12, msg='wavefunction normalization')
 
-        # wavefunctions before and after normalization must match
+        # wavefunctions before and after left-normalization must match
         # (up to normalization factor)
         self.assertAlmostEqual(np.linalg.norm(cL*psiL - psi), 0., delta=1e-10,
-                               msg='wavefunctions before and after normalization')
+                               msg='wavefunctions before and after left-normalization must match')
 
         # check left-orthonormalization
         for i in range(mps0.nsites):
@@ -40,14 +41,14 @@ class TestMPS(unittest.TestCase):
             self.assertAlmostEqual(np.linalg.norm(QH_Q - np.identity(s[2])), 0., delta=1e-12,
                                    msg='left-orthonormalization')
 
-        print('')
-
-        print('Performing right-orthonormalization...')
+        # performing right-orthonormalization...
         cR = mps0.orthonormalize(mode='right')
-        print('Normalization factor:', cR)
-        print('New virtual bond dimensions:', mps0.bond_dims)
-        # factor must have magnitude 1 due to previous left-orthonormalization
-        self.assertAlmostEqual(abs(cR), 1., delta=1e-12, msg='normalization factor')
+
+        self.assertLessEqual(mps0.bond_dims[-2], d,
+            msg='virtual bond dimension can only increase by factor of "d" per site')
+
+        self.assertAlmostEqual(abs(cR), 1., delta=1e-12,
+            msg='normalization factor must have magnitude 1 due to previous left-orthonormalization')
 
         psiR = mps0.merge_full()
         # wavefunctions must match
