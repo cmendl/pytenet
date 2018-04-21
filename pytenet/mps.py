@@ -11,7 +11,7 @@ def _merge_MPS_tensor_pair(A0, A1):
     return A
 
 
-class MPS:
+class MPS(object):
     """Matrix product state (MPS) class.
 
     The i-th MPS tensor has dimension [d, D[i], D[i+1]] with d the physical dimension

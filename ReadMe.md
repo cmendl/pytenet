@@ -1,7 +1,7 @@
 Tensor networks for quantum simulations
 =======================================
 
-Python 3 implementation of quantum tensor network operations and simulations, using NumPy to handle tensors.
+Python implementation of quantum tensor network operations and simulations, using NumPy to handle tensors.
 
 
 References
