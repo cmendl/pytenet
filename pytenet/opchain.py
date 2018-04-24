@@ -33,8 +33,11 @@ class OpChain(object):
 
     def as_matrix(self, d, L):
         """Construct matrix representation on full Hilbert space (dimension d^L x d^L)."""
-        A = np.identity(d**(self.istart))
-        for op in self.oplist:
-            A = np.kron(A, op)
-        A = np.kron(A, np.identity(d**(L - self.iend)))
+        if len(self.oplist) == 0:
+            A = np.zeros((d**L, d**L))
+        else:
+            A = np.identity(d**(self.istart))
+            for op in self.oplist:
+                A = np.kron(A, op)
+            A = np.kron(A, np.identity(d**(L - self.iend)))
         return A

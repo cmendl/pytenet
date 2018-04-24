@@ -82,8 +82,7 @@ class MPS(object):
             raise ValueError('mode = {} invalid; must be "left" or "right".'.format(mode))
 
     def merge_full(self):
-        """Merge all tensors to obtain the vector representation on the full Hilbert space.
-        (Only use for small number of lattice sites!)"""
+        """Merge all tensors to obtain the vector representation on the full Hilbert space."""
         psi = self.A[0]
         for i in range(1, len(self.A)):
             psi = _merge_MPS_tensor_pair(psi, self.A[i])
