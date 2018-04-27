@@ -1,2 +1,3 @@
-# treat data files as binary files
-*.dat binary
+# treat NumPy files as binary files
+*.npy binary
+*.npz binary
