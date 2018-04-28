@@ -15,7 +15,7 @@ class TestHamiltonian(unittest.TestCase):
         # construct MPO
         mpoH = hamiltonian.ising_MPO(L, J, h, g)
         # matrix representation, for comparison with reference
-        H = mpoH.merge_full()
+        H = mpoH.as_matrix()
         # reference Hamiltonian
         Href = np.load('test_hamiltonian_ising.npz')['H']
         # compare
@@ -32,7 +32,7 @@ class TestHamiltonian(unittest.TestCase):
         # construct MPO
         mpoH = hamiltonian.heisenberg_XXZ_MPO(L, J, D, h)
         # matrix representation, for comparison with reference
-        H = mpoH.merge_full()
+        H = mpoH.as_matrix()
         # reference Hamiltonian
         Href = np.load('test_hamiltonian_heisenberg_XXZ.npz')['H']
         # compare
@@ -51,7 +51,7 @@ class TestHamiltonian(unittest.TestCase):
         # construct MPO
         mpoH = hamiltonian.bose_hubbard_MPO(d, L, t, U, mu)
         # matrix representation, for comparison with reference
-        H = mpoH.merge_full()
+        H = mpoH.as_matrix()
         # reference Hamiltonian
         Href = np.load('test_hamiltonian_bose_hubbard.npz')['H']
         # compare
@@ -68,7 +68,7 @@ class TestHamiltonian(unittest.TestCase):
         # construct MPO
         mpoH = hamiltonian.fermi_hubbard_MPO(L, t, U, mu)
         # matrix representation, for comparison with reference
-        H = mpoH.merge_full()
+        H = mpoH.as_matrix()
         # reference Hamiltonian
         Href = np.load('test_hamiltonian_fermi_hubbard.npz')['H']
         # compare

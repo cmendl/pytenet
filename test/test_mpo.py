@@ -38,7 +38,7 @@ class TestMPO(unittest.TestCase):
         Href = sum([opc.as_matrix(d, L) for opc in opchains])
 
         # compare
-        self.assertAlmostEqual(np.linalg.norm(mpo0.merge_full() - Href), 0., delta=1e-10,
+        self.assertAlmostEqual(np.linalg.norm(mpo0.as_matrix() - Href), 0., delta=1e-10,
             msg='full merging of MPO must be equal to matrix representation of operator chains')
 
 

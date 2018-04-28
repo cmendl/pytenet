@@ -1,16 +1,6 @@
 import numpy as np
 
 
-def _merge_MPS_tensor_pair(A0, A1):
-    """Merge two neighboring MPS tensors."""
-    A = np.tensordot(A0, A1, (2, 1))
-    # pair original physical dimensions of A0 and A1
-    A = A.transpose((0, 2, 1, 3))
-    # combine original physical dimensions
-    A = A.reshape((A.shape[0]*A.shape[1], A.shape[2], A.shape[3]))
-    return A
-
-
 class MPS(object):
     """Matrix product state (MPS) class.
 
@@ -81,7 +71,7 @@ class MPS(object):
         else:
             raise ValueError('mode = {} invalid; must be "left" or "right".'.format(mode))
 
-    def merge_full(self):
+    def as_vector(self):
         """Merge all tensors to obtain the vector representation on the full Hilbert space."""
         psi = self.A[0]
         for i in range(1, len(self.A)):
@@ -90,3 +80,13 @@ class MPS(object):
         assert psi.shape[1] == 1 and psi.shape[2] == 1
         psi = psi.flatten()
         return psi
+
+
+def _merge_MPS_tensor_pair(A0, A1):
+    """Merge two neighboring MPS tensors."""
+    A = np.tensordot(A0, A1, (2, 1))
+    # pair original physical dimensions of A0 and A1
+    A = A.transpose((0, 2, 1, 3))
+    # combine original physical dimensions
+    A = A.reshape((A.shape[0]*A.shape[1], A.shape[2], A.shape[3]))
+    return A

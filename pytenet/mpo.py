@@ -1,16 +1,6 @@
 import numpy as np
 
 
-def _merge_MPO_tensor_pair(A0, A1):
-    """Merge two neighboring MPO tensors."""
-    A = np.tensordot(A0, A1, (3, 2))
-    # pair original physical dimensions of A0 and A1
-    A = A.transpose((0, 3, 1, 4, 2, 5))
-    # combine original physical dimensions
-    A = A.reshape((A.shape[0]*A.shape[1], A.shape[2]*A.shape[3], A.shape[4], A.shape[5]))
-    return A
-
-
 class MPO(object):
     """Matrix product operator (MPO) class.
 
@@ -22,7 +12,7 @@ class MPO(object):
         """
         Args:
             d physical dimension
-        Keyword Args: either provide oplist and L, or D and (optionally) fill
+        Keyword args: either provide oplist and L, or D and (optionally) fill
             oplist  list of operator chains
             L       number of lattice sites (only accessed if oplist is provided)
             D       virtual bond dimensions
@@ -61,7 +51,7 @@ class MPO(object):
             D.append(self.A[-1].shape[3])
             return D
 
-    def merge_full(self):
+    def as_matrix(self):
         """Merge all tensors to obtain the matrix representation on the full Hilbert space."""
         op = self.A[0]
         for i in range(1, len(self.A)):
@@ -121,3 +111,13 @@ class MPO(object):
                 self.A[opc.istart + i][k, opslots[j][i]] += opc.oplist[i]
 
         self.A = [W.transpose((2, 3, 0, 1)) for W in self.A]
+
+
+def _merge_MPO_tensor_pair(A0, A1):
+    """Merge two neighboring MPO tensors."""
+    A = np.tensordot(A0, A1, (3, 2))
+    # pair original physical dimensions of A0 and A1
+    A = A.transpose((0, 3, 1, 4, 2, 5))
+    # combine original physical dimensions
+    A = A.reshape((A.shape[0]*A.shape[1], A.shape[2]*A.shape[3], A.shape[4], A.shape[5]))
+    return A

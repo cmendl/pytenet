@@ -15,7 +15,7 @@ class TestMPS(unittest.TestCase):
         self.assertEqual(mps0.bond_dims, D, msg='virtual bond dimensions')
 
         # wavefunction on full Hilbert space
-        psi = mps0.merge_full()
+        psi = mps0.as_vector()
 
         # performing left-orthonormalization...
         cL = mps0.orthonormalize(mode='left')
@@ -23,7 +23,7 @@ class TestMPS(unittest.TestCase):
         self.assertLessEqual(mps0.bond_dims[1], d,
             msg='virtual bond dimension can only increase by factor of "d" per site')
 
-        psiL = mps0.merge_full()
+        psiL = mps0.as_vector()
         # wavefunction should now be normalized
         self.assertAlmostEqual(np.linalg.norm(psiL), 1., delta=1e-12, msg='wavefunction normalization')
 
@@ -50,7 +50,7 @@ class TestMPS(unittest.TestCase):
         self.assertAlmostEqual(abs(cR), 1., delta=1e-12,
             msg='normalization factor must have magnitude 1 due to previous left-orthonormalization')
 
-        psiR = mps0.merge_full()
+        psiR = mps0.as_vector()
         # wavefunctions must match
         self.assertAlmostEqual(np.linalg.norm(psiL - cR*psiR), 0., delta=1e-10,
                                msg='wavefunctions after left- and right-orthonormalization must match')
