@@ -93,5 +93,5 @@ def _local_oplists_to_MPO(d, L, locoplists):
     for oplist in locoplists:
         for i in range(L - len(oplist) + 1):
             # add shifted opchain
-            opchains.append(OpChain(i, oplist.copy()))
+            opchains.append(OpChain(i, list(oplist)))
     return MPO(d, L=L, opchains=opchains)
