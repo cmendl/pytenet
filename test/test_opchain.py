@@ -1,5 +1,7 @@
 import unittest
 import numpy as np
+import sys
+sys.path.append('../pytenet/')
 from opchain import OpChain
 
 
