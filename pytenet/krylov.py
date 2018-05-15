@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.linalg import eigh_tridiagonal
 
 
 def lanczos_iteration(Afunc, vstart, numiter):
@@ -16,8 +17,9 @@ def lanczos_iteration(Afunc, vstart, numiter):
     """
 
     # normalize starting vector
-    assert np.linalg.norm(vstart) > 0
-    vstart = vstart / np.linalg.norm(vstart)
+    nrmv = np.linalg.norm(vstart)
+    assert nrmv > 0
+    vstart = vstart / nrmv
 
     alpha = np.zeros(numiter)
     beta  = np.zeros(numiter-1)
@@ -39,3 +41,21 @@ def lanczos_iteration(Afunc, vstart, numiter):
     alpha[j] = np.vdot(w, V[j]).real
 
     return (alpha, beta, V.T)
+
+
+def expm(Afunc, v, dt, numiter):
+    """Compute Krylov subspace approximation of the matrix exponential
+    applied to input vector: expm(dt*A)*v.
+
+    Reference:
+        M. Hochbruck and C. Lubich
+        On Krylov subspace approximations to the matrix exponential operator
+        SIAM J. Numer. Anal. 34, 1911 (1997)
+    """
+
+    alpha, beta, V = lanczos_iteration(Afunc, v, numiter)
+
+    # diagonalize Hessenberg matrix
+    w_hess, u_hess = eigh_tridiagonal(alpha, beta)
+
+    return np.dot(V, np.dot(u_hess, np.linalg.norm(v) * np.exp(dt*w_hess) * u_hess[0]))
