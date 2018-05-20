@@ -56,7 +56,7 @@ class MPO(object):
         op = self.A[0]
         for i in range(1, len(self.A)):
             op = _merge_MPO_tensor_pair(op, self.A[i])
-        assert len(op.shape) == 4
+        assert op.ndim == 4
         assert op.shape[2] == 1 and op.shape[3] == 1
         op = op.reshape((op.shape[0], op.shape[1]))
         return op

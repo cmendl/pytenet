@@ -21,7 +21,7 @@ def operator_average(psi, op):
     T = np.reshape(T, (psi.A[-1].shape[2], 1, psi.A[-1].shape[2]))
 
     for i in reversed(range(psi.nsites)):
-        T = _contraction_operator_step_right(psi.A[i], op.A[i], T)
+        T = contraction_operator_step_right(psi.A[i], op.A[i], T)
 
     # T should now be a 1x1x1 tensor
     assert T.shape == (1, 1, 1)
@@ -29,12 +29,31 @@ def operator_average(psi, op):
     return T[0, 0, 0]
 
 
-def _contraction_operator_step_right(A, W, R):
-    """Contraction step from right to left, with a matrix product operator sandwiched in between."""
+def contraction_operator_step_right(A, W, R):
+    """Contraction step from right to left, with a matrix product operator sandwiched in between.
 
-    assert len(A.shape) == 3
-    assert len(W.shape) == 4
-    assert len(R.shape) == 3
+    To-be contracted tensor network:
+          _____           ______
+         /     \         /
+      ---|1 A*2|---   ---|2
+         \__0__/         |
+            |            |
+                         |
+          __|__          |
+         /  0  \         |
+      ---|2 W 3|---   ---|1   R
+         \__1__/         |
+            |            |
+                         |
+          __|__          |
+         /  0  \         |
+      ---|1 A 2|---   ---|0
+         \_____/         \______
+    """
+
+    assert A.ndim == 3
+    assert W.ndim == 4
+    assert R.ndim == 3
 
     # multiply with A tensor
     T = np.tensordot(A, R, 1)
@@ -49,3 +68,100 @@ def _contraction_operator_step_right(A, W, R):
     Rnext = np.tensordot(T, A.conj(), axes=((2, 3), (0, 2)))
 
     return Rnext
+
+
+def contraction_operator_step_left(A, W, L):
+    """Contraction step from left to right, with a matrix product operator sandwiched in between.
+
+    To-be contracted tensor network:
+      ______           _____
+            \         /     \
+           2|---   ---|1 A*2|---
+            |         \__0__/
+            |            |
+            |
+            |          __|__
+            |         /  0  \
+       L   1|---   ---|2 W 3|---
+            |         \__1__/
+            |            |
+            |
+            |          __|__
+            |         /  0  \
+           0|---   ---|1 A 2|---
+      ______/         \_____/
+     """
+
+    assert A.ndim == 3
+    assert W.ndim == 4
+    assert L.ndim == 3
+
+    # multiply with conjugated A tensor
+    T = np.tensordot(L, A.conj(), axes=(2, 1))
+
+    # multiply with W tensor
+    T = np.tensordot(W, T, axes=((0, 2), (2, 1)))
+
+    # multiply with A tensor
+    Lnext = np.tensordot(A, T, axes=((0, 1), (0, 2)))
+
+    return Lnext
+
+
+def compute_right_operator_blocks(psi, op):
+    """Compute all partial contractions from the right."""
+
+    L = psi.nsites
+    assert(L == op.nsites)
+
+    BR = [None for _ in range(L)]
+
+    # initialize rightmost dummy block
+    BR[L-1] = np.array([[[1]]], dtype=complex)
+
+    for i in reversed(range(L-1)):
+        BR[i] = contraction_operator_step_right(psi.A[i+1], op.A[i+1], BR[i+1])
+
+    return BR
+
+
+def apply_local_hamiltonian(L, R, W, A):
+    """Apply site-local Hamiltonian operator.
+
+    To-be contracted tensor network:
+     ______                           ______
+           \                         /
+          2|---                   ---|2
+           |                         |
+           |                         |
+           |                         |
+           |          __|__          |
+           |         /  0  \         |
+      L   1|---   ---|2 W 3|---   ---|1   R
+           |         \__1__/         |
+           |            |            |
+           |                         |
+           |          __|__          |
+           |         /  0  \         |
+          0|---   ---|1 A 2|---   ---|0
+     ______/         \_____/         \______
+    """
+
+    assert L.ndim == 3
+    assert R.ndim == 3
+    assert W.ndim == 4
+    assert A.ndim == 3
+
+    # multiply A with R tensor and store result in T
+    T = np.tensordot(A, R, 1)
+
+    # multiply T with W tensor
+    T = np.tensordot(W, T, axes=((1, 3), (0, 2)))
+
+    # multiply T with L tensor
+    T = np.tensordot(T, L, axes=((2, 1), (0, 1)))
+
+    # interchange levels 1 <-> 2 in T
+    T = np.transpose(T, (0, 2, 1))
+
+    return T

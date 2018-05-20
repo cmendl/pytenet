@@ -43,6 +43,20 @@ def lanczos_iteration(Afunc, vstart, numiter):
     return (alpha, beta, V.T)
 
 
+def eigh(Afunc, vstart, numiter, numeig):
+    """Compute Krylov subspace approximation of eigenvalues and vectors."""
+
+    alpha, beta, V = lanczos_iteration(Afunc, vstart, numiter)
+
+    # diagonalize Hessenberg matrix
+    w_hess, u_hess = eigh_tridiagonal(alpha, beta)
+
+    # compute Ritz eigenvectors
+    u_ritz = np.dot(V, u_hess[:, 0:numeig])
+
+    return (w_hess[0:numeig], u_ritz)
+
+
 def expm(Afunc, v, dt, numiter):
     """Compute Krylov subspace approximation of the matrix exponential
     applied to input vector: expm(dt*A)*v.

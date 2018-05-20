@@ -41,33 +41,21 @@ class MPS(object):
             return
 
         if mode == 'left':
-            C = np.identity(self.A[0].shape[1])
-            for i in range(len(self.A)):
-                # multiply with C from left
-                B = np.tensordot(C, self.A[i], (1, 1))
-                B = B.transpose((1, 0, 2))
-                s = B.shape
-                assert len(s) == 3
-                Q, C = np.linalg.qr(np.reshape(B, (s[0]*s[1], s[2])), mode='reduced')
-                self.A[i] = np.reshape(Q, (s[0], s[1], Q.shape[1]))
+            for i in range(len(self.A) - 1):
+                self.A[i], self.A[i+1] = local_orthonormalize_left_qr(self.A[i], self.A[i+1])
+            # last tensor
+            self.A[-1], T = local_orthonormalize_left_qr(self.A[-1], np.array([[[1]]]))
             # return normalization factor (real-valued since diagonal of R matrix is real)
-            assert C.shape == (1, 1)
-            return C[0, 0].real
+            assert T.shape == (1, 1, 1)
+            return T[0, 0, 0].real
         elif mode == 'right':
-            C = np.identity(self.A[-1].shape[2])
-            for i in reversed(range(len(self.A))):
-                # multiply with C from right
-                B = np.tensordot(self.A[i], C, (2, 0))
-                # flip left and right virtual bond dimensions
-                B = B.transpose((0, 2, 1))
-                s = B.shape
-                assert len(s) == 3
-                Q, C = np.linalg.qr(np.reshape(B, (s[0]*s[1], s[2])), mode='reduced')
-                self.A[i] = np.reshape(Q, (s[0], s[1], Q.shape[1])).transpose((0, 2, 1))
-                C = C.T
+            for i in reversed(range(1, len(self.A))):
+                self.A[i], self.A[i-1] = local_orthonormalize_right_qr(self.A[i], self.A[i-1])
+            # first tensor
+            self.A[0], T = local_orthonormalize_right_qr(self.A[0], np.array([[[1]]]))
             # return normalization factor (real-valued since diagonal of R matrix is real)
-            assert C.shape == (1, 1)
-            return C[0, 0].real
+            assert T.shape == (1, 1, 1)
+            return T[0, 0, 0].real
         else:
             raise ValueError('mode = {} invalid; must be "left" or "right".'.format(mode))
 
@@ -76,10 +64,38 @@ class MPS(object):
         psi = self.A[0]
         for i in range(1, len(self.A)):
             psi = _merge_MPS_tensor_pair(psi, self.A[i])
-        assert len(psi.shape) == 3
+        assert psi.ndim == 3
         assert psi.shape[1] == 1 and psi.shape[2] == 1
         psi = psi.flatten()
         return psi
+
+
+def local_orthonormalize_left_qr(A, Anext):
+    """Left-orthonormalize local site tensor A by a QR decomposition,
+    and update tensor at next site."""
+    # perform QR decomposition and replace A by reshaped Q matrix
+    s = A.shape
+    assert len(s) == 3
+    Q, R = np.linalg.qr(np.reshape(A, (s[0]*s[1], s[2])), mode='reduced')
+    A = np.reshape(Q, (s[0], s[1], Q.shape[1]))
+    # update Anext tensor: multiply with R from left
+    Anext = np.tensordot(R, Anext, (1, 1)).transpose((1, 0, 2))
+    return (A, Anext)
+
+
+def local_orthonormalize_right_qr(A, Aprev):
+    """Right-orthonormalize local site tensor A by a QR decomposition,
+    and update tensor at previous site."""
+    # flip left and right virtual bond dimensions
+    A = A.transpose((0, 2, 1))
+    # perform QR decomposition and replace A by reshaped Q matrix
+    s = A.shape
+    assert len(s) == 3
+    Q, R = np.linalg.qr(np.reshape(A, (s[0]*s[1], s[2])), mode='reduced')
+    A = np.reshape(Q, (s[0], s[1], Q.shape[1])).transpose((0, 2, 1))
+    # update Aprev tensor: multiply with R from right
+    Aprev = np.tensordot(Aprev, R, (2, 1))
+    return (A, Aprev)
 
 
 def _merge_MPS_tensor_pair(A0, A1):

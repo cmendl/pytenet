@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from scipy.linalg import eigh_tridiagonal, expm
+from scipy.linalg import expm
 import sys
 sys.path.append('../pytenet/')
 import krylov
@@ -17,37 +17,53 @@ class TestKrylov(unittest.TestCase):
         A = (np.random.normal(size=(n, n)) + 1j*np.random.normal(size=(n, n))) / np.sqrt(n)
         A = 0.5 * (A + A.conj().T)
 
-        # reference eigenvalues
-        w_ref = np.linalg.eigvalsh(A)
-
         # random complex starting vector
         vstart = (np.random.normal(size=n) + 1j*np.random.normal(size=n)) / np.sqrt(n)
 
         # simply use A as linear transformation
         alpha, beta, V = krylov.lanczos_iteration(lambda x: np.dot(A, x), vstart, numiter)
 
-        # check orthogonality of V
+        # check orthogonality of Lanczos vectors
         self.assertAlmostEqual(np.linalg.norm(np.dot(V.T.conj(), V) - np.identity(numiter)), 0., delta=1e-12,
                                msg='matrix of Lanczos vectors must be orthonormalized')
 
-        # diagonalize Hessenberg matrix
-        w_hess, u_hess = eigh_tridiagonal(alpha, beta)
+        # Lanczos vectors must tridiagonalize A
+        T = np.diag(alpha) + np.diag(beta, 1) + np.diag(beta, -1)
+        self.assertAlmostEqual(np.linalg.norm(np.dot(V.conj().T, np.dot(A, V)) - T), 0., delta=1e-12,
+                               msg='Lanczos vectors must tridiagonalize A')
 
-        # compare lowest eigenvalue
-        self.assertAlmostEqual(w_hess[0], w_ref[0], delta=0.01,
-                               msg='lowest Lanczos eigenvalue should approximate exact eigenvalue')
+    def test_eigh(self):
 
-        # compute Ritz eigenvectors
-        u_ritz = np.dot(V, u_hess)
+        n = 196
+        numiter = 30
+        numeig  = 2
+
+        # random Hermitian matrix
+        A = (np.random.normal(size=(n, n)) + 1j*np.random.normal(size=(n, n))) / np.sqrt(n)
+        A = 0.5 * (A + A.conj().T)
+
+        # random complex starting vector
+        vstart = (np.random.normal(size=n) + 1j*np.random.normal(size=n)) / np.sqrt(n)
+
+        # simply use A as linear transformation;
+        w, u_ritz = krylov.eigh(lambda x: np.dot(A, x), vstart, numiter, numeig)
 
         # check orthogonality of Ritz matrix
-        self.assertAlmostEqual(np.linalg.norm(np.dot(u_ritz.conj().T, u_ritz) - np.identity(numiter)), 0., delta=1e-12,
+        self.assertAlmostEqual(np.linalg.norm(np.dot(u_ritz.conj().T, u_ritz) - np.identity(numeig)), 0., delta=1e-12,
                                msg='matrix of Ritz eigenvectors must be orthonormalized')
 
         # check U^H A U = diag(w)
-        self.assertAlmostEqual(np.linalg.norm(np.dot(u_ritz.conj().T, np.dot(A, u_ritz)) - np.diag(w_hess)), 0., delta=1e-12,
+        self.assertAlmostEqual(np.linalg.norm(np.dot(u_ritz.conj().T, np.dot(A, u_ritz)) - np.diag(w)), 0., delta=1e-12,
                                msg='Ritz eigenvectors must diagonalize A within Krylov subspace')
 
+        # reference eigenvalues
+        w_ref = np.linalg.eigvalsh(A)
+
+        # compare lowest eigenvalues
+        self.assertAlmostEqual(w[0], w_ref[0], delta=0.001,
+                               msg='lowest Lanczos eigenvalue should approximate exact eigenvalue')
+        self.assertAlmostEqual(w[1], w_ref[1], delta=0.01,
+                               msg='second-lowest Lanczos eigenvalue should approximate exact eigenvalue')
 
     def test_expm(self):
 
