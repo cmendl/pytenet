@@ -5,7 +5,8 @@ import krylov
 
 
 def calculate_ground_state_local_singlesite(H, psi, numsweeps, numiter_lanczos=25):
-    """Approximate the ground state MPS by left and right sweeps and local single-site optimizations;
+    """
+    Approximate the ground state MPS by left and right sweeps and local single-site optimizations;
     virtual bond dimensions of starting state 'psi' can only decrease.
 
     Args:
@@ -30,9 +31,10 @@ def calculate_ground_state_local_singlesite(H, psi, numsweeps, numiter_lanczos=2
     psi.orthonormalize(mode='right')
 
     # left and right operator blocks
-    # initialize left blocks by 1x1x1 identity (only leftmost block actually used)
-    BL = [np.array([[[1]]], dtype=complex) for _ in range(L)]
+    # initialize leftmost block by 1x1x1 identity
     BR = operation.compute_right_operator_blocks(psi, H)
+    BL = [None for _ in range(L)]
+    BL[0] = np.array([[[1]]], dtype=BR[0].dtype)
 
     en_min = np.zeros(numsweeps)
 
@@ -69,9 +71,9 @@ def _minimize_local_energy(L, R, W, Astart, numiter):
     """Minimize site-local energy by Lanczos iteration."""
 
     w, u_ritz = krylov.eigh(
-        lambda x: operation.apply_local_hamiltonian(L, R, W, np.reshape(x, Astart.shape)).flatten(),
+        lambda x: operation.apply_local_hamiltonian(L, R, W, x.reshape(Astart.shape)).flatten(),
         Astart.flatten(), numiter, 1)
 
-    Aopt = np.reshape(u_ritz[:, 0], Astart.shape)
+    Aopt = u_ritz[:, 0].reshape(Astart.shape)
 
     return (w[0], Aopt)

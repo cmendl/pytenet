@@ -23,7 +23,7 @@ class TestMinimization(unittest.TestCase):
         h = -2.0/7
         mpoH = hamiltonian.heisenberg_XXZ_MPO(L, J, D, h)
 
-        # initial MPS psi
+        # initial wavefunction as MPS with random entries
         psi = MPS(2, [1] + (L-1) * [28] + [1], fill='random')
 
         en_min = minimization.calculate_ground_state_local_singlesite(mpoH, psi, numsweeps)

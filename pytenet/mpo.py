@@ -55,7 +55,7 @@ class MPO(object):
         """Merge all tensors to obtain the matrix representation on the full Hilbert space."""
         op = self.A[0]
         for i in range(1, len(self.A)):
-            op = _merge_MPO_tensor_pair(op, self.A[i])
+            op = merge_MPO_tensor_pair(op, self.A[i])
         assert op.ndim == 4
         assert op.shape[2] == 1 and op.shape[3] == 1
         op = op.reshape((op.shape[0], op.shape[1]))
@@ -113,7 +113,7 @@ class MPO(object):
         self.A = [W.transpose((2, 3, 0, 1)) for W in self.A]
 
 
-def _merge_MPO_tensor_pair(A0, A1):
+def merge_MPO_tensor_pair(A0, A1):
     """Merge two neighboring MPO tensors."""
     A = np.tensordot(A0, A1, (3, 2))
     # pair original physical dimensions of A0 and A1

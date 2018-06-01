@@ -18,7 +18,7 @@ def operator_average(psi, op):
 
     # initialize T by identity matrix
     T = np.identity(psi.A[-1].shape[2], dtype=type(psi.A[-1]))
-    T = np.reshape(T, (psi.A[-1].shape[2], 1, psi.A[-1].shape[2]))
+    T = T.reshape((psi.A[-1].shape[2], 1, psi.A[-1].shape[2]))
 
     for i in reversed(range(psi.nsites)):
         T = contraction_operator_step_right(psi.A[i], op.A[i], T)
@@ -62,7 +62,7 @@ def contraction_operator_step_right(A, W, R):
     T = np.tensordot(W, T, axes=((1, 3), (0, 2)))
 
     # interchange levels 0 <-> 2 in T
-    T = np.transpose(T, (2, 1, 0, 3))
+    T = T.transpose((2, 1, 0, 3))
 
     # multiply with conjugated A tensor
     Rnext = np.tensordot(T, A.conj(), axes=((2, 3), (0, 2)))
@@ -162,6 +162,41 @@ def apply_local_hamiltonian(L, R, W, A):
     T = np.tensordot(T, L, axes=((2, 1), (0, 1)))
 
     # interchange levels 1 <-> 2 in T
-    T = np.transpose(T, (0, 2, 1))
+    T = T.transpose((0, 2, 1))
+
+    return T
+
+
+def apply_local_bond_contraction(L, R, C):
+    """Apply "zero-site" bond contraction.
+
+    To-be contracted tensor network:
+     ______                           ______
+           \                         /
+          2|---                   ---|2
+           |                         |
+           |                         |
+           |                         |
+           |                         |
+           |                         |
+      L   1|-----------   -----------|1   R
+           |                         |
+           |                         |
+           |                         |
+           |          _____          |
+           |         /     \         |
+          0|---   ---|0 C 1|---   ---|0
+     ______/         \_____/         \______
+    """
+
+    assert L.ndim == 3
+    assert R.ndim == 3
+    assert C.ndim == 2
+
+    # multiply C with R tensor and store result in T
+    T = np.tensordot(C, R, 1)
+
+    # multiply L with T tensor
+    T = np.tensordot(L, T, axes=((0, 1), (0, 1)))
 
     return T

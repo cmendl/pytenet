@@ -45,17 +45,27 @@ class MPS(object):
                 self.A[i], self.A[i+1] = local_orthonormalize_left_qr(self.A[i], self.A[i+1])
             # last tensor
             self.A[-1], T = local_orthonormalize_left_qr(self.A[-1], np.array([[[1]]]))
-            # return normalization factor (real-valued since diagonal of R matrix is real)
+            # normalization factor (real-valued since diagonal of R matrix is real)
             assert T.shape == (1, 1, 1)
-            return T[0, 0, 0].real
+            nrm = T[0, 0, 0].real
+            if nrm < 0:
+                # flip sign such that normalization factor is always non-negative
+                self.A[-1] = -self.A[-1]
+                nrm = -nrm
+            return nrm
         elif mode == 'right':
             for i in reversed(range(1, len(self.A))):
                 self.A[i], self.A[i-1] = local_orthonormalize_right_qr(self.A[i], self.A[i-1])
             # first tensor
             self.A[0], T = local_orthonormalize_right_qr(self.A[0], np.array([[[1]]]))
-            # return normalization factor (real-valued since diagonal of R matrix is real)
+            # normalization factor (real-valued since diagonal of R matrix is real)
             assert T.shape == (1, 1, 1)
-            return T[0, 0, 0].real
+            nrm = T[0, 0, 0].real
+            if nrm < 0:
+                # flip sign such that normalization factor is always non-negative
+                self.A[0] = -self.A[0]
+                nrm = -nrm
+            return nrm
         else:
             raise ValueError('mode = {} invalid; must be "left" or "right".'.format(mode))
 
@@ -63,7 +73,7 @@ class MPS(object):
         """Merge all tensors to obtain the vector representation on the full Hilbert space."""
         psi = self.A[0]
         for i in range(1, len(self.A)):
-            psi = _merge_MPS_tensor_pair(psi, self.A[i])
+            psi = merge_MPS_tensor_pair(psi, self.A[i])
         assert psi.ndim == 3
         assert psi.shape[1] == 1 and psi.shape[2] == 1
         psi = psi.flatten()
@@ -76,8 +86,8 @@ def local_orthonormalize_left_qr(A, Anext):
     # perform QR decomposition and replace A by reshaped Q matrix
     s = A.shape
     assert len(s) == 3
-    Q, R = np.linalg.qr(np.reshape(A, (s[0]*s[1], s[2])), mode='reduced')
-    A = np.reshape(Q, (s[0], s[1], Q.shape[1]))
+    Q, R = np.linalg.qr(A.reshape((s[0]*s[1], s[2])), mode='reduced')
+    A = Q.reshape((s[0], s[1], Q.shape[1]))
     # update Anext tensor: multiply with R from left
     Anext = np.tensordot(R, Anext, (1, 1)).transpose((1, 0, 2))
     return (A, Anext)
@@ -91,14 +101,14 @@ def local_orthonormalize_right_qr(A, Aprev):
     # perform QR decomposition and replace A by reshaped Q matrix
     s = A.shape
     assert len(s) == 3
-    Q, R = np.linalg.qr(np.reshape(A, (s[0]*s[1], s[2])), mode='reduced')
-    A = np.reshape(Q, (s[0], s[1], Q.shape[1])).transpose((0, 2, 1))
+    Q, R = np.linalg.qr(A.reshape((s[0]*s[1], s[2])), mode='reduced')
+    A = Q.reshape((s[0], s[1], Q.shape[1])).transpose((0, 2, 1))
     # update Aprev tensor: multiply with R from right
     Aprev = np.tensordot(Aprev, R, (2, 1))
     return (A, Aprev)
 
 
-def _merge_MPS_tensor_pair(A0, A1):
+def merge_MPS_tensor_pair(A0, A1):
     """Merge two neighboring MPS tensors."""
     A = np.tensordot(A0, A1, (2, 1))
     # pair original physical dimensions of A0 and A1
