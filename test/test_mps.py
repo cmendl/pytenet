@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import sys
 sys.path.append('../pytenet/')
-from mps import MPS
+from mps import MPS, merge_MPS_tensor_pair, split_MPS_tensor
 
 
 class TestMPS(unittest.TestCase):
@@ -65,6 +65,25 @@ class TestMPS(unittest.TestCase):
             QH_Q = np.dot(Q.conj().T, Q)
             self.assertAlmostEqual(np.linalg.norm(QH_Q - np.identity(s[1])), 0., delta=1e-12,
                                    msg='right-orthonormalization')
+
+
+    def test_split_tensor(self):
+
+        # physical dimensions
+        d0, d1 = 3, 5
+        # outer virtual bond dimensions
+        D0, D2 = 4, 7
+        Apair = (np.random.normal(size=(d0*d1, D0, D2), scale=1./np.sqrt(d0*d1*D0*D2)) +
+              1j*np.random.normal(size=(d0*d1, D0, D2), scale=1./np.sqrt(d0*d1*D0*D2)))
+
+        for svd_distr in ['left', 'right', 'sqrt']:
+            (A0, A1) = split_MPS_tensor(Apair, d0, d1, svd_distr=svd_distr, tol=0)
+
+            Amrg = merge_MPS_tensor_pair(A0, A1)
+
+            # merged tensor must agree with the original tensor
+            self.assertAlmostEqual(np.linalg.norm(Amrg - Apair), 0., delta=1e-13,
+                                   msg='splitting and subsequent merging must give the same tensor')
 
 
 if __name__ == '__main__':

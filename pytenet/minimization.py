@@ -10,12 +10,12 @@ def calculate_ground_state_local_singlesite(H, psi, numsweeps, numiter_lanczos=2
     virtual bond dimensions of starting state 'psi' can only decrease.
 
     Args:
-        H:                  Hamiltonian as MPO
-        psi:                initial MPS used for optimization; will be overwritten
-        numsweeps:          maximum number of left and right sweeps
-        numiter_lanczos:    number of local Lanczos iterations
+        H: Hamiltonian as MPO
+        psi: initial MPS used for optimization; will be overwritten
+        numsweeps: maximum number of left and right sweeps
+        numiter_lanczos: number of local Lanczos iterations
     Returns:
-        en_min:             array of approximate ground state energies after each iteration
+        array of approximate ground state energies after each iteration
 
     Reference:
         Ulrich Schollw"ock

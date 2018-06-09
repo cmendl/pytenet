@@ -2,7 +2,8 @@ import numpy as np
 
 
 class MPO(object):
-    """Matrix product operator (MPO) class.
+    """
+    Matrix product operator (MPO) class.
 
     The i-th MPO tensor has dimension [d, d, D[i], D[i+1]] with d the physical dimension
     and D the list of virtual bond dimensions.
@@ -11,14 +12,15 @@ class MPO(object):
     def __init__(self, d, **kwargs):
         """
         Args:
-            d physical dimension
+            d: physical dimension
         Keyword args: either provide oplist and L, or D and (optionally) fill
-            oplist  list of operator chains
-            L       number of lattice sites (only accessed if oplist is provided)
-            D       virtual bond dimensions
-            fill    numerical value for filling the MPO tensors, or
-                    'random' for normally distributed random entries
+            oplist: list of operator chains
+            L: number of lattice sites (only accessed if oplist is provided)
+            D: virtual bond dimensions
+            fill: numerical value for filling the MPO tensors, or
+                 'random' for normally distributed random entries
         """
+        self.d = d
         if 'opchains' in kwargs:
             if not 'L' in kwargs:
                 raise ValueError('number of lattice sites L must be provided as keyword argument together with list of opchains')

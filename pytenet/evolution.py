@@ -4,7 +4,8 @@ import krylov
 
 
 def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
-    """Symmetric single-site integration.
+    """
+    Symmetric single-site integration.
 
     Args:
         H: Hamiltonian as MPO
@@ -14,8 +15,8 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
         numsteps: number of time steps
         numiter_lanczos: number of Lanczos iterations for each site-local step
 
-    Return:
-        Norm of initial psi;
+    Returns:
+        norm of initial psi;
         psi is overwritten in-place with time-evolved state
 
     Reference:

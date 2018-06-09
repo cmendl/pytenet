@@ -1,14 +1,17 @@
 import numpy as np
+from bond_ops import split_matrix_svd
 
 
 class MPS(object):
-    """Matrix product state (MPS) class.
+    """
+    Matrix product state (MPS) class.
 
     The i-th MPS tensor has dimension [d, D[i], D[i+1]] with d the physical dimension
     and D the list of virtual bond dimensions.
     """
 
     def __init__(self, d, D, fill=0.0):
+        self.d = d
         # create list of MPS tensors
         if isinstance(fill, int) or isinstance(fill, float) or isinstance(fill, complex):
             self.A = [np.full((d, D[i], D[i+1]), fill) for i in range(len(D)-1)]
@@ -36,7 +39,7 @@ class MPS(object):
             return D
 
     def orthonormalize(self, mode='left'):
-        """Left- or right-orthonormalize the MPS."""
+        """Left- or right-orthonormalize the MPS using QR decompositions."""
         if len(self.A) == 0:
             return
 
@@ -81,8 +84,10 @@ class MPS(object):
 
 
 def local_orthonormalize_left_qr(A, Anext):
-    """Left-orthonormalize local site tensor A by a QR decomposition,
-    and update tensor at next site."""
+    """
+    Left-orthonormalize local site tensor A by a QR decomposition,
+    and update tensor at next site.
+    """
     # perform QR decomposition and replace A by reshaped Q matrix
     s = A.shape
     assert len(s) == 3
@@ -94,8 +99,10 @@ def local_orthonormalize_left_qr(A, Anext):
 
 
 def local_orthonormalize_right_qr(A, Aprev):
-    """Right-orthonormalize local site tensor A by a QR decomposition,
-    and update tensor at previous site."""
+    """
+    Right-orthonormalize local site tensor A by a QR decomposition,
+    and update tensor at previous site.
+    """
     # flip left and right virtual bond dimensions
     A = A.transpose((0, 2, 1))
     # perform QR decomposition and replace A by reshaped Q matrix
@@ -116,3 +123,32 @@ def merge_MPS_tensor_pair(A0, A1):
     # combine original physical dimensions
     A = A.reshape((A.shape[0]*A.shape[1], A.shape[2], A.shape[3]))
     return A
+
+
+def split_MPS_tensor(A, d0, d1, svd_distr, tol=0):
+    """
+    Split a MPS tensor with dimension d0*d1 x D0 x D2 into two MPS tensors
+    with dimensions d0 x D0 x D1 and d1 x D1 x D2, respectively.
+    """
+    assert A.ndim == 3
+    assert d0 * d1 == A.shape[0], 'physical dimension of MPS tensor must be equal to d0 * d1'
+    # reshape as matrix and split by SVD
+    A = A.reshape((d0, d1, A.shape[1], A.shape[2])).transpose((0, 2, 1, 3))
+    s = A.shape
+    A0, sigma, A1 = split_matrix_svd(A.reshape((s[0]*s[1], s[2]*s[3])), tol)
+    A0.shape = (s[0], s[1], len(sigma))
+    A1.shape = (len(sigma), s[2], s[3])
+    # use broadcasting to distribute singular values
+    if svd_distr == 'left':
+        A0 = A0 * sigma
+    elif svd_distr == 'right':
+        A1 = A1 * sigma[:, None, None]
+    elif svd_distr == 'sqrt':
+        s = np.sqrt(sigma)
+        A0 = A0 * s
+        A1 = A1 * s[:, None, None]
+    else:
+        raise ValueError('svd_distr parameter must be "left", "right" or "sqrt".')
+    # move physical dimension to the front
+    A1 = A1.transpose((1, 0, 2))
+    return (A0, A1)
