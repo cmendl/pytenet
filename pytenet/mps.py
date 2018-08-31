@@ -79,8 +79,7 @@ class MPS(object):
             psi = merge_MPS_tensor_pair(psi, self.A[i])
         assert psi.ndim == 3
         assert psi.shape[1] == 1 and psi.shape[2] == 1
-        psi = psi.flatten()
-        return psi
+        return psi.reshape(-1)
 
 
 def local_orthonormalize_left_qr(A, Anext):

@@ -17,7 +17,7 @@ def operator_average(psi, op):
         return 0
 
     # initialize T by identity matrix
-    T = np.identity(psi.A[-1].shape[2], dtype=type(psi.A[-1]))
+    T = np.identity(psi.A[-1].shape[2], dtype=psi.A[-1].dtype)
     T = T.reshape((psi.A[-1].shape[2], 1, psi.A[-1].shape[2]))
 
     for i in reversed(range(psi.nsites)):

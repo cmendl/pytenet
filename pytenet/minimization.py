@@ -71,8 +71,8 @@ def _minimize_local_energy(L, R, W, Astart, numiter):
     """Minimize site-local energy by Lanczos iteration."""
 
     w, u_ritz = krylov.eigh(
-        lambda x: operation.apply_local_hamiltonian(L, R, W, x.reshape(Astart.shape)).flatten(),
-        Astart.flatten(), numiter, 1)
+        lambda x: operation.apply_local_hamiltonian(L, R, W, x.reshape(Astart.shape)).reshape(-1),
+            Astart.reshape(-1), numiter, 1)
 
     Aopt = u_ritz[:, 0].reshape(Astart.shape)
 

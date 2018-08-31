@@ -7,6 +7,7 @@ Reference:
     Phys. Rev. B 94, 165116 (2016) (arXiv:1408.5056)
 """
 
+from __future__ import print_function
 import numpy as np
 import sys
 sys.path.append('../pytenet/')
