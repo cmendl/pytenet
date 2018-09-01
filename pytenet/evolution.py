@@ -64,9 +64,10 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
             # right-orthonormalize current psi.A[i]
             # flip left and right virtual bond dimensions
             psi.A[i] = psi.A[i].transpose((0, 2, 1))
-            # perform QR decomposition and replace psi.A[i] by reshaped Q matrix
+            # perform QR decomposition
             s = psi.A[i].shape
             Q, C = np.linalg.qr(psi.A[i].reshape((s[0]*s[1], s[2])), mode='reduced')
+            # replace psi.A[i] by reshaped Q matrix and undo flip of left and right virtual bond dimensions
             psi.A[i] = Q.reshape((s[0], s[1], Q.shape[1])).transpose((0, 2, 1))
             # update the right blocks
             BR[i-1] = operation.contraction_operator_step_right(psi.A[i], H.A[i], BR[i])
@@ -86,11 +87,11 @@ def _local_hamiltonian_step(L, R, W, A, dt, numiter):
     """Local time step effected by Hamiltonian, based on a Lanczos iteration."""
     return krylov.expm(
         lambda x: operation.apply_local_hamiltonian(L, R, W, x.reshape(A.shape)).flatten(),
-        A.flatten(), -dt, numiter).reshape(A.shape)
+            A.flatten(), -dt, numiter).reshape(A.shape)
 
 
 def _local_bond_step(L, R, C, dt, numiter):
     """Local "zero-site" bond step, based on a Lanczos iteration."""
     return krylov.expm(
         lambda x: operation.apply_local_bond_contraction(L, R, x.reshape(C.shape)).flatten(),
-        C.flatten(), -dt, numiter).reshape(C.shape)
+            C.flatten(), -dt, numiter).reshape(C.shape)
