@@ -53,6 +53,40 @@ class MPO(object):
             D.append(self.A[-1].shape[3])
             return D
 
+    def orthonormalize(self, mode='left'):
+        """Left- or right-orthonormalize the MPO (Frobenius norm) using QR decompositions."""
+        if len(self.A) == 0:
+            return
+
+        if mode == 'left':
+            for i in range(len(self.A) - 1):
+                self.A[i], self.A[i+1] = local_orthonormalize_left_qr(self.A[i], self.A[i+1])
+            # last tensor
+            self.A[-1], T = local_orthonormalize_left_qr(self.A[-1], np.array([[[[1]]]]))
+            # normalization factor (real-valued since diagonal of R matrix is real)
+            assert T.shape == (1, 1, 1, 1)
+            nrm = T[0, 0, 0, 0].real
+            if nrm < 0:
+                # flip sign such that normalization factor is always non-negative
+                self.A[-1] = -self.A[-1]
+                nrm = -nrm
+            return nrm
+        elif mode == 'right':
+            for i in reversed(range(1, len(self.A))):
+                self.A[i], self.A[i-1] = local_orthonormalize_right_qr(self.A[i], self.A[i-1])
+            # first tensor
+            self.A[0], T = local_orthonormalize_right_qr(self.A[0], np.array([[[[1]]]]))
+            # normalization factor (real-valued since diagonal of R matrix is real)
+            assert T.shape == (1, 1, 1, 1)
+            nrm = T[0, 0, 0, 0].real
+            if nrm < 0:
+                # flip sign such that normalization factor is always non-negative
+                self.A[0] = -self.A[0]
+                nrm = -nrm
+            return nrm
+        else:
+            raise ValueError('mode = {} invalid; must be "left" or "right".'.format(mode))
+
     def as_matrix(self):
         """Merge all tensors to obtain the matrix representation on the full Hilbert space."""
         op = self.A[0]
@@ -113,6 +147,38 @@ class MPO(object):
                 self.A[opc.istart + i][k, opslots[j][i]] += opc.oplist[i]
 
         self.A = [W.transpose((2, 3, 0, 1)) for W in self.A]
+
+
+def local_orthonormalize_left_qr(A, Anext):
+    """
+    Left-orthonormalize local site tensor A by a QR decomposition,
+    and update tensor at next site.
+    """
+    # perform QR decomposition and replace A by reshaped Q matrix
+    s = A.shape
+    assert len(s) == 4
+    Q, R = np.linalg.qr(A.reshape((s[0]*s[1]*s[2], s[3])), mode='reduced')
+    A = Q.reshape((s[0], s[1], s[2], Q.shape[1]))
+    # update Anext tensor: multiply with R from left
+    Anext = np.tensordot(R, Anext, (1, 2)).transpose((1, 2, 0, 3))
+    return (A, Anext)
+
+
+def local_orthonormalize_right_qr(A, Aprev):
+    """
+    Right-orthonormalize local site tensor A by a QR decomposition,
+    and update tensor at previous site.
+    """
+    # flip left and right virtual bond dimensions
+    A = A.transpose((0, 1, 3, 2))
+    # perform QR decomposition and replace A by reshaped Q matrix
+    s = A.shape
+    assert len(s) == 4
+    Q, R = np.linalg.qr(A.reshape((s[0]*s[1]*s[2], s[3])), mode='reduced')
+    A = Q.reshape((s[0], s[1], s[2], Q.shape[1])).transpose((0, 1, 3, 2))
+    # update Aprev tensor: multiply with R from right
+    Aprev = np.tensordot(Aprev, R, (3, 1))
+    return (A, Aprev)
 
 
 def merge_MPO_tensor_pair(A0, A1):
