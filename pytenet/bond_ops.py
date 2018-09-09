@@ -1,4 +1,5 @@
 import numpy as np
+from qnumber import is_qsparse
 
 
 def retained_bond_indices(s, tol):
@@ -28,6 +29,7 @@ def split_matrix_svd(A, q0, q1, tol):
     assert A.ndim == 2
     assert len(q0) == A.shape[0]
     assert len(q1) == A.shape[1]
+    assert is_qsparse(A, [q0, -q1])
 
     # find common quantum numbers
     qis = np.intersect1d(q0, q1)
@@ -69,11 +71,11 @@ def split_matrix_svd(A, q0, q1, tol):
     # keep track of intermediate dimension
     D = 0
 
+    # allocate memory for U and V matrices, singular values and
+    # corresponding intermediate quantum numbers
     u = np.zeros((A.shape[0], max_interm_dim), dtype=A.dtype)
     v = np.zeros((max_interm_dim, A.shape[1]), dtype=A.dtype)
     s = np.zeros(max_interm_dim)
-
-    # corresponding intermediate quantum numbers
     q = np.zeros(max_interm_dim, dtype=q0.dtype)
 
     # for each shared quantum number...
@@ -130,6 +132,7 @@ def qr(A, q0, q1):
     assert A.ndim == 2
     assert len(q0) == A.shape[0]
     assert len(q1) == A.shape[1]
+    assert is_qsparse(A, [q0, -q1])
 
     # find common quantum numbers
     qis = np.intersect1d(q0, q1)
