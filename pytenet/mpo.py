@@ -1,33 +1,48 @@
 import numpy as np
+from qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
+from bond_ops import qr
 
 
 class MPO(object):
     """
     Matrix product operator (MPO) class.
 
-    The i-th MPO tensor has dimension [d, d, D[i], D[i+1]] with d the physical dimension
-    and D the list of virtual bond dimensions.
+    The i-th MPO tensor has dimension [d, d, D[i], D[i+1]] with d the physical
+    dimension at each site and D the list of virtual bond dimensions.
+
+    Quantum numbers are assumed to be additive and stored as integers.
+    qd stores the list of physical quantum numbers at each site (assumed to agree
+    for first and second physical dimension), and qD the virtual bond quantum numbers.
+    The sum of first physical and left virtual bond quantum number of each
+    non-zero tensor entry must be equal to the sum of second physical and
+    right virtual bond quantum number.
     """
 
-    def __init__(self, d, **kwargs):
+    def __init__(self, qd, **kwargs):
         """
+        Create a matrix product operator.
+
         Args:
-            d: physical dimension
-        Keyword args: either provide oplist and L, or D and (optionally) fill
+            qd: physical quantum numbers at each site (same for all sites)
+        Keyword args: either provide oplist and L, or qD and (optionally) fill
             oplist: list of operator chains
             L: number of lattice sites (only accessed if oplist is provided)
-            D: virtual bond dimensions
+            qD: virtual bond quantum numbers (list of quantum number lists)
             fill: numerical value for filling the MPO tensors, or
                  'random' for normally distributed random entries
         """
-        self.d = d
+        # require NumPy array
+        self.qd = np.array(qd)
+        d = len(qd)
         if 'opchains' in kwargs:
             if not 'L' in kwargs:
                 raise ValueError('number of lattice sites L must be provided as keyword argument together with list of opchains')
             self.from_opchains(d, kwargs['L'], kwargs['opchains'])
         else:
-            D    = kwargs.get('D',    [])
+            qD   = kwargs.get('qD',    [])
             fill = kwargs.get('fill', 0.0)
+            D = [len(qb) for qb in qD]
+            self.qD = [np.array(qDi) for qDi in qD]
             if isinstance(fill, int) or isinstance(fill, float) or isinstance(fill, complex):
                 self.A = [np.full((d, d, D[i], D[i+1]), fill) for i in range(len(D)-1)]
             elif fill == 'random':
@@ -37,6 +52,10 @@ class MPO(object):
                      1j*np.random.normal(size=(d, d, D[i], D[i+1]), scale=1./np.sqrt(d*D[i]*D[i+1])) for i in range(len(D)-1)]
             else:
                 raise ValueError('fill = {} invalid; must be a number or "random"'.format(fill))
+            # enforce block sparsity structure dictated by quantum numbers
+            for i in range(len(self.A)):
+                mask = qnumber_outer_sum([self.qd, -self.qd, self.qD[i], -self.qD[i+1]])
+                self.A[i] = np.where(mask == 0, self.A[i], 0)
 
     @property
     def nsites(self):
@@ -60,9 +79,10 @@ class MPO(object):
 
         if mode == 'left':
             for i in range(len(self.A) - 1):
-                self.A[i], self.A[i+1] = local_orthonormalize_left_qr(self.A[i], self.A[i+1])
+                self.A[i], self.A[i+1], self.qD[i+1] = local_orthonormalize_left_qr(
+                    self.A[i], self.A[i+1], self.qd, self.qD[i:i+2])
             # last tensor
-            self.A[-1], T = local_orthonormalize_left_qr(self.A[-1], np.array([[[[1]]]]))
+            self.A[-1], T, self.qD[-1] = local_orthonormalize_left_qr(self.A[-1], np.array([[[[1]]]]), self.qd, self.qD[-2:])
             # normalization factor (real-valued since diagonal of R matrix is real)
             assert T.shape == (1, 1, 1, 1)
             nrm = T[0, 0, 0, 0].real
@@ -73,9 +93,10 @@ class MPO(object):
             return nrm
         elif mode == 'right':
             for i in reversed(range(1, len(self.A))):
-                self.A[i], self.A[i-1] = local_orthonormalize_right_qr(self.A[i], self.A[i-1])
+                self.A[i], self.A[i-1], self.qD[i] = local_orthonormalize_right_qr(
+                    self.A[i], self.A[i-1], self.qd, self.qD[i:i+2])
             # first tensor
-            self.A[0], T = local_orthonormalize_right_qr(self.A[0], np.array([[[[1]]]]))
+            self.A[0], T, self.qD[0] = local_orthonormalize_right_qr(self.A[0], np.array([[[[1]]]]), self.qd, self.qD[:2])
             # normalization factor (real-valued since diagonal of R matrix is real)
             assert T.shape == (1, 1, 1, 1)
             nrm = T[0, 0, 0, 0].real
@@ -106,6 +127,7 @@ class MPO(object):
         if len(opchains) == 0:
             # dummy zero tensors
             self.A = [np.zeros((d, d, 1, 1), dtype=complex) for _ in range(L)]
+            self.qD = np.zeros(L+1, dtype=int)
             return
 
         opchains = sorted(opchains, key=lambda o: o.iend*L + o.length)
@@ -132,8 +154,9 @@ class MPO(object):
                 slotidx[k] += 1
             # last slot is 0 (for trailing identity matrices)
 
-        # allocate and fill MPO tensors
+        # allocate and fill MPO tensors and corresponding quantum numbers
         self.A = [np.zeros((slotidx[j], slotidx[j+1], d, d), dtype=complex) for j in range(L)]
+        self.qD = [np.zeros(slotidx[j], dtype=int) for j in range(L+1)]
         for j, opc in enumerate(opchains):
             for i in range(opc.length):
                 if i==0:
@@ -145,11 +168,18 @@ class MPO(object):
                     k = opslots[j][i-1]
                 # add to A (instead of simply assigning) to handle sum of single-site operators without dedicated bond slots
                 self.A[opc.istart + i][k, opslots[j][i]] += opc.oplist[i]
+                if opc.length > 1:
+                    self.qD[opc.istart + i + 1][opslots[j][i]] = (opc.qD[i] if i < opc.length-1 else 0)
 
         self.A = [W.transpose((2, 3, 0, 1)) for W in self.A]
 
+        # consistency check
+        for i in range(len(self.A)):
+            assert is_qsparse(self.A[i], [self.qd, -self.qd, self.qD[i], -self.qD[i+1]]), \
+                'sparsity pattern of MPO tensor does not match quantum numbers'
 
-def local_orthonormalize_left_qr(A, Anext):
+
+def local_orthonormalize_left_qr(A, Anext, qd, qD):
     """
     Left-orthonormalize local site tensor A by a QR decomposition,
     and update tensor at next site.
@@ -157,14 +187,15 @@ def local_orthonormalize_left_qr(A, Anext):
     # perform QR decomposition and replace A by reshaped Q matrix
     s = A.shape
     assert len(s) == 4
-    Q, R = np.linalg.qr(A.reshape((s[0]*s[1]*s[2], s[3])), mode='reduced')
+    q0 = qnumber_flatten([qd, -qd, qD[0]])
+    (Q, R, qbond) = qr(A.reshape((s[0]*s[1]*s[2], s[3])), q0, qD[1])
     A = Q.reshape((s[0], s[1], s[2], Q.shape[1]))
     # update Anext tensor: multiply with R from left
     Anext = np.tensordot(R, Anext, (1, 2)).transpose((1, 2, 0, 3))
-    return (A, Anext)
+    return (A, Anext, qbond)
 
 
-def local_orthonormalize_right_qr(A, Aprev):
+def local_orthonormalize_right_qr(A, Aprev, qd, qD):
     """
     Right-orthonormalize local site tensor A by a QR decomposition,
     and update tensor at previous site.
@@ -174,11 +205,12 @@ def local_orthonormalize_right_qr(A, Aprev):
     # perform QR decomposition and replace A by reshaped Q matrix
     s = A.shape
     assert len(s) == 4
-    Q, R = np.linalg.qr(A.reshape((s[0]*s[1]*s[2], s[3])), mode='reduced')
+    q0 = qnumber_flatten([qd, -qd, -qD[1]])
+    (Q, R, qbond) = qr(A.reshape((s[0]*s[1]*s[2], s[3])), q0, -qD[0])
     A = Q.reshape((s[0], s[1], s[2], Q.shape[1])).transpose((0, 1, 3, 2))
     # update Aprev tensor: multiply with R from right
     Aprev = np.tensordot(Aprev, R, (3, 1))
-    return (A, Aprev)
+    return (A, Aprev, -qbond)
 
 
 def merge_MPO_tensor_pair(A0, A1):

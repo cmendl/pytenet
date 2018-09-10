@@ -2,12 +2,27 @@ import numpy as np
 
 
 class OpChain(object):
-    """Operator chain op_i x op_{i+1} x ... x op_{i+n-1},
-    with op_i acting on lattice site i."""
+    """
+    Operator chain op_i x op_{i+1} x ... x op_{i+n-1},
+    with op_i acting on lattice site i.
 
-    def __init__(self, istart=0, oplist=[]):
-        self.istart = istart
+    A single bond quantum number is interleaved between each op_i and op_{i+1};
+    set all quantum numbers to zero to effectively disable them.
+    """
+
+    def __init__(self, oplist, qD, istart=0):
+        """
+        Create an operator chain.
+
+        Args:
+            oplist: list of the local op_i operators
+            qD: list of bond quantum numbers
+            istart: first lattice site the operator chain acts on
+        """
+        assert len(oplist) == len(qD) + 1
         self.oplist = oplist
+        self.qD = list(qD)
+        self.istart = istart
 
     @property
     def iend(self):
@@ -24,11 +39,13 @@ class OpChain(object):
         npad = L - self.iend
         # concatenate lists
         self.oplist += [np.identity(d) for _ in range(npad)]
+        self.qD     += npad*[0]
 
     def pad_identities_left(self, d):
         """Pad identity matrices on the left."""
         # concatenate lists
         self.oplist = [np.identity(d) for _ in range(self.istart)] + self.oplist
+        self.qD     = self.istart*[0] + self.qD
         self.istart = 0
 
     def as_matrix(self, d, L):

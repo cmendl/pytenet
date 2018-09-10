@@ -4,26 +4,17 @@ import sys
 sys.path.append('../pytenet/')
 from mpo import MPO
 from opchain import OpChain
+from qnumber import is_qsparse, qnumber_outer_sum
 
 
 class TestMPO(unittest.TestCase):
 
-    def test_random_init(self):
-
-        # create random matrix product operator
-        d = 3
-        D = [1, 5, 4, 7, 1]
-        mpo0 = MPO(d, D=D, fill='random')
-
-        self.assertEqual(mpo0.bond_dims, D, 'virtual bond dimensions must agree')
-
-
     def test_orthonormalization(self):
 
         # create random matrix product operator
-        d = 3
-        D = [1, 10, 3, 4, 7, 1]
-        mpo0 = MPO(d, D=D, fill='random')
+        d = 4
+        D = [1, 10, 13, 14, 7, 1]
+        mpo0 = MPO(np.random.randint(-2, 3, size=d), qD=[np.random.randint(-2, 3, size=Di) for Di in D], fill='random')
 
         self.assertEqual(mpo0.bond_dims, D, msg='virtual bond dimensions')
 
@@ -35,6 +26,10 @@ class TestMPO(unittest.TestCase):
 
         self.assertLessEqual(mpo0.bond_dims[1], d**2,
             msg='virtual bond dimension can only increase by factor of "d^2" per site')
+
+        for i in range(mpo0.nsites):
+            self.assertTrue(is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]),
+                            msg='sparsity pattern of MPO tensors must match quantum numbers')
 
         rhoL = mpo0.as_matrix()
         # density matrix should now be normalized
@@ -60,6 +55,10 @@ class TestMPO(unittest.TestCase):
         self.assertLessEqual(mpo0.bond_dims[-2], d**2,
             msg='virtual bond dimension can only increase by factor of "d^2" per site')
 
+        for i in range(mpo0.nsites):
+            self.assertTrue(is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]),
+                            msg='sparsity pattern of MPO tensors must match quantum numbers')
+
         self.assertAlmostEqual(abs(cR), 1., delta=1e-12,
             msg='normalization factor must have magnitude 1 due to previous left-orthonormalization')
 
@@ -84,17 +83,30 @@ class TestMPO(unittest.TestCase):
         d = 4
         L = 5
 
+        # physical quantum numbers
+        qd = np.random.randint(-2, 3, size=d)
+
         # fictitious operator chains
         opchains = []
         n = np.random.randint(20)
         for _ in range(n):
             istart = np.random.randint(L)
-            length = np.random.randint(L - istart + 1)
-            oplist = [np.random.normal(size=(d, d)) + 1j*np.random.normal(size=(d, d)) for _ in range(length)]
-            opchains.append(OpChain(istart, oplist))
+            length = np.random.randint(1, L - istart + 1)
+            oplist = [randn_complex((d, d)) for _ in range(length)]
+            qD = np.random.randint(-2, 3, size=length-1)
+            # enforce sparsity structure dictated by quantum numbers
+            qDpad = np.pad(qD, 1, mode='constant')
+            for i in range(length):
+                mask = qnumber_outer_sum([qd + qDpad[i], -(qd + qDpad[i+1])])
+                oplist[i] = np.where(mask == 0, oplist[i], 0)
+            opchains.append(OpChain(oplist, qD, istart))
 
         # construct MPO representation corresponding to operator chains
-        mpo0 = MPO(d, L=L, opchains=opchains)
+        mpo0 = MPO(qd, L=L, opchains=opchains)
+
+        for i in range(mpo0.nsites):
+            self.assertTrue(is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]),
+                            msg='sparsity pattern of MPO tensors must match quantum numbers')
 
         # construct full Hamiltonian from operator chains, as reference
         Href = sum([opc.as_matrix(d, L) for opc in opchains])
@@ -102,6 +114,11 @@ class TestMPO(unittest.TestCase):
         # compare
         self.assertAlmostEqual(np.linalg.norm(mpo0.as_matrix() - Href), 0., delta=1e-10,
             msg='full merging of MPO must be equal to matrix representation of operator chains')
+
+
+def randn_complex(size):
+    return (np.random.standard_normal(size)
+       + 1j*np.random.standard_normal(size)) / np.sqrt(2)
 
 
 if __name__ == '__main__':
