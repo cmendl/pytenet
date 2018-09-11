@@ -6,26 +6,32 @@ from opchain import OpChain
 def ising_MPO(L, J, h, g):
     """Construct transverse-field Ising Hamiltonian
     'sum J sz sz + h sz + g sx' on a 1D lattice as MPO."""
+    # set physical quantum numbers to zero
+    qd = [0, 0]
     # Pauli matrices
     sigma_x = np.array([[0., 1.], [1.,  0.]])
     sigma_z = np.array([[1., 0.], [0., -1.]])
     # local two-site terms
-    oplists = [[J*sigma_z, sigma_z], [h*sigma_z + g*sigma_x]]
+    lopchains = [OpChain([J*sigma_z, sigma_z], [0]), OpChain([h*sigma_z + g*sigma_x], [])]
     # convert to MPO
-    return _local_oplists_to_MPO(2, L, oplists)
+    return _local_opchains_to_MPO(qd, L, lopchains)
 
 
 def heisenberg_XXZ_MPO(L, J, D, h):
     """Construct XXZ Heisenberg Hamiltonian
     'sum J X X + J Y Y + D Z Z - h Z' on a 1D lattice as MPO."""
+    # physical quantum numbers (multiplied by 2)
+    qd = [1, -1]
     # spin operators
     Sup = np.array([[0.,  1.], [0.,  0. ]])
     Sdn = np.array([[0.,  0.], [1.,  0. ]])
     Sz  = np.array([[0.5, 0.], [0., -0.5]])
     # local two-site and single-site terms
-    oplists = [[0.5*J*Sup, Sdn], [0.5*J*Sdn, Sup], [D*Sz, Sz], [-h*Sz]]
+    lopchains = [OpChain([0.5*J*Sup, Sdn], [ 2]),
+                 OpChain([0.5*J*Sdn, Sup], [-2]),
+                 OpChain([D*Sz, Sz], [0]), OpChain([-h*Sz], [])]
     # convert to MPO
-    return _local_oplists_to_MPO(2, L, oplists)
+    return _local_opchains_to_MPO(qd, L, lopchains)
 
 
 def bose_hubbard_MPO(d, L, t, U, mu):
@@ -40,16 +46,19 @@ def bose_hubbard_MPO(d, L, t, U, mu):
         U   interaction strength
         mu  chemical potential
     """
+    # physical quantum numbers (particle number)
+    qd = np.arange(d)
     # bosonic creation and annihilation operators
     b_dag = np.diag(np.sqrt(np.arange(1, d, dtype=float)), -1)
     b_ann = np.diag(np.sqrt(np.arange(1, d, dtype=float)),  1)
     # number operator
     numop = np.diag(np.arange(d, dtype=float))
     # local two-site and single-site terms
-    oplists = [[-t*b_dag, b_ann], [b_ann, -t*b_dag],
-               [0.5*U*np.dot(numop, numop - np.identity(d)) - mu*numop]]
+    lopchains = [OpChain([-t*b_dag, b_ann], [ 1]),
+                 OpChain([b_ann, -t*b_dag], [-1]),
+                 OpChain([0.5*U*np.dot(numop, numop - np.identity(d)) - mu*numop], [])]
     # convert to MPO
-    return _local_oplists_to_MPO(d, L, oplists)
+    return _local_opchains_to_MPO(qd, L, lopchains)
 
 
 def fermi_hubbard_MPO(L, t, U, mu):
@@ -64,6 +73,10 @@ def fermi_hubbard_MPO(L, t, U, mu):
         U   Hubbard interaction strength
         mu  chemical potential (mu = 0 corresponds to half-filling)
     """
+    # physical particle number and spin quantum numbers (encoded as single integer)
+    qN = [0,  1,  1,  2]
+    qS = [0, -1,  1,  0]
+    qd = [(qn[0] << 16) + qn[1] for qn in zip(qN, qS)]
     id2 = np.identity(2)
     # creation and annihilation operators for a single spin and lattice site
     a_ann = np.array([[0., 1.], [0., 0.]])
@@ -73,25 +86,25 @@ def fermi_hubbard_MPO(L, t, U, mu):
     # Pauli-Z matrix required for Jordan-Wigner transformation
     F = np.array([[1., 0.], [0., -1.]])
     # local two-site and single-site terms
-    oplists = [
+    lopchains = [
         # spin-up kinetic hopping
-        [-t*np.kron(a_dag, F), np.kron(a_ann, id2)],
-        [-t*np.kron(a_ann, F), np.kron(a_dag, id2)],
+        OpChain([-t*np.kron(a_dag, F), np.kron(a_ann, id2)], [( 1 << 16) + 1]),
+        OpChain([-t*np.kron(a_ann, F), np.kron(a_dag, id2)], [(-1 << 16) - 1]),
         # spin-down kinetic hopping
-        [np.kron(id2, a_dag), -t*np.kron(F, a_ann)],
-        [np.kron(id2, a_ann), -t*np.kron(F, a_dag)],
+        OpChain([np.kron(id2, a_dag), -t*np.kron(F, a_ann)], [( 1 << 16) - 1]),
+        OpChain([np.kron(id2, a_ann), -t*np.kron(F, a_dag)], [(-1 << 16) + 1]),
         # interaction U (n_up-1/2) (n_dn-1/2) and number operator - mu (n_up + n_dn)
-        [U*np.diag([0.25, -0.25, -0.25, 0.25])
-         - mu*(np.kron(numop, id2) + np.kron(id2, numop))]]
+        OpChain([U*np.diag([0.25, -0.25, -0.25, 0.25])
+                 - mu*(np.kron(numop, id2) + np.kron(id2, numop))], [])]
     # convert to MPO
-    return _local_oplists_to_MPO(4, L, oplists)
+    return _local_opchains_to_MPO(qd, L, lopchains)
 
 
-def _local_oplists_to_MPO(d, L, locoplists):
+def _local_opchains_to_MPO(qd, L, lopchains):
     """Construct Hamiltonian as MPO based on local operator chains, which are shifted along a 1D lattice."""
     opchains = []
-    for oplist in locoplists:
-        for i in range(L - len(oplist) + 1):
+    for lopc in lopchains:
+        for i in range(L - lopc.length + 1):
             # add shifted opchain
-            opchains.append(OpChain(i, list(oplist)))
-    return MPO(d, L=L, opchains=opchains)
+            opchains.append(OpChain(list(lopc.oplist), lopc.qD, istart=i))
+    return MPO(qd, L=L, opchains=opchains)
