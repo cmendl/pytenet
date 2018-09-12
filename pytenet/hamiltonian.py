@@ -14,7 +14,7 @@ def ising_MPO(L, J, h, g):
     # local two-site terms
     lopchains = [OpChain([J*sigma_z, sigma_z], [0]), OpChain([h*sigma_z + g*sigma_x], [])]
     # convert to MPO
-    return _local_opchains_to_MPO(qd, L, lopchains)
+    return local_opchains_to_MPO(qd, L, lopchains)
 
 
 def heisenberg_XXZ_MPO(L, J, D, h):
@@ -31,7 +31,7 @@ def heisenberg_XXZ_MPO(L, J, D, h):
                  OpChain([0.5*J*Sdn, Sup], [-2]),
                  OpChain([D*Sz, Sz], [0]), OpChain([-h*Sz], [])]
     # convert to MPO
-    return _local_opchains_to_MPO(qd, L, lopchains)
+    return local_opchains_to_MPO(qd, L, lopchains)
 
 
 def bose_hubbard_MPO(d, L, t, U, mu):
@@ -58,7 +58,7 @@ def bose_hubbard_MPO(d, L, t, U, mu):
                  OpChain([b_ann, -t*b_dag], [-1]),
                  OpChain([0.5*U*np.dot(numop, numop - np.identity(d)) - mu*numop], [])]
     # convert to MPO
-    return _local_opchains_to_MPO(qd, L, lopchains)
+    return local_opchains_to_MPO(qd, L, lopchains)
 
 
 def fermi_hubbard_MPO(L, t, U, mu):
@@ -97,10 +97,10 @@ def fermi_hubbard_MPO(L, t, U, mu):
         OpChain([U*np.diag([0.25, -0.25, -0.25, 0.25])
                  - mu*(np.kron(numop, id2) + np.kron(id2, numop))], [])]
     # convert to MPO
-    return _local_opchains_to_MPO(qd, L, lopchains)
+    return local_opchains_to_MPO(qd, L, lopchains)
 
 
-def _local_opchains_to_MPO(qd, L, lopchains):
+def local_opchains_to_MPO(qd, L, lopchains):
     """Construct Hamiltonian as MPO based on local operator chains, which are shifted along a 1D lattice."""
     opchains = []
     for lopc in lopchains:

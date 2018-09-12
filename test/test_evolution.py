@@ -4,6 +4,8 @@ from scipy.linalg import expm
 import sys
 sys.path.append('../pytenet/')
 from mps import MPS
+from opchain import OpChain
+from operation import operator_average
 import hamiltonian
 from evolution import integrate_local_singlesite
 
@@ -14,9 +16,6 @@ class TestEvolution(unittest.TestCase):
 
         # number of lattice sites
         L = 10
-
-        # physical dimension per lattice site
-        d = 2
 
         # time step can have both real and imaginary parts;
         # for real-time evolution use purely imaginary dt!
@@ -30,25 +29,44 @@ class TestEvolution(unittest.TestCase):
         h = -2.0/7
         mpoH = hamiltonian.heisenberg_XXZ_MPO(L, J, D, h)
 
-        # maximum virtual bond dimension
-        Dmax = 20
+        # fix total spin quantum number of wavefunction (trailing virtual bond)
+        spin_tot = 2
+
+        # enumerate all possible virtual bond quantum numbers (including multiplicities);
+        # will be implicitly reduced by orthonormalization steps below
+        qD = [np.array([0])]
+        for i in range(L-1):
+            qD.append(np.sort(np.array([q + mpoH.qd for q in qD[-1]]).reshape(-1)))
+        qD.append(np.array([2*spin_tot]))
 
         # initial wavefunction as MPS with random entries
-        D = np.minimum(np.minimum(d**np.arange(L + 1), d**(L - np.arange(L + 1))), Dmax)
-        psi = MPS(d, D, fill='random')
+        psi = MPS(mpoH.qd, qD, fill='random')
+        psi.orthonormalize(mode='left')
+        psi.orthonormalize(mode='right')
         # effectively clamp virtual bond dimension of initial state
-        Dinit = 3
+        Dinit = 8
         for i in range(L):
             psi.A[i][:, Dinit:, :] = 0
             psi.A[i][:, :, Dinit:] = 0
-        psi.orthonormalize(mode='right')
+        # orthonormalize again
         psi.orthonormalize(mode='left')
 
-        # represent psi as vector for reference calculation
+        self.assertEqual(psi.qD[-1][0], 2*spin_tot,
+            msg='trailing bond quantum number must not change during orthonormalization')
+
+        # total spin operator as MPO
+        Sztot = hamiltonian.local_opchains_to_MPO(mpoH.qd, L, [OpChain([np.diag([0.5, -0.5])], [])])
+
+        # explicity compute average spin
+        spin_avr = operator_average(psi, Sztot)
+        self.assertAlmostEqual(abs(spin_avr - spin_tot), 0, delta=1e-14,
+            msg='average spin must be equal to prescribed value')
+
+        # reference time evolution
         psi_ref = np.dot(expm(-dt*numsteps * mpoH.as_matrix()), psi.as_vector())
 
-        # run time evolution
-        integrate_local_singlesite(mpoH, psi, dt, numsteps)
+        # run TDVP time evolution
+        integrate_local_singlesite(mpoH, psi, dt, numsteps, numiter_lanczos=6)
 
         # compare time-evolved wavefunctions
         self.assertAlmostEqual(np.linalg.norm(psi.as_vector() - psi_ref), 0, delta=2e-5,

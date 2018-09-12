@@ -1,6 +1,8 @@
 import numpy as np
 import operation
 import krylov
+from qnumber import qnumber_flatten, is_qsparse
+from bond_ops import qr
 
 
 def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
@@ -38,6 +40,11 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
     BL = [None for _ in range(L)]
     BL[0] = np.array([[[1]]], dtype=BR[0].dtype)
 
+    # consistency check
+    for i in range(len(BR)):
+        assert is_qsparse(BR[i], [psi.qD[i+1], H.qD[i+1], -psi.qD[i+1]]), \
+            'sparsity pattern of operator blocks must match quantum numbers'
+
     for n in range(numsteps):
 
         # sweep from left to right
@@ -46,7 +53,8 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
             psi.A[i] = _local_hamiltonian_step(BL[i], BR[i], H.A[i], psi.A[i], 0.5*dt, numiter_lanczos)
             # left-orthonormalize current psi.A[i]
             s = psi.A[i].shape
-            Q, C = np.linalg.qr(psi.A[i].reshape((s[0]*s[1], s[2])), mode='reduced')
+            (Q, C, psi.qD[i+1]) = qr(psi.A[i].reshape((s[0]*s[1], s[2])),
+                                     qnumber_flatten([psi.qd, psi.qD[i]]), psi.qD[i+1])
             psi.A[i] = Q.reshape((s[0], s[1], Q.shape[1]))
             # update the left blocks
             BL[i+1] = operation.contraction_operator_step_left(psi.A[i], H.A[i], BL[i])
@@ -66,7 +74,9 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
             psi.A[i] = psi.A[i].transpose((0, 2, 1))
             # perform QR decomposition
             s = psi.A[i].shape
-            Q, C = np.linalg.qr(psi.A[i].reshape((s[0]*s[1], s[2])), mode='reduced')
+            (Q, C, qbond) = qr(psi.A[i].reshape((s[0]*s[1], s[2])),
+                               qnumber_flatten([psi.qd, -psi.qD[i+1]]), -psi.qD[i])
+            psi.qD[i] = -qbond
             # replace psi.A[i] by reshaped Q matrix and undo flip of left and right virtual bond dimensions
             psi.A[i] = Q.reshape((s[0], s[1], Q.shape[1])).transpose((0, 2, 1))
             # update the right blocks
