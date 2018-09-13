@@ -1,7 +1,22 @@
+[![Build Status](https://travis-ci.com/cmendl/pytenet.svg?branch=master)](https://travis-ci.com/cmendl/pytenet)
+
+
 Tensor networks for quantum simulations
 =======================================
 
 Python implementation of quantum tensor network operations and simulations, using NumPy to handle tensors.
+
+
+Features
+--------
+- matrix product state and operator classes
+- construct common Hamiltonians as MPOs, straightforward to support custom Hamiltonians
+- convert arbitrary operator chains to MPOs
+- TDVP time evolution (real and imaginary)
+- generate vector / matrix representations of matrix product states / operators
+- Krylov subspace methods for local operations
+- one-site local energy minimization using Lanczos iteration
+- built-in support for additive quantum numbers
 
 
 References
