@@ -14,11 +14,11 @@ class TestKrylov(unittest.TestCase):
         numiter = 24
 
         # random Hermitian matrix
-        A = (np.random.normal(size=(n, n)) + 1j*np.random.normal(size=(n, n))) / np.sqrt(n)
+        A = randn_complex((n, n)) / np.sqrt(n)
         A = 0.5 * (A + A.conj().T)
 
         # random complex starting vector
-        vstart = (np.random.normal(size=n) + 1j*np.random.normal(size=n)) / np.sqrt(n)
+        vstart = randn_complex(n) / np.sqrt(n)
 
         # simply use A as linear transformation
         alpha, beta, V = krylov.lanczos_iteration(lambda x: np.dot(A, x), vstart, numiter)
@@ -39,11 +39,11 @@ class TestKrylov(unittest.TestCase):
         numeig  = 2
 
         # random Hermitian matrix
-        A = (np.random.normal(size=(n, n)) + 1j*np.random.normal(size=(n, n))) / np.sqrt(n)
+        A = randn_complex((n, n)) / np.sqrt(n)
         A = 0.5 * (A + A.conj().T)
 
         # random complex starting vector
-        vstart = (np.random.normal(size=n) + 1j*np.random.normal(size=n)) / np.sqrt(n)
+        vstart = randn_complex(n) / np.sqrt(n)
 
         # simply use A as linear transformation;
         w, u_ritz = krylov.eigh(lambda x: np.dot(A, x), vstart, numiter, numeig)
@@ -62,7 +62,8 @@ class TestKrylov(unittest.TestCase):
         # compare lowest eigenvalues
         self.assertAlmostEqual(w[0], w_ref[0], delta=0.001,
                                msg='lowest Lanczos eigenvalue should approximate exact eigenvalue')
-        self.assertAlmostEqual(w[1], w_ref[1], delta=0.01,
+
+        self.assertAlmostEqual(w[1], w_ref[1], delta=0.02,
                                msg='second-lowest Lanczos eigenvalue should approximate exact eigenvalue')
 
     def test_expm(self):
@@ -71,11 +72,11 @@ class TestKrylov(unittest.TestCase):
         numiter = 12
 
         # random Hermitian matrix
-        A = (np.random.normal(size=(n, n)) + 1j*np.random.normal(size=(n, n))) / np.sqrt(n)
+        A = randn_complex((n, n)) / np.sqrt(n)
         A = 0.5 * (A + A.conj().T)
 
         # random complex vector
-        v = (np.random.normal(size=n) + 1j*np.random.normal(size=n)) / np.sqrt(n)
+        v = randn_complex(n) / np.sqrt(n)
 
         # time step
         dt = 0.4 + 0.2j
@@ -88,6 +89,11 @@ class TestKrylov(unittest.TestCase):
 
         self.assertAlmostEqual(np.linalg.norm(vt - vt_ref), 0., delta=1e-11,
                                msg='Krylov subspace approximation of expm(dt*A)*v should match reference')
+
+
+def randn_complex(size):
+    return (np.random.standard_normal(size)
+       + 1j*np.random.standard_normal(size)) / np.sqrt(2)
 
 
 if __name__ == '__main__':
