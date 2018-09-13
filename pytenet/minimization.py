@@ -2,6 +2,7 @@ import numpy as np
 import mps
 import operation
 import krylov
+from qnumber import is_qsparse
 
 
 def calculate_ground_state_local_singlesite(H, psi, numsweeps, numiter_lanczos=25):
@@ -36,6 +37,11 @@ def calculate_ground_state_local_singlesite(H, psi, numsweeps, numiter_lanczos=2
     BL = [None for _ in range(L)]
     BL[0] = np.array([[[1]]], dtype=BR[0].dtype)
 
+    # consistency check
+    for i in range(len(BR)):
+        assert is_qsparse(BR[i], [psi.qD[i+1], H.qD[i+1], -psi.qD[i+1]]), \
+            'sparsity pattern of operator blocks must match quantum numbers'
+
     en_min = np.zeros(numsweeps)
 
     # TODO: number of iterations should be determined by tolerance and some convergence measure
@@ -46,7 +52,8 @@ def calculate_ground_state_local_singlesite(H, psi, numsweeps, numiter_lanczos=2
         for i in range(L - 1):
             en, psi.A[i] = _minimize_local_energy(BL[i], BR[i], H.A[i], psi.A[i], numiter_lanczos)
             # left-orthonormalize current psi.A[i]
-            psi.A[i], psi.A[i+1] = mps.local_orthonormalize_left_qr(psi.A[i], psi.A[i+1])
+            (psi.A[i], psi.A[i+1], psi.qD[i+1]) = mps.local_orthonormalize_left_qr(
+                                        psi.A[i], psi.A[i+1], psi.qd, psi.qD[i:i+2])
             # update the left blocks
             BL[i+1] = operation.contraction_operator_step_left(psi.A[i], H.A[i], BL[i])
 
@@ -54,12 +61,14 @@ def calculate_ground_state_local_singlesite(H, psi, numsweeps, numiter_lanczos=2
         for i in reversed(range(1, L)):
             en, psi.A[i] = _minimize_local_energy(BL[i], BR[i], H.A[i], psi.A[i], numiter_lanczos)
             # right-orthonormalize current psi.A[i]
-            psi.A[i], psi.A[i-1] = mps.local_orthonormalize_right_qr(psi.A[i], psi.A[i-1])
+            (psi.A[i], psi.A[i-1], psi.qD[i]) = mps.local_orthonormalize_right_qr(
+                                        psi.A[i], psi.A[i-1], psi.qd, psi.qD[i:i+2])
             # update the right blocks
             BR[i-1] = operation.contraction_operator_step_right(psi.A[i], H.A[i], BR[i])
 
         # right-normalize leftmost tensor to ensure that 'psi' is normalized
-        psi.A[0], _ = mps.local_orthonormalize_right_qr(psi.A[0], np.array([[[1]]]))
+        (psi.A[0], _, psi.qD[0]) = mps.local_orthonormalize_right_qr(
+                                psi.A[0], np.array([[[1]]]), psi.qd, psi.qD[:2])
 
         # record energy after each sweep
         en_min[n] = en
