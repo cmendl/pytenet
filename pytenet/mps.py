@@ -64,6 +64,12 @@ class MPS(object):
             D.append(self.A[-1].shape[2])
             return D
 
+    def zero_qnumbers(self):
+        """Set all quantum numbers to zero (effectively disabling them)."""
+        self.qd.fill(0)
+        for i in range(len(self.qD)):
+            self.qD[i].fill(0)
+
     def orthonormalize(self, mode='left'):
         """Left- or right-orthonormalize the MPS using QR decompositions."""
         if len(self.A) == 0:
