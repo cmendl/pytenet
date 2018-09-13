@@ -9,8 +9,10 @@ from scipy.linalg import expm
 import copy
 import sys
 sys.path.append('../pytenet/')
+from qnumber import qnumber_flatten, is_qsparse
 from mps import MPS
 from mpo import MPO
+from opchain import OpChain
 import hamiltonian
 import evolution
 
@@ -28,15 +30,17 @@ def main():
     DH =  1.2
     h  = -0.2
     mpoH = hamiltonian.heisenberg_XXZ_MPO(L, J, DH, h)
+    mpoH.zero_qnumbers()
     # realize commutator [H, .] as matrix product operator
     mpoHcomm = heisenberg_XXZ_comm_MPO(L, J, DH, h)
+    mpoHcomm.zero_qnumbers()
     print('norm of [H, .] operator:', np.linalg.norm(mpoHcomm.as_matrix()))
 
     # initial density matrix as MPO with random entries (not necessarily Hermitian)
     Dmax = 20
     D = np.minimum(np.minimum(d**(2*np.arange(L + 1)), d**(2*(L - np.arange(L + 1)))), Dmax)
     np.random.seed(42)
-    rho = MPO(d, D=D, fill='random')
+    rho = MPO(mpoH.qd, qD=[np.zeros(Di, dtype=int) for Di in D], fill='random')
     # effectively clamp virtual bond dimension
     for i in range(L):
         rho.A[i][:, :, 3:, :] = 0
@@ -64,6 +68,7 @@ def main():
     # reference calculation: exp(-t H) rho exp(t H)
     rho_t_ref = np.dot(np.dot(expm(-t*mpoH.as_matrix()), rho_mat), expm(t*mpoH.as_matrix()))
 
+    # Frobenius norm not preserved by time evolution
     print('Frobenius norm of initial rho:', np.linalg.norm(rho_mat, 'fro'))
     print('Frobenius norm of rho(t):     ', np.linalg.norm(rho_t_ref, 'fro'))
 
@@ -75,8 +80,9 @@ def main():
     # run time evolution
     psi_t = copy.deepcopy(psi)
     evolution.integrate_local_singlesite(mpoHcomm, psi_t, dt, numsteps, numiter_lanczos=10)
-    rho_t = cast_to_MPO(psi_t)
+    rho_t = cast_to_MPO(psi_t, rho.qd)
 
+    # compare with reference (error should be approximately 1e-4)
     err = np.linalg.norm(rho_t.as_matrix() - rho_t_ref)
     print('time evolution error: {:g}'.format(err))
 
@@ -86,39 +92,59 @@ def cast_to_MPS(mpo):
     Cast a matrix product operator into MPS form by combining the pair of local
     physical dimensions into one dimension.
     """
-    mps = MPS(mpo.d**2, (mpo.nsites + 1) * [1], fill=0.0)
+    mps = MPS(qnumber_flatten([mpo.qd, -mpo.qd]), mpo.qD, fill=0.0)
     for i in range(mpo.nsites):
         s = mpo.A[i].shape
         mps.A[i] = mpo.A[i].reshape((s[0]*s[1], s[2], s[3])).copy()
+        assert is_qsparse(mps.A[i], [mps.qd, mps.qD[i], -mps.qD[i+1]])
     return mps
 
 
-def cast_to_MPO(mps):
+def cast_to_MPO(mps, qd):
     """
     Cast a matrix product state into MPO form by interpreting the physical
     dimension as Kronecker product of a pair of dimensions.
     """
-    mpo = MPO(int(np.sqrt(mps.d)), D=(mps.nsites + 1)*[1], fill=0.0)
+    assert not np.any(mps.qd - qnumber_flatten([qd, -qd]))
+
+    mpo = MPO(qd, qD=mps.qD, fill=0.0)
     for i in range(mps.nsites):
         s = mps.A[i].shape
-        mpo.A[i] = mps.A[i].reshape((mpo.d, mpo.d, s[1], s[2])).copy()
+        mpo.A[i] = mps.A[i].reshape((len(qd), len(qd), s[1], s[2])).copy()
+        assert is_qsparse(mpo.A[i], [mpo.qd, -mpo.qd, mpo.qD[i], -mpo.qD[i+1]])
     return mpo
+
+
+def construct_comm_opchain(opchain):
+    """Construct operator chain on enlarged physical space to realize commutator."""
+    # opchain acting from the left
+    oplist = [np.kron(op, np.identity(len(op))) for op in opchain.oplist]
+    opcL = OpChain(oplist, opchain.qD)
+    # -opchain acting from the right
+    oplist = [np.kron(np.identity(len(op)), op.T) for op in opchain.oplist]
+    oplist[0] *= -1
+    opcR = OpChain(oplist, opchain.qD)
+    return [opcL, opcR]
 
 
 def heisenberg_XXZ_comm_MPO(L, J, D, h):
     """Construct commutator with XXZ Heisenberg Hamiltonian
     'sum J X X + J Y Y + D Z Z - h Z' on a 1D lattice as MPO."""
+    # physical quantum numbers (multiplied by 2)
+    qd = np.array([1, -1])
     # spin operators
     Sup = np.array([[0.,  1.], [0.,  0. ]])
     Sdn = np.array([[0.,  0.], [1.,  0. ]])
     Sz  = np.array([[0.5, 0.], [0., -0.5]])
     # local two-site and single-site terms
-    oplists = [[0.5*J*Sup, Sdn], [0.5*J*Sdn, Sup], [D*Sz, Sz], [-h*Sz]]
+    lopchains = [OpChain([0.5*J*Sup, Sdn], [ 2]),
+                 OpChain([0.5*J*Sdn, Sup], [-2]),
+                 OpChain([D*Sz, Sz], [0]), OpChain([-h*Sz], [])]
     # convert to MPO form, with local terms acting either on first or second physical dimension
-    return hamiltonian._local_oplists_to_MPO(4, L,
-        [[np.kron(op, np.identity(2)) for op in oplist] for oplist in oplists] +
-        [[(-1 if i == 0 else 1)*np.kron(np.identity(2), op.transpose()) for i, op in enumerate(oplist)]
-            for oplist in oplists])
+    locopchains = []
+    for opchain in lopchains:
+        locopchains += construct_comm_opchain(opchain)
+    return hamiltonian.local_opchains_to_MPO(qnumber_flatten([qd, -qd]), L, locopchains)
 
 
 if __name__ == '__main__':

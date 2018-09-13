@@ -20,11 +20,12 @@ def main():
     d = 3
     # fictitious bond dimensions (should be bounded by d^i and d^(L-i))
     D = [1, 2, 5, 7, 3, 1]
+
     # number of lattice sites
     L = len(D) - 1
     print('L:', L)
 
-    psi = MPS(d, D, fill='random')
+    psi = MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in D], fill='random')
 
     T = []
     for i in range(L):

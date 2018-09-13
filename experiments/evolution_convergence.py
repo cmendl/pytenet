@@ -30,13 +30,14 @@ def main():
     DH =  1.2
     h  = -0.2
     mpoH = hamiltonian.heisenberg_XXZ_MPO(L, J, DH, h)
+    mpoH.zero_qnumbers()
 
     # initial wavefunction as MPS with random entries
     Dmax = 20
     D = np.minimum(np.minimum(2**np.arange(L + 1), 2**(L - np.arange(L + 1))), Dmax)
     print('D:', D)
     np.random.seed(42)
-    psi = MPS(2, D, fill='random')
+    psi = MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
     # effectively clamp virtual bond dimension
     for i in range(L):
         psi.A[i][:, 3:, :] = 0
