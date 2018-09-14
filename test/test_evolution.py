@@ -66,7 +66,7 @@ class TestEvolution(unittest.TestCase):
         psi_ref = np.dot(expm(-dt*numsteps * mpoH.as_matrix()), psi.as_vector())
 
         # run TDVP time evolution
-        integrate_local_singlesite(mpoH, psi, dt, numsteps, numiter_lanczos=6)
+        integrate_local_singlesite(mpoH, psi, dt, numsteps, numiter_lanczos=5)
 
         # compare time-evolved wavefunctions
         self.assertAlmostEqual(np.linalg.norm(psi.as_vector() - psi_ref), 0, delta=2e-5,
