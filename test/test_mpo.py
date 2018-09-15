@@ -116,6 +116,27 @@ class TestMPO(unittest.TestCase):
             msg='full merging of MPO must be equal to matrix representation of operator chains')
 
 
+    def test_multiply(self):
+
+        # physical quantum numbers
+        qd = np.random.randint(-2, 3, size=3)
+
+        # create random matrix product operators
+        op0 = MPO(qd, qD=[np.random.randint(-2, 3, size=Di) for Di in [1, 10, 13, 24, 17, 9, 1]], fill='random')
+        op1 = MPO(qd, qD=[np.random.randint(-2, 3, size=Di) for Di in [1, 8, 17, 11, 23, 13, 1]], fill='random')
+
+        # MPO multiplication (composition)
+        op = op0 * op1
+
+        # reference calculation
+        op_ref = np.dot(op0.as_matrix(), op1.as_matrix())
+
+        # relative error
+        err = np.linalg.norm(op.as_matrix() - op_ref) / max(np.linalg.norm(op_ref), 1e-12)
+        self.assertAlmostEqual(err, 0., delta=1e-14,
+            msg='composition of two MPOs must agree with matrix representation')
+
+
 def randn_complex(size):
     return (np.random.standard_normal(size)
        + 1j*np.random.standard_normal(size)) / np.sqrt(2)

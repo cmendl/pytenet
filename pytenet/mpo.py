@@ -184,6 +184,10 @@ class MPO(object):
             assert is_qsparse(self.A[i], [self.qd, -self.qd, self.qD[i], -self.qD[i+1]]), \
                 'sparsity pattern of MPO tensor does not match quantum numbers'
 
+    def __mul__(self, other):
+        """Multiply MPO with another (composition along physical dimension)."""
+        return multiply_MPOs(self, other)
+
 
 def local_orthonormalize_left_qr(A, Anext, qd, qD):
     """
@@ -227,3 +231,31 @@ def merge_MPO_tensor_pair(A0, A1):
     # combine original physical dimensions
     A = A.reshape((A.shape[0]*A.shape[1], A.shape[2]*A.shape[3], A.shape[4], A.shape[5]))
     return A
+
+
+def multiply_MPOs(op0, op1):
+    """"Multiply two MPOs (composition along physical dimension)."""
+    # number of lattice sites must agree
+    assert op0.nsites == op1.nsites
+    L = op0.nsites
+    # physical quantum numbers must agree
+    assert np.array_equal(op0.qd, op1.qd)
+
+    # initialize with dummy tensors and bond quantum numbers
+    op = MPO(op0.qd, qD=(L+1)*[[0]])
+
+    # combine virtual bond quantum numbers
+    for i in range(L + 1):
+        op.qD[i] = qnumber_flatten([op0.qD[i], op1.qD[i]])
+
+    for i in range(L):
+        # multiply physical dimensions and reorder dimensions
+        op.A[i] = np.tensordot(op0.A[i], op1.A[i], (1, 0)).transpose((0, 3, 1, 4, 2, 5))
+        # merge virtual bonds
+        s = op.A[i].shape
+        assert len(s) == 6
+        op.A[i] = op.A[i].reshape((s[0], s[1], s[2]*s[3], s[4]*s[5]))
+        # consistency check
+        assert is_qsparse(op.A[i], [op.qd, -op.qd, op.qD[i], -op.qD[i+1]]), \
+            'sparsity pattern of MPO tensor does not match quantum numbers'
+    return op
