@@ -116,6 +116,57 @@ class TestMPO(unittest.TestCase):
             msg='full merging of MPO must be equal to matrix representation of operator chains')
 
 
+    def test_add(self):
+
+        # physical quantum numbers
+        qd = np.random.randint(-2, 3, size=3)
+
+        # create random matrix product operators
+        qD0 = [np.random.randint(-2, 3, size=Di) for Di in [1, 11, 15, 23, 18, 9, 1]]
+        qD1 = [np.random.randint(-2, 3, size=Di) for Di in [1, 7, 23, 11, 17, 13, 1]]
+        # leading and trailing (dummy) virtual bond quantum numbers must agree
+        qD1[ 0] = qD0[ 0].copy()
+        qD1[-1] = qD0[-1].copy()
+        op0 = MPO(qd, qD=qD0, fill='random')
+        op1 = MPO(qd, qD=qD1, fill='random')
+
+        # MPO addition
+        op = op0 + op1
+
+        # reference calculation
+        op_ref = op0.as_matrix() + op1.as_matrix()
+
+        # relative error
+        err = np.linalg.norm(op.as_matrix() - op_ref) / max(np.linalg.norm(op_ref), 1e-12)
+        self.assertAlmostEqual(err, 0., delta=1e-14,
+            msg='addition two MPOs must agree with matrix representation')
+
+
+    def test_add_singlesite(self):
+
+        # separate test for a single site since implementation is a special case
+
+        # physical quantum numbers
+        qd = np.random.randint(-2, 3, size=5)
+
+        # create random matrix product operators acting on a single site
+        # leading and trailing (dummy) virtual bond quantum numbers
+        qD = [np.array([-1]), np.array([-2])]
+        op0 = MPO(qd, qD=qD, fill='random')
+        op1 = MPO(qd, qD=qD, fill='random')
+
+        # MPO addition
+        op = op0 + op1
+
+        # reference calculation
+        op_ref = op0.as_matrix() + op1.as_matrix()
+
+        # relative error
+        err = np.linalg.norm(op.as_matrix() - op_ref) / max(np.linalg.norm(op_ref), 1e-12)
+        self.assertAlmostEqual(err, 0., delta=1e-14,
+            msg='addition two MPOs must agree with matrix representation')
+
+
     def test_multiply(self):
 
         # physical quantum numbers

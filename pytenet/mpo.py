@@ -184,6 +184,10 @@ class MPO(object):
             assert is_qsparse(self.A[i], [self.qd, -self.qd, self.qD[i], -self.qD[i+1]]), \
                 'sparsity pattern of MPO tensor does not match quantum numbers'
 
+    def __add__(self, other):
+        """Add MPO to another."""
+        return add_MPOs(self, other)
+
     def __mul__(self, other):
         """Multiply MPO with another (composition along physical dimension)."""
         return multiply_MPOs(self, other)
@@ -231,6 +235,59 @@ def merge_MPO_tensor_pair(A0, A1):
     # combine original physical dimensions
     A = A.reshape((A.shape[0]*A.shape[1], A.shape[2]*A.shape[3], A.shape[4], A.shape[5]))
     return A
+
+
+def add_MPOs(op0, op1):
+    """"Logical addition of two MPOs (effectively sum virtual bond dimensions)."""
+    # number of lattice sites must agree
+    assert op0.nsites == op1.nsites
+    L = op0.nsites
+    # physical quantum numbers must agree
+    assert np.array_equal(op0.qd, op1.qd)
+    d = len(op0.qd)
+
+    # initialize with dummy tensors and bond quantum numbers
+    op = MPO(op0.qd, qD=(L+1)*[[0]])
+
+    if L == 1:
+        # single site
+        # dummy bond quantum numbers must agree
+        assert np.array_equal(op0.qD[0], op1.qD[0])
+        assert np.array_equal(op0.qD[1], op1.qD[1])
+        op.qD[0] = op0.qD[0].copy()
+        op.qD[1] = op0.qD[1].copy()
+        # simply add MPO tensors
+        op.A[0] = op0.A[0] + op1.A[0]
+        # consistency check
+        assert is_qsparse(op.A[0], [op.qd, -op.qd, op.qD[0], -op.qD[1]]), \
+            'sparsity pattern of MPO tensor does not match quantum numbers'
+    elif L > 1:
+        # combine virtual bond quantum numbers
+        # leading and trailing (dummy) bond quantum numbers must agree
+        assert np.array_equal(op0.qD[ 0], op1.qD[ 0])
+        assert np.array_equal(op0.qD[-1], op1.qD[-1])
+        op.qD[ 0] = op0.qD[ 0].copy()
+        op.qD[-1] = op0.qD[-1].copy()
+        # intermediate bond quantum numbers
+        for i in range(1, L):
+            op.qD[i] = np.concatenate((op0.qD[i], op1.qD[i]))
+
+        # leftmost tensor
+        op.A[0] = np.block([op0.A[0], op1.A[0]])
+        # intermediate tensors
+        for i in range(1, L - 1):
+            s0 = op0.A[i].shape
+            s1 = op1.A[i].shape
+            # form block-diagonal tensor
+            op.A[i] = np.block([[op0.A[i], np.zeros((d, d, s0[2], s1[3]))], [np.zeros((d, d, s1[2], s0[3])), op1.A[i]]])
+        # rightmost tensor
+        op.A[-1] = np.block([[op0.A[-1]], [op1.A[-1]]])
+
+        # consistency check
+        for i in range(1, L):
+            assert is_qsparse(op.A[i], [op.qd, -op.qd, op.qD[i], -op.qD[i+1]]), \
+                'sparsity pattern of MPO tensor does not match quantum numbers'
+    return op
 
 
 def multiply_MPOs(op0, op1):
