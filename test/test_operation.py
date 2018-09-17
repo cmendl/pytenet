@@ -28,7 +28,7 @@ class TestOperation(unittest.TestCase):
         D = [1, 5, 16, 14, 17, 4, 1]
         # set bond quantum numbers to zero since otherwise,
         # sparsity pattern often leads to <psi | op | psi> = 0
-        op = MPO(qd, qD=[np.zeros(Di) for Di in D], fill='random')
+        op = MPO(qd, [np.zeros(Di) for Di in D], fill='random')
 
         # calculate average (expectation value) <psi | op | psi>
         avr = operator_average(psi, op)

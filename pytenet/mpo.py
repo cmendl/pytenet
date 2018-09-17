@@ -18,44 +18,94 @@ class MPO(object):
     right virtual bond quantum number.
     """
 
-    def __init__(self, qd, **kwargs):
+    def __init__(self, qd, qD, fill=0.0):
         """
         Create a matrix product operator.
 
         Args:
             qd: physical quantum numbers at each site (same for all sites)
-        Keyword args: either provide oplist and L, or qD and (optionally) fill
-            oplist: list of operator chains
-            L: number of lattice sites (only accessed if oplist is provided)
             qD: virtual bond quantum numbers (list of quantum number lists)
-            fill: numerical value for filling the MPO tensors, or
-                 'random' for normally distributed random entries
+            fill: explicit scalar number to fill MPO tensors with, or
+                  'random' to initialize tensors with random complex entries
         """
-        # require NumPy array
+        # require NumPy arrays
         self.qd = np.array(qd)
+        self.qD = [np.array(qDi) for qDi in qD]
+        # create list of MPS tensors
         d = len(qd)
-        if 'opchains' in kwargs:
-            if not 'L' in kwargs:
-                raise ValueError('number of lattice sites L must be provided as keyword argument together with list of opchains')
-            self.from_opchains(d, kwargs['L'], kwargs['opchains'])
+        D = [len(qDi) for qDi in qD]
+        if isinstance(fill, int) or isinstance(fill, float) or isinstance(fill, complex):
+            self.A = [np.full((d, d, D[i], D[i+1]), fill) for i in range(len(D)-1)]
+        elif fill == 'random':
+            # random complex entries
+            self.A = [
+                    np.random.normal(size=(d, d, D[i], D[i+1]), scale=1./np.sqrt(d*D[i]*D[i+1])) +
+                 1j*np.random.normal(size=(d, d, D[i], D[i+1]), scale=1./np.sqrt(d*D[i]*D[i+1])) for i in range(len(D)-1)]
         else:
-            qD   = kwargs.get('qD',    [])
-            fill = kwargs.get('fill', 0.0)
-            D = [len(qb) for qb in qD]
-            self.qD = [np.array(qDi) for qDi in qD]
-            if isinstance(fill, int) or isinstance(fill, float) or isinstance(fill, complex):
-                self.A = [np.full((d, d, D[i], D[i+1]), fill) for i in range(len(D)-1)]
-            elif fill == 'random':
-                # random complex entries
-                self.A = [
-                        np.random.normal(size=(d, d, D[i], D[i+1]), scale=1./np.sqrt(d*D[i]*D[i+1])) +
-                     1j*np.random.normal(size=(d, d, D[i], D[i+1]), scale=1./np.sqrt(d*D[i]*D[i+1])) for i in range(len(D)-1)]
-            else:
-                raise ValueError('fill = {} invalid; must be a number or "random"'.format(fill))
-            # enforce block sparsity structure dictated by quantum numbers
-            for i in range(len(self.A)):
-                mask = qnumber_outer_sum([self.qd, -self.qd, self.qD[i], -self.qD[i+1]])
-                self.A[i] = np.where(mask == 0, self.A[i], 0)
+            raise ValueError('fill = {} invalid; must be a number or "random".'.format(fill))
+        # enforce block sparsity structure dictated by quantum numbers
+        for i in range(len(self.A)):
+            mask = qnumber_outer_sum([self.qd, -self.qd, self.qD[i], -self.qD[i+1]])
+            self.A[i] = np.where(mask == 0, self.A[i], 0)
+
+    @classmethod
+    def from_opchains(cls, qd, L, opchains):
+        """Construct a MPO representation of a sum of "operator chains"."""
+
+        # filter out empty operator chains
+        opchains = [opc for opc in opchains if opc.length > 0]
+
+        if len(opchains) == 0:
+            # dummy zero tensors
+            return cls(qd, (L+1)*[[0]], fill=0j)
+
+        d = len(qd)
+
+        opchains = sorted(opchains, key=lambda o: o.iend*L + o.length)
+
+        # right-pad first operator chain with identity matrices
+        # (required for trailing identity operations in each chain)
+        opchains[0].pad_identities_right(d, L)
+
+        # find operator chain with largest starting index
+        maxidxS = np.argmax([op.istart for op in opchains])
+        # left-pad this operator chain with identity matrices (for leading identity operations in each chain)
+        opchains[maxidxS].pad_identities_left(d)
+
+        # allocate virtual bond slots between operators for each operator chain
+        slotidx = [0] * (L+1)
+        slotidx[ 0] = 1
+        slotidx[-1] = 1
+        opslots = [[]] * len(opchains)
+        for j, opc in enumerate(opchains):
+            opslots[j] = [0] * opc.length
+            for i in range(opc.length-1):
+                k = opc.istart + i + 1
+                opslots[j][i] = slotidx[k]
+                slotidx[k] += 1
+            # last slot is 0 (for trailing identity matrices)
+
+        # allocate and fill MPO tensors and corresponding quantum numbers
+        op = cls(qd, [np.zeros(slotidx[j], dtype=int) for j in range(L+1)], fill=0j)
+        for j, opc in enumerate(opchains):
+            for i in range(opc.length):
+                if i==0:
+                    if opc.istart == 0:
+                        k = 0
+                    else:
+                        k = opslots[maxidxS][opc.istart-1]
+                else:
+                    k = opslots[j][i-1]
+                # add to A (instead of simply assigning) to handle sum of single-site operators without dedicated bond slots
+                op.A[opc.istart + i][:, :, k, opslots[j][i]] += opc.oplist[i]
+                if opc.length > 1:
+                    op.qD[opc.istart + i + 1][opslots[j][i]] = (opc.qD[i] if i < opc.length-1 else 0)
+
+        # consistency check
+        for i in range(L):
+            assert is_qsparse(op.A[i], [op.qd, -op.qd, op.qD[i], -op.qD[i+1]]), \
+                'sparsity pattern of MPO tensor does not match quantum numbers'
+        return op
 
     @property
     def nsites(self):
@@ -124,66 +174,6 @@ class MPO(object):
         op = op.reshape((op.shape[0], op.shape[1]))
         return op
 
-    def from_opchains(self, d, L, opchains):
-        """Construct a MPO representation of a sum of "operator chains"."""
-
-        # filter out empty operator chains
-        opchains = [opc for opc in opchains if opc.length > 0]
-
-        if len(opchains) == 0:
-            # dummy zero tensors
-            self.A = [np.zeros((d, d, 1, 1), dtype=complex) for _ in range(L)]
-            self.qD = np.zeros(L+1, dtype=int)
-            return
-
-        opchains = sorted(opchains, key=lambda o: o.iend*L + o.length)
-
-        # right-pad first operator chain with identity matrices
-        # (required for trailing identity operations in each chain)
-        opchains[0].pad_identities_right(d, L)
-
-        # find operator chain with largest starting index
-        maxidxS = np.argmax([op.istart for op in opchains])
-        # left-pad this operator chain with identity matrices (for leading identity operations in each chain)
-        opchains[maxidxS].pad_identities_left(d)
-
-        # allocate virtual bond slots between operators for each operator chain
-        slotidx = [0] * (L+1)
-        slotidx[ 0] = 1
-        slotidx[-1] = 1
-        opslots = [[]] * len(opchains)
-        for j, opc in enumerate(opchains):
-            opslots[j] = [0] * opc.length
-            for i in range(opc.length-1):
-                k = opc.istart + i + 1
-                opslots[j][i] = slotidx[k]
-                slotidx[k] += 1
-            # last slot is 0 (for trailing identity matrices)
-
-        # allocate and fill MPO tensors and corresponding quantum numbers
-        self.A = [np.zeros((slotidx[j], slotidx[j+1], d, d), dtype=complex) for j in range(L)]
-        self.qD = [np.zeros(slotidx[j], dtype=int) for j in range(L+1)]
-        for j, opc in enumerate(opchains):
-            for i in range(opc.length):
-                if i==0:
-                    if opc.istart == 0:
-                        k = 0
-                    else:
-                        k = opslots[maxidxS][opc.istart-1]
-                else:
-                    k = opslots[j][i-1]
-                # add to A (instead of simply assigning) to handle sum of single-site operators without dedicated bond slots
-                self.A[opc.istart + i][k, opslots[j][i]] += opc.oplist[i]
-                if opc.length > 1:
-                    self.qD[opc.istart + i + 1][opslots[j][i]] = (opc.qD[i] if i < opc.length-1 else 0)
-
-        self.A = [W.transpose((2, 3, 0, 1)) for W in self.A]
-
-        # consistency check
-        for i in range(len(self.A)):
-            assert is_qsparse(self.A[i], [self.qd, -self.qd, self.qD[i], -self.qD[i+1]]), \
-                'sparsity pattern of MPO tensor does not match quantum numbers'
-
     def __add__(self, other):
         """Add MPO to another."""
         return add_MPOs(self, other)
@@ -247,7 +237,7 @@ def add_MPOs(op0, op1):
     d = len(op0.qd)
 
     # initialize with dummy tensors and bond quantum numbers
-    op = MPO(op0.qd, qD=(L+1)*[[0]])
+    op = MPO(op0.qd, (L+1)*[[0]])
 
     if L == 1:
         # single site
@@ -299,7 +289,7 @@ def multiply_MPOs(op0, op1):
     assert np.array_equal(op0.qd, op1.qd)
 
     # initialize with dummy tensors and bond quantum numbers
-    op = MPO(op0.qd, qD=(L+1)*[[0]])
+    op = MPO(op0.qd, (L+1)*[[0]])
 
     # combine virtual bond quantum numbers
     for i in range(L + 1):

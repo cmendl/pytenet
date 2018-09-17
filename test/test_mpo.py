@@ -14,7 +14,7 @@ class TestMPO(unittest.TestCase):
         # create random matrix product operator
         d = 4
         D = [1, 10, 13, 14, 7, 1]
-        mpo0 = MPO(np.random.randint(-2, 3, size=d), qD=[np.random.randint(-2, 3, size=Di) for Di in D], fill='random')
+        mpo0 = MPO(np.random.randint(-2, 3, size=d), [np.random.randint(-2, 3, size=Di) for Di in D], fill='random')
 
         self.assertEqual(mpo0.bond_dims, D, msg='virtual bond dimensions')
 
@@ -102,7 +102,7 @@ class TestMPO(unittest.TestCase):
             opchains.append(OpChain(oplist, qD, istart))
 
         # construct MPO representation corresponding to operator chains
-        mpo0 = MPO(qd, L=L, opchains=opchains)
+        mpo0 = MPO.from_opchains(qd, L, opchains)
 
         for i in range(mpo0.nsites):
             self.assertTrue(is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]),
@@ -127,8 +127,8 @@ class TestMPO(unittest.TestCase):
         # leading and trailing (dummy) virtual bond quantum numbers must agree
         qD1[ 0] = qD0[ 0].copy()
         qD1[-1] = qD0[-1].copy()
-        op0 = MPO(qd, qD=qD0, fill='random')
-        op1 = MPO(qd, qD=qD1, fill='random')
+        op0 = MPO(qd, qD0, fill='random')
+        op1 = MPO(qd, qD1, fill='random')
 
         # MPO addition
         op = op0 + op1
@@ -152,8 +152,8 @@ class TestMPO(unittest.TestCase):
         # create random matrix product operators acting on a single site
         # leading and trailing (dummy) virtual bond quantum numbers
         qD = [np.array([-1]), np.array([-2])]
-        op0 = MPO(qd, qD=qD, fill='random')
-        op1 = MPO(qd, qD=qD, fill='random')
+        op0 = MPO(qd, qD, fill='random')
+        op1 = MPO(qd, qD, fill='random')
 
         # MPO addition
         op = op0 + op1
@@ -173,8 +173,8 @@ class TestMPO(unittest.TestCase):
         qd = np.random.randint(-2, 3, size=3)
 
         # create random matrix product operators
-        op0 = MPO(qd, qD=[np.random.randint(-2, 3, size=Di) for Di in [1, 10, 13, 24, 17, 9, 1]], fill='random')
-        op1 = MPO(qd, qD=[np.random.randint(-2, 3, size=Di) for Di in [1, 8, 17, 11, 23, 13, 1]], fill='random')
+        op0 = MPO(qd, [np.random.randint(-2, 3, size=Di) for Di in [1, 10, 13, 24, 17, 9, 1]], fill='random')
+        op1 = MPO(qd, [np.random.randint(-2, 3, size=Di) for Di in [1, 8, 17, 11, 23, 13, 1]], fill='random')
 
         # MPO multiplication (composition)
         op = op0 * op1

@@ -107,4 +107,4 @@ def local_opchains_to_MPO(qd, L, lopchains):
         for i in range(L - lopc.length + 1):
             # add shifted opchain
             opchains.append(OpChain(list(lopc.oplist), lopc.qD, istart=i))
-    return MPO(qd, L=L, opchains=opchains)
+    return MPO.from_opchains(qd, L, opchains)

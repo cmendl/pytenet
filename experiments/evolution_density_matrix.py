@@ -40,7 +40,7 @@ def main():
     Dmax = 20
     D = np.minimum(np.minimum(d**(2*np.arange(L + 1)), d**(2*(L - np.arange(L + 1)))), Dmax)
     np.random.seed(42)
-    rho = MPO(mpoH.qd, qD=[np.zeros(Di, dtype=int) for Di in D], fill='random')
+    rho = MPO(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
     # effectively clamp virtual bond dimension
     for i in range(L):
         rho.A[i][:, :, 3:, :] = 0
@@ -107,7 +107,7 @@ def cast_to_MPO(mps, qd):
     """
     assert not np.any(mps.qd - qnumber_flatten([qd, -qd]))
 
-    mpo = MPO(qd, qD=mps.qD, fill=0.0)
+    mpo = MPO(qd, mps.qD, fill=0.0)
     for i in range(mps.nsites):
         s = mps.A[i].shape
         mpo.A[i] = mps.A[i].reshape((len(qd), len(qd), s[1], s[2])).copy()
