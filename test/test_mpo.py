@@ -1,10 +1,6 @@
 import unittest
 import numpy as np
-import sys
-sys.path.append('../pytenet/')
-from mpo import MPO
-from opchain import OpChain
-from qnumber import is_qsparse, qnumber_outer_sum
+import pytenet as ptn
 
 
 class TestMPO(unittest.TestCase):
@@ -14,7 +10,7 @@ class TestMPO(unittest.TestCase):
         # create random matrix product operator
         d = 4
         D = [1, 10, 13, 14, 7, 1]
-        mpo0 = MPO(np.random.randint(-2, 3, size=d), [np.random.randint(-2, 3, size=Di) for Di in D], fill='random')
+        mpo0 = ptn.MPO(np.random.randint(-2, 3, size=d), [np.random.randint(-2, 3, size=Di) for Di in D], fill='random')
 
         self.assertEqual(mpo0.bond_dims, D, msg='virtual bond dimensions')
 
@@ -28,7 +24,7 @@ class TestMPO(unittest.TestCase):
             msg='virtual bond dimension can only increase by factor of "d^2" per site')
 
         for i in range(mpo0.nsites):
-            self.assertTrue(is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]),
+            self.assertTrue(ptn.is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]),
                             msg='sparsity pattern of MPO tensors must match quantum numbers')
 
         rhoL = mpo0.as_matrix()
@@ -56,7 +52,7 @@ class TestMPO(unittest.TestCase):
             msg='virtual bond dimension can only increase by factor of "d^2" per site')
 
         for i in range(mpo0.nsites):
-            self.assertTrue(is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]),
+            self.assertTrue(ptn.is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]),
                             msg='sparsity pattern of MPO tensors must match quantum numbers')
 
         self.assertAlmostEqual(abs(cR), 1., delta=1e-12,
@@ -97,15 +93,15 @@ class TestMPO(unittest.TestCase):
             # enforce sparsity structure dictated by quantum numbers
             qDpad = np.pad(qD, 1, mode='constant')
             for i in range(length):
-                mask = qnumber_outer_sum([qd + qDpad[i], -(qd + qDpad[i+1])])
+                mask = ptn.qnumber_outer_sum([qd + qDpad[i], -(qd + qDpad[i+1])])
                 oplist[i] = np.where(mask == 0, oplist[i], 0)
-            opchains.append(OpChain(oplist, qD, istart))
+            opchains.append(ptn.OpChain(oplist, qD, istart))
 
         # construct MPO representation corresponding to operator chains
-        mpo0 = MPO.from_opchains(qd, L, opchains)
+        mpo0 = ptn.MPO.from_opchains(qd, L, opchains)
 
         for i in range(mpo0.nsites):
-            self.assertTrue(is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]),
+            self.assertTrue(ptn.is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]),
                             msg='sparsity pattern of MPO tensors must match quantum numbers')
 
         # construct full Hamiltonian from operator chains, as reference
@@ -127,8 +123,8 @@ class TestMPO(unittest.TestCase):
         # leading and trailing (dummy) virtual bond quantum numbers must agree
         qD1[ 0] = qD0[ 0].copy()
         qD1[-1] = qD0[-1].copy()
-        op0 = MPO(qd, qD0, fill='random')
-        op1 = MPO(qd, qD1, fill='random')
+        op0 = ptn.MPO(qd, qD0, fill='random')
+        op1 = ptn.MPO(qd, qD1, fill='random')
 
         # MPO addition
         op = op0 + op1
@@ -152,8 +148,8 @@ class TestMPO(unittest.TestCase):
         # create random matrix product operators acting on a single site
         # leading and trailing (dummy) virtual bond quantum numbers
         qD = [np.array([-1]), np.array([-2])]
-        op0 = MPO(qd, qD, fill='random')
-        op1 = MPO(qd, qD, fill='random')
+        op0 = ptn.MPO(qd, qD, fill='random')
+        op1 = ptn.MPO(qd, qD, fill='random')
 
         # MPO addition
         op = op0 + op1
@@ -173,8 +169,8 @@ class TestMPO(unittest.TestCase):
         qd = np.random.randint(-2, 3, size=3)
 
         # create random matrix product operators
-        op0 = MPO(qd, [np.random.randint(-2, 3, size=Di) for Di in [1, 10, 13, 24, 17, 9, 1]], fill='random')
-        op1 = MPO(qd, [np.random.randint(-2, 3, size=Di) for Di in [1, 8, 17, 11, 23, 13, 1]], fill='random')
+        op0 = ptn.MPO(qd, [np.random.randint(-2, 3, size=Di) for Di in [1, 10, 13, 24, 17, 9, 1]], fill='random')
+        op1 = ptn.MPO(qd, [np.random.randint(-2, 3, size=Di) for Di in [1, 8, 17, 11, 23, 13, 1]], fill='random')
 
         # MPO multiplication (composition)
         op = op0 * op1

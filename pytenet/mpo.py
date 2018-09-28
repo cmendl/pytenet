@@ -1,6 +1,8 @@
 import numpy as np
-from qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
-from bond_ops import qr
+from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
+from .bond_ops import qr
+
+__all__ = ['MPO', 'merge_MPO_tensor_pair']
 
 
 class MPO(object):

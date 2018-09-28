@@ -1,10 +1,6 @@
 import unittest
 import numpy as np
-import sys
-sys.path.append('../pytenet/')
-from mps import MPS
-import hamiltonian
-import minimization
+import pytenet as ptn
 
 
 class TestMinimization(unittest.TestCase):
@@ -24,14 +20,14 @@ class TestMinimization(unittest.TestCase):
         J =  4.0/5
         D =  8.0/3
         h = -2.0/7
-        mpoH = hamiltonian.heisenberg_XXZ_MPO(L, J, D, h)
+        mpoH = ptn.heisenberg_XXZ_MPO(L, J, D, h)
         mpoH.zero_qnumbers()
 
         # initial wavefunction as MPS with random entries
         D = [1] + (L-1) * [28] + [1]
-        psi = MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
+        psi = ptn.MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
 
-        en_min = minimization.calculate_ground_state_local_singlesite(mpoH, psi, numsweeps)
+        en_min = ptn.calculate_ground_state_local_singlesite(mpoH, psi, numsweeps)
         # value after last iteration
         E0 = en_min[-1]
 

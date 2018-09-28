@@ -9,9 +9,7 @@ Reference:
 
 from __future__ import print_function
 import numpy as np
-import sys
-sys.path.append('../pytenet/')
-from mps import MPS
+import pytenet as ptn
 
 
 def main():
@@ -25,7 +23,7 @@ def main():
     L = len(D) - 1
     print('L:', L)
 
-    psi = MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in D], fill='random')
+    psi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in D], fill='random')
 
     T = []
     for i in range(L):

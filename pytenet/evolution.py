@@ -1,8 +1,15 @@
 import numpy as np
-import operation
-import krylov
-from qnumber import qnumber_flatten, is_qsparse
-from bond_ops import qr
+from .operation import (
+        contraction_operator_step_right,
+        contraction_operator_step_left,
+        compute_right_operator_blocks,
+        apply_local_hamiltonian,
+        apply_local_bond_contraction)
+from .krylov import expm
+from .qnumber import qnumber_flatten, is_qsparse
+from .bond_ops import qr
+
+__all__ = ['integrate_local_singlesite']
 
 
 def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
@@ -36,7 +43,7 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
 
     # left and right operator blocks
     # initialize leftmost block by 1x1x1 identity
-    BR = operation.compute_right_operator_blocks(psi, H)
+    BR = compute_right_operator_blocks(psi, H)
     BL = [None for _ in range(L)]
     BL[0] = np.array([[[1]]], dtype=BR[0].dtype)
 
@@ -57,7 +64,7 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
                                      qnumber_flatten([psi.qd, psi.qD[i]]), psi.qD[i+1])
             psi.A[i] = Q.reshape((s[0], s[1], Q.shape[1]))
             # update the left blocks
-            BL[i+1] = operation.contraction_operator_step_left(psi.A[i], H.A[i], BL[i])
+            BL[i+1] = contraction_operator_step_left(psi.A[i], H.A[i], BL[i])
             # evolve C backward in time by half a time step
             C = _local_bond_step(BL[i+1], BR[i], C, -0.5*dt, numiter_lanczos)
             # update psi.A[i+1] tensor: multiply with C from left
@@ -80,7 +87,7 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
             # replace psi.A[i] by reshaped Q matrix and undo flip of left and right virtual bond dimensions
             psi.A[i] = Q.reshape((s[0], s[1], Q.shape[1])).transpose((0, 2, 1))
             # update the right blocks
-            BR[i-1] = operation.contraction_operator_step_right(psi.A[i], H.A[i], BR[i])
+            BR[i-1] = contraction_operator_step_right(psi.A[i], H.A[i], BR[i])
             # evolve C backward in time by half a time step
             C = np.transpose(C)
             C = _local_bond_step(BL[i], BR[i-1], C, -0.5*dt, numiter_lanczos)
@@ -95,13 +102,13 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
 
 def _local_hamiltonian_step(L, R, W, A, dt, numiter):
     """Local time step effected by Hamiltonian, based on a Lanczos iteration."""
-    return krylov.expm(
-        lambda x: operation.apply_local_hamiltonian(L, R, W, x.reshape(A.shape)).flatten(),
+    return expm(
+        lambda x: apply_local_hamiltonian(L, R, W, x.reshape(A.shape)).flatten(),
             A.flatten(), -dt, numiter).reshape(A.shape)
 
 
 def _local_bond_step(L, R, C, dt, numiter):
     """Local "zero-site" bond step, based on a Lanczos iteration."""
-    return krylov.expm(
-        lambda x: operation.apply_local_bond_contraction(L, R, x.reshape(C.shape)).flatten(),
+    return expm(
+        lambda x: apply_local_bond_contraction(L, R, x.reshape(C.shape)).flatten(),
             C.flatten(), -dt, numiter).reshape(C.shape)

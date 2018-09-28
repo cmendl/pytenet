@@ -1,6 +1,8 @@
 import numpy as np
-from mpo import MPO
-from opchain import OpChain
+from .mpo import MPO
+from .opchain import OpChain
+
+__all__ = ['ising_MPO', 'heisenberg_XXZ_MPO', 'bose_hubbard_MPO', 'fermi_hubbard_MPO', 'local_opchains_to_MPO']
 
 
 def ising_MPO(L, J, h, g):

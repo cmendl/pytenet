@@ -1,8 +1,6 @@
 import unittest
 import numpy as np
-import sys
-sys.path.append('../pytenet/')
-import hamiltonian
+import pytenet as ptn
 
 
 class TestHamiltonian(unittest.TestCase):
@@ -15,7 +13,7 @@ class TestHamiltonian(unittest.TestCase):
         # number of lattice sites
         L = 7
         # construct MPO
-        mpoH = hamiltonian.ising_MPO(L, J, h, g)
+        mpoH = ptn.ising_MPO(L, J, h, g)
         # matrix representation, for comparison with reference
         H = mpoH.as_matrix()
         # reference Hamiltonian
@@ -32,7 +30,7 @@ class TestHamiltonian(unittest.TestCase):
         # number of lattice sites
         L = 7
         # construct MPO
-        mpoH = hamiltonian.heisenberg_XXZ_MPO(L, J, D, h)
+        mpoH = ptn.heisenberg_XXZ_MPO(L, J, D, h)
         # matrix representation, for comparison with reference
         H = mpoH.as_matrix()
         # reference Hamiltonian
@@ -51,7 +49,7 @@ class TestHamiltonian(unittest.TestCase):
         U  = 3.2
         mu = 1.3
         # construct MPO
-        mpoH = hamiltonian.bose_hubbard_MPO(d, L, t, U, mu)
+        mpoH = ptn.bose_hubbard_MPO(d, L, t, U, mu)
         # matrix representation, for comparison with reference
         H = mpoH.as_matrix()
         # reference Hamiltonian
@@ -68,7 +66,7 @@ class TestHamiltonian(unittest.TestCase):
         U  = 2.7
         mu = 0.3
         # construct MPO
-        mpoH = hamiltonian.fermi_hubbard_MPO(L, t, U, mu)
+        mpoH = ptn.fermi_hubbard_MPO(L, t, U, mu)
         # matrix representation, for comparison with reference
         H = mpoH.as_matrix()
         # reference Hamiltonian

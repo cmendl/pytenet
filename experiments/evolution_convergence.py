@@ -13,11 +13,7 @@ import numpy as np
 from scipy.linalg import expm
 import copy
 import matplotlib.pyplot as plt
-import sys
-sys.path.append('../pytenet/')
-from mps import MPS
-import hamiltonian
-import evolution
+import pytenet as ptn
 
 
 def main():
@@ -29,7 +25,7 @@ def main():
     J  =  1.0
     DH =  1.2
     h  = -0.2
-    mpoH = hamiltonian.heisenberg_XXZ_MPO(L, J, DH, h)
+    mpoH = ptn.heisenberg_XXZ_MPO(L, J, DH, h)
     mpoH.zero_qnumbers()
 
     # initial wavefunction as MPS with random entries
@@ -37,7 +33,7 @@ def main():
     D = np.minimum(np.minimum(2**np.arange(L + 1), 2**(L - np.arange(L + 1))), Dmax)
     print('D:', D)
     np.random.seed(42)
-    psi = MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
+    psi = ptn.MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
     # effectively clamp virtual bond dimension
     for i in range(L):
         psi.A[i][:, 3:, :] = 0
@@ -45,10 +41,10 @@ def main():
     psi.orthonormalize(mode='right')
     psi.orthonormalize(mode='left')
 
-    tmax = 0.1 + 0.5j
+    t = 0.1 + 0.5j
 
     # reference calculation
-    psi_ref = np.dot(expm(-tmax*mpoH.as_matrix()), psi.as_vector())
+    psi_ref = np.dot(expm(-t*mpoH.as_matrix()), psi.as_vector())
 
     # number of time steps
     numsteps = 2**(np.arange(5))
@@ -58,14 +54,14 @@ def main():
         print('n:', n)
 
         # time step
-        dt = tmax / n
+        dt = t / n
 
         psi_t = copy.deepcopy(psi)
-        evolution.integrate_local_singlesite(mpoH, psi_t, dt, n, numiter_lanczos=10)
+        ptn.integrate_local_singlesite(mpoH, psi_t, dt, n, numiter_lanczos=10)
 
         err[i] = np.linalg.norm(psi_t.as_vector() - psi_ref)
 
-    dtinv = numsteps / abs(tmax)
+    dtinv = numsteps / abs(t)
     plt.loglog(dtinv, err, '.-')
     # show quadratic scaling for comparison
     plt.loglog(dtinv, 1.75e-4/dtinv**2, '--')

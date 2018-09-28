@@ -1,8 +1,6 @@
 import unittest
 import numpy as np
-import sys
-sys.path.append('../pytenet/')
-from opchain import OpChain
+import pytenet as ptn
 
 
 class TestOpChain(unittest.TestCase):
@@ -15,7 +13,7 @@ class TestOpChain(unittest.TestCase):
 
         # create random operator chain
         oplist = [np.random.normal(size=(d, d)) + 1j*np.random.normal(size=(d, d)) for _ in range(2)]
-        opchain = OpChain(oplist=oplist, qD=[0], istart=3)
+        opchain = ptn.OpChain(oplist=oplist, qD=[0], istart=3)
 
         # matrix representation on full Hilbert space
         A = opchain.as_matrix(d, L)

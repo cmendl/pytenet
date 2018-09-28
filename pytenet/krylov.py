@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.linalg import eigh_tridiagonal
 
+__all__ = ['lanczos_iteration', 'eigh', 'expm']
+
 
 def lanczos_iteration(Afunc, vstart, numiter):
     """Perform a "matrix free" Lanczos iteration.

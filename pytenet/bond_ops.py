@@ -1,5 +1,7 @@
 import numpy as np
-from qnumber import is_qsparse
+from .qnumber import is_qsparse
+
+__all__ = ['retained_bond_indices', 'split_matrix_svd', 'qr']
 
 
 def retained_bond_indices(s, tol):

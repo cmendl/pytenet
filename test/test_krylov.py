@@ -1,9 +1,7 @@
 import unittest
 import numpy as np
 from scipy.linalg import expm
-import sys
-sys.path.append('../pytenet/')
-import krylov
+import pytenet as ptn
 
 
 class TestKrylov(unittest.TestCase):
@@ -21,7 +19,7 @@ class TestKrylov(unittest.TestCase):
         vstart = randn_complex(n) / np.sqrt(n)
 
         # simply use A as linear transformation
-        alpha, beta, V = krylov.lanczos_iteration(lambda x: np.dot(A, x), vstart, numiter)
+        alpha, beta, V = ptn.lanczos_iteration(lambda x: np.dot(A, x), vstart, numiter)
 
         # check orthogonality of Lanczos vectors
         self.assertAlmostEqual(np.linalg.norm(np.dot(V.T.conj(), V) - np.identity(numiter)), 0., delta=1e-12,
@@ -46,7 +44,7 @@ class TestKrylov(unittest.TestCase):
         vstart = randn_complex(n) / np.sqrt(n)
 
         # simply use A as linear transformation;
-        w, u_ritz = krylov.eigh(lambda x: np.dot(A, x), vstart, numiter, numeig)
+        w, u_ritz = ptn.eigh(lambda x: np.dot(A, x), vstart, numiter, numeig)
 
         # check orthogonality of Ritz matrix
         self.assertAlmostEqual(np.linalg.norm(np.dot(u_ritz.conj().T, u_ritz) - np.identity(numeig)), 0., delta=1e-12,
@@ -82,7 +80,7 @@ class TestKrylov(unittest.TestCase):
         dt = 0.4 + 0.2j
 
         # Krylov subspace approximation of expm(dt*A)*v
-        vt = krylov.expm(lambda x: np.dot(A, x), v, dt, numiter)
+        vt = ptn.expm(lambda x: np.dot(A, x), v, dt, numiter)
 
         # reference
         vt_ref = np.dot(expm(dt*A), v)

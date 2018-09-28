@@ -1,9 +1,6 @@
 import unittest
 import numpy as np
-import sys
-sys.path.append('../pytenet/')
-from mps import MPS, merge_MPS_tensor_pair, split_MPS_tensor
-from qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
+import pytenet as ptn
 
 
 class TestMPS(unittest.TestCase):
@@ -13,7 +10,7 @@ class TestMPS(unittest.TestCase):
         # create random matrix product state
         d = 7
         D = [1, 4, 15, 13, 7, 1]
-        mps0 = MPS(np.random.randint(-2, 3, size=d), [np.random.randint(-2, 3, size=Di) for Di in D], fill='random')
+        mps0 = ptn.MPS(np.random.randint(-2, 3, size=d), [np.random.randint(-2, 3, size=Di) for Di in D], fill='random')
 
         self.assertEqual(mps0.bond_dims, D, msg='virtual bond dimensions')
 
@@ -27,7 +24,7 @@ class TestMPS(unittest.TestCase):
             msg='virtual bond dimension can only increase by a factor of "d" per site')
 
         for i in range(mps0.nsites):
-            self.assertTrue(is_qsparse(mps0.A[i], [mps0.qd, mps0.qD[i], -mps0.qD[i+1]]),
+            self.assertTrue(ptn.is_qsparse(mps0.A[i], [mps0.qd, mps0.qD[i], -mps0.qD[i+1]]),
                             msg='sparsity pattern of MPS tensors must match quantum numbers')
 
         psiL = mps0.as_vector()
@@ -55,7 +52,7 @@ class TestMPS(unittest.TestCase):
             msg='virtual bond dimension can only increase by a factor of "d" per site')
 
         for i in range(mps0.nsites):
-            self.assertTrue(is_qsparse(mps0.A[i], [mps0.qd, mps0.qD[i], -mps0.qD[i+1]]),
+            self.assertTrue(ptn.is_qsparse(mps0.A[i], [mps0.qd, mps0.qD[i], -mps0.qD[i+1]]),
                             msg='sparsity pattern of MPS tensors must match quantum numbers')
 
         self.assertAlmostEqual(abs(cR), 1., delta=1e-12,
@@ -91,19 +88,19 @@ class TestMPS(unittest.TestCase):
         qD = [np.random.randint(-2, 3, size=D0), np.random.randint(-2, 3, size=D2)]
 
         # enforce block sparsity structure dictated by quantum numbers
-        mask = qnumber_outer_sum([qnumber_flatten([qd0, qd1]), qD[0], -qD[1]])
+        mask = ptn.qnumber_outer_sum([ptn.qnumber_flatten([qd0, qd1]), qD[0], -qD[1]])
         Apair = np.where(mask == 0, Apair, 0)
 
         for svd_distr in ['left', 'right', 'sqrt']:
-            (A0, A1, qbond) = split_MPS_tensor(Apair, qd0, qd1, qD, svd_distr=svd_distr, tol=0)
+            (A0, A1, qbond) = ptn.split_MPS_tensor(Apair, qd0, qd1, qD, svd_distr=svd_distr, tol=0)
 
-            self.assertTrue(is_qsparse(A0, [qd0, qD[0], -qbond]),
+            self.assertTrue(ptn.is_qsparse(A0, [qd0, qD[0], -qbond]),
                             msg='sparsity pattern of A0 tensors must match quantum numbers')
-            self.assertTrue(is_qsparse(A1, [qd1, qbond, -qD[1]]),
+            self.assertTrue(ptn.is_qsparse(A1, [qd1, qbond, -qD[1]]),
                             msg='sparsity pattern of A1 tensors must match quantum numbers')
 
             # merged tensor must agree with the original tensor
-            Amrg = merge_MPS_tensor_pair(A0, A1)
+            Amrg = ptn.merge_MPS_tensor_pair(A0, A1)
             self.assertAlmostEqual(np.linalg.norm(Amrg - Apair), 0., delta=1e-13,
                                    msg='splitting and subsequent merging must give the same tensor')
 

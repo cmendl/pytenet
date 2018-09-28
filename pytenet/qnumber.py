@@ -1,5 +1,7 @@
 import numpy as np
 
+__all__ = ['qnumber_outer_sum', 'qnumber_flatten', 'is_qsparse']
+
 
 def qnumber_outer_sum(qnums):
     """

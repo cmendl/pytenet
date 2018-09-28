@@ -9,6 +9,8 @@ install:
   - pip install --only-binary=numpy,scipy numpy scipy
 
 script:
+  # install pytenet package
+  - python setup.py install
   # run unit tests
   - cd test
   - python -m unittest test_bond_ops test_mps test_opchain test_mpo test_hamiltonian test_operation test_krylov test_minimization test_evolution

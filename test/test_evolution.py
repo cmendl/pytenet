@@ -1,13 +1,7 @@
 import unittest
 import numpy as np
 from scipy.linalg import expm
-import sys
-sys.path.append('../pytenet/')
-from mps import MPS
-from opchain import OpChain
-from operation import operator_average
-import hamiltonian
-from evolution import integrate_local_singlesite
+import pytenet as ptn
 
 
 class TestEvolution(unittest.TestCase):
@@ -27,7 +21,7 @@ class TestEvolution(unittest.TestCase):
         J =  4.0/3
         D =  5.0/13
         h = -2.0/7
-        mpoH = hamiltonian.heisenberg_XXZ_MPO(L, J, D, h)
+        mpoH = ptn.heisenberg_XXZ_MPO(L, J, D, h)
 
         # fix total spin quantum number of wavefunction (trailing virtual bond)
         spin_tot = 2
@@ -40,7 +34,7 @@ class TestEvolution(unittest.TestCase):
         qD.append(np.array([2*spin_tot]))
 
         # initial wavefunction as MPS with random entries
-        psi = MPS(mpoH.qd, qD, fill='random')
+        psi = ptn.MPS(mpoH.qd, qD, fill='random')
         psi.orthonormalize(mode='left')
         psi.orthonormalize(mode='right')
         # effectively clamp virtual bond dimension of initial state
@@ -55,10 +49,10 @@ class TestEvolution(unittest.TestCase):
             msg='trailing bond quantum number must not change during orthonormalization')
 
         # total spin operator as MPO
-        Sztot = hamiltonian.local_opchains_to_MPO(mpoH.qd, L, [OpChain([np.diag([0.5, -0.5])], [])])
+        Sztot = ptn.local_opchains_to_MPO(mpoH.qd, L, [ptn.OpChain([np.diag([0.5, -0.5])], [])])
 
         # explicity compute average spin
-        spin_avr = operator_average(psi, Sztot)
+        spin_avr = ptn.operator_average(psi, Sztot)
         self.assertAlmostEqual(abs(spin_avr - spin_tot), 0, delta=1e-14,
             msg='average spin must be equal to prescribed value')
 
@@ -66,7 +60,7 @@ class TestEvolution(unittest.TestCase):
         psi_ref = np.dot(expm(-dt*numsteps * mpoH.as_matrix()), psi.as_vector())
 
         # run TDVP time evolution
-        integrate_local_singlesite(mpoH, psi, dt, numsteps, numiter_lanczos=5)
+        ptn.integrate_local_singlesite(mpoH, psi, dt, numsteps, numiter_lanczos=5)
 
         # compare time-evolved wavefunctions
         self.assertAlmostEqual(np.linalg.norm(psi.as_vector() - psi_ref), 0, delta=2e-5,

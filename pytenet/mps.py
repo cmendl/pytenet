@@ -1,6 +1,8 @@
 import numpy as np
-from qnumber import qnumber_outer_sum, qnumber_flatten
-from bond_ops import qr, split_matrix_svd
+from .qnumber import qnumber_outer_sum, qnumber_flatten
+from .bond_ops import qr, split_matrix_svd
+
+__all__ = ['MPS', 'merge_MPS_tensor_pair', 'split_MPS_tensor']
 
 
 class MPS(object):

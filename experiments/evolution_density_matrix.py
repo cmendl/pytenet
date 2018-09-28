@@ -7,14 +7,7 @@ from __future__ import print_function
 import numpy as np
 from scipy.linalg import expm
 import copy
-import sys
-sys.path.append('../pytenet/')
-from qnumber import qnumber_flatten, is_qsparse
-from mps import MPS
-from mpo import MPO
-from opchain import OpChain
-import hamiltonian
-import evolution
+import pytenet as ptn
 
 
 def main():
@@ -29,7 +22,7 @@ def main():
     J  =  1.0
     DH =  1.2
     h  = -0.2
-    mpoH = hamiltonian.heisenberg_XXZ_MPO(L, J, DH, h)
+    mpoH = ptn.heisenberg_XXZ_MPO(L, J, DH, h)
     mpoH.zero_qnumbers()
     # realize commutator [H, .] as matrix product operator
     mpoHcomm = heisenberg_XXZ_comm_MPO(L, J, DH, h)
@@ -40,7 +33,7 @@ def main():
     Dmax = 20
     D = np.minimum(np.minimum(d**(2*np.arange(L + 1)), d**(2*(L - np.arange(L + 1)))), Dmax)
     np.random.seed(42)
-    rho = MPO(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
+    rho = ptn.MPO(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
     # effectively clamp virtual bond dimension
     for i in range(L):
         rho.A[i][:, :, 3:, :] = 0
@@ -79,7 +72,7 @@ def main():
 
     # run time evolution
     psi_t = copy.deepcopy(psi)
-    evolution.integrate_local_singlesite(mpoHcomm, psi_t, dt, numsteps, numiter_lanczos=10)
+    ptn.integrate_local_singlesite(mpoHcomm, psi_t, dt, numsteps, numiter_lanczos=10)
     rho_t = cast_to_MPO(psi_t, rho.qd)
 
     # compare with reference (error should be approximately 1e-4)
@@ -92,11 +85,11 @@ def cast_to_MPS(mpo):
     Cast a matrix product operator into MPS form by combining the pair of local
     physical dimensions into one dimension.
     """
-    mps = MPS(qnumber_flatten([mpo.qd, -mpo.qd]), mpo.qD, fill=0.0)
+    mps = ptn.MPS(ptn.qnumber_flatten([mpo.qd, -mpo.qd]), mpo.qD, fill=0.0)
     for i in range(mpo.nsites):
         s = mpo.A[i].shape
         mps.A[i] = mpo.A[i].reshape((s[0]*s[1], s[2], s[3])).copy()
-        assert is_qsparse(mps.A[i], [mps.qd, mps.qD[i], -mps.qD[i+1]])
+        assert ptn.is_qsparse(mps.A[i], [mps.qd, mps.qD[i], -mps.qD[i+1]])
     return mps
 
 
@@ -105,13 +98,13 @@ def cast_to_MPO(mps, qd):
     Cast a matrix product state into MPO form by interpreting the physical
     dimension as Kronecker product of a pair of dimensions.
     """
-    assert not np.any(mps.qd - qnumber_flatten([qd, -qd]))
+    assert not np.any(mps.qd - ptn.qnumber_flatten([qd, -qd]))
 
-    mpo = MPO(qd, mps.qD, fill=0.0)
+    mpo = ptn.MPO(qd, mps.qD, fill=0.0)
     for i in range(mps.nsites):
         s = mps.A[i].shape
         mpo.A[i] = mps.A[i].reshape((len(qd), len(qd), s[1], s[2])).copy()
-        assert is_qsparse(mpo.A[i], [mpo.qd, -mpo.qd, mpo.qD[i], -mpo.qD[i+1]])
+        assert ptn.is_qsparse(mpo.A[i], [mpo.qd, -mpo.qd, mpo.qD[i], -mpo.qD[i+1]])
     return mpo
 
 
@@ -119,11 +112,11 @@ def construct_comm_opchain(opchain):
     """Construct operator chain on enlarged physical space to realize commutator."""
     # opchain acting from the left
     oplist = [np.kron(op, np.identity(len(op))) for op in opchain.oplist]
-    opcL = OpChain(oplist, opchain.qD)
+    opcL = ptn.OpChain(oplist, opchain.qD)
     # -opchain acting from the right
     oplist = [np.kron(np.identity(len(op)), op.T) for op in opchain.oplist]
     oplist[0] *= -1
-    opcR = OpChain(oplist, opchain.qD)
+    opcR = ptn.OpChain(oplist, opchain.qD)
     return [opcL, opcR]
 
 
@@ -137,14 +130,14 @@ def heisenberg_XXZ_comm_MPO(L, J, D, h):
     Sdn = np.array([[0.,  0.], [1.,  0. ]])
     Sz  = np.array([[0.5, 0.], [0., -0.5]])
     # local two-site and single-site terms
-    lopchains = [OpChain([0.5*J*Sup, Sdn], [ 2]),
-                 OpChain([0.5*J*Sdn, Sup], [-2]),
-                 OpChain([D*Sz, Sz], [0]), OpChain([-h*Sz], [])]
+    lopchains = [ptn.OpChain([0.5*J*Sup, Sdn], [ 2]),
+                 ptn.OpChain([0.5*J*Sdn, Sup], [-2]),
+                 ptn.OpChain([D*Sz, Sz], [0]), ptn.OpChain([-h*Sz], [])]
     # convert to MPO form, with local terms acting either on first or second physical dimension
     locopchains = []
     for opchain in lopchains:
         locopchains += construct_comm_opchain(opchain)
-    return hamiltonian.local_opchains_to_MPO(qnumber_flatten([qd, -qd]), L, locopchains)
+    return ptn.local_opchains_to_MPO(ptn.qnumber_flatten([qd, -qd]), L, locopchains)
 
 
 if __name__ == '__main__':
