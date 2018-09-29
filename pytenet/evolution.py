@@ -5,7 +5,7 @@ from .operation import (
         compute_right_operator_blocks,
         apply_local_hamiltonian,
         apply_local_bond_contraction)
-from .krylov import expm
+from .krylov import expm_krylov
 from .qnumber import qnumber_flatten, is_qsparse
 from .bond_ops import qr
 
@@ -102,13 +102,13 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
 
 def _local_hamiltonian_step(L, R, W, A, dt, numiter):
     """Local time step effected by Hamiltonian, based on a Lanczos iteration."""
-    return expm(
+    return expm_krylov(
         lambda x: apply_local_hamiltonian(L, R, W, x.reshape(A.shape)).flatten(),
             A.flatten(), -dt, numiter).reshape(A.shape)
 
 
 def _local_bond_step(L, R, C, dt, numiter):
     """Local "zero-site" bond step, based on a Lanczos iteration."""
-    return expm(
+    return expm_krylov(
         lambda x: apply_local_bond_contraction(L, R, x.reshape(C.shape)).flatten(),
             C.flatten(), -dt, numiter).reshape(C.shape)

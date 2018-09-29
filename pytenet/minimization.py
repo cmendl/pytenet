@@ -5,7 +5,7 @@ from .operation import (
         contraction_operator_step_left,
         compute_right_operator_blocks,
         apply_local_hamiltonian)
-from .krylov import eigh
+from .krylov import eigh_krylov
 from .qnumber import is_qsparse
 
 __all__ = ['calculate_ground_state_local_singlesite']
@@ -85,7 +85,7 @@ def calculate_ground_state_local_singlesite(H, psi, numsweeps, numiter_lanczos=2
 def _minimize_local_energy(L, R, W, Astart, numiter):
     """Minimize site-local energy by Lanczos iteration."""
 
-    w, u_ritz = eigh(
+    w, u_ritz = eigh_krylov(
         lambda x: apply_local_hamiltonian(L, R, W, x.reshape(Astart.shape)).reshape(-1),
             Astart.reshape(-1), numiter, 1)
 

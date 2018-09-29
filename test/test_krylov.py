@@ -30,7 +30,7 @@ class TestKrylov(unittest.TestCase):
         self.assertAlmostEqual(np.linalg.norm(np.dot(V.conj().T, np.dot(A, V)) - T), 0., delta=1e-12,
                                msg='Lanczos vectors must tridiagonalize A')
 
-    def test_eigh(self):
+    def test_eigh_krylov(self):
 
         n = 196
         numiter = 30
@@ -44,7 +44,7 @@ class TestKrylov(unittest.TestCase):
         vstart = randn_complex(n) / np.sqrt(n)
 
         # simply use A as linear transformation;
-        w, u_ritz = ptn.eigh(lambda x: np.dot(A, x), vstart, numiter, numeig)
+        w, u_ritz = ptn.eigh_krylov(lambda x: np.dot(A, x), vstart, numiter, numeig)
 
         # check orthogonality of Ritz matrix
         self.assertAlmostEqual(np.linalg.norm(np.dot(u_ritz.conj().T, u_ritz) - np.identity(numeig)), 0., delta=1e-12,
@@ -64,7 +64,7 @@ class TestKrylov(unittest.TestCase):
         self.assertAlmostEqual(w[1], w_ref[1], delta=0.02,
                                msg='second-lowest Lanczos eigenvalue should approximate exact eigenvalue')
 
-    def test_expm(self):
+    def test_expm_krylov(self):
 
         n = 320
         numiter = 12
@@ -80,7 +80,7 @@ class TestKrylov(unittest.TestCase):
         dt = 0.4 + 0.2j
 
         # Krylov subspace approximation of expm(dt*A)*v
-        vt = ptn.expm(lambda x: np.dot(A, x), v, dt, numiter)
+        vt = ptn.expm_krylov(lambda x: np.dot(A, x), v, dt, numiter)
 
         # reference
         vt_ref = np.dot(expm(dt*A), v)

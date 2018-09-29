@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.linalg import eigh_tridiagonal
 
-__all__ = ['lanczos_iteration', 'eigh', 'expm']
+__all__ = ['lanczos_iteration', 'eigh_krylov', 'expm_krylov']
 
 
 def lanczos_iteration(Afunc, vstart, numiter):
@@ -45,7 +45,7 @@ def lanczos_iteration(Afunc, vstart, numiter):
     return (alpha, beta, V.T)
 
 
-def eigh(Afunc, vstart, numiter, numeig):
+def eigh_krylov(Afunc, vstart, numiter, numeig):
     """Compute Krylov subspace approximation of eigenvalues and vectors."""
 
     alpha, beta, V = lanczos_iteration(Afunc, vstart, numiter)
@@ -59,7 +59,7 @@ def eigh(Afunc, vstart, numiter, numeig):
     return (w_hess[0:numeig], u_ritz)
 
 
-def expm(Afunc, v, dt, numiter):
+def expm_krylov(Afunc, v, dt, numiter):
     """Compute Krylov subspace approximation of the matrix exponential
     applied to input vector: expm(dt*A)*v.
 
