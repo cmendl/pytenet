@@ -4,13 +4,15 @@ __all__ = ['operator_average', 'compute_right_operator_blocks', 'apply_local_ham
 
 
 def operator_average(psi, op):
-    """Compute the expectation value <psi | op | psi>.
+    """
+    Compute the expectation value `<psi | op | psi>`.
 
     Args:
-        psi:    wavefunction represented as MPS
-        op:     operator represented as MPO
+        psi: wavefunction represented as MPS
+        op:  operator represented as MPO
 
-    Returns:    <psi | op | psi> (complex number)
+    Returns:
+        complex: `<psi | op | psi>`
     """
 
     assert psi.nsites == op.nsites
@@ -32,9 +34,12 @@ def operator_average(psi, op):
 
 
 def contraction_operator_step_right(A, W, R):
-    """Contraction step from right to left, with a matrix product operator sandwiched in between.
+    """
+    Contraction step from right to left, with a matrix product operator
+    sandwiched in between.
 
-    To-be contracted tensor network:
+    To-be contracted tensor network::
+
           _____           ______
          /     \         /
       ---|1 A*2|---   ---|2
@@ -73,9 +78,12 @@ def contraction_operator_step_right(A, W, R):
 
 
 def contraction_operator_step_left(A, W, L):
-    """Contraction step from left to right, with a matrix product operator sandwiched in between.
+    """
+    Contraction step from left to right, with a matrix product operator
+    sandwiched in between.
 
-    To-be contracted tensor network:
+    To-be contracted tensor network::
+
       ______           _____
             \         /     \
            2|---   ---|1 A*2|---
@@ -128,9 +136,11 @@ def compute_right_operator_blocks(psi, op):
 
 
 def apply_local_hamiltonian(L, R, W, A):
-    """Apply site-local Hamiltonian operator.
+    """
+    Apply site-local Hamiltonian operator.
 
-    To-be contracted tensor network:
+    To-be contracted tensor network::
+
      ______                           ______
            \                         /
           2|---                   ---|2
@@ -170,9 +180,11 @@ def apply_local_hamiltonian(L, R, W, A):
 
 
 def apply_local_bond_contraction(L, R, C):
-    """Apply "zero-site" bond contraction.
+    """
+    Apply "zero-site" bond contraction.
 
-    To-be contracted tensor network:
+    To-be contracted tensor network::
+
      ______                           ______
            \                         /
           2|---                   ---|2

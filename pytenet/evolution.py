@@ -15,6 +15,7 @@ __all__ = ['integrate_local_singlesite']
 def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
     """
     Symmetric single-site integration.
+    `psi` is overwritten in-place with time-evolved state.
 
     Args:
         H: Hamiltonian as MPO
@@ -25,8 +26,7 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
         numiter_lanczos: number of Lanczos iterations for each site-local step
 
     Returns:
-        norm of initial psi;
-        psi is overwritten in-place with time-evolved state
+        float: norm of initial psi
 
     Reference:
         J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, F. Verstraete

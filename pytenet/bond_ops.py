@@ -125,8 +125,8 @@ def split_matrix_svd(A, q0, q1, tol):
 def qr(A, q0, q1):
     """
     Compute the block-wise QR decompositions of a matrix, taking block sparsity
-    structure dictated by quantum numbers into account (that is, A[i, j] can
-    only be non-zero if q0[i] == q1[j]).
+    structure dictated by quantum numbers into account (that is, `A[i, j]` can
+    only be non-zero if `q0[i] == q1[j]`).
 
     The resulting R matrix is not necessarily upper triangular due to
     reordering of entries.

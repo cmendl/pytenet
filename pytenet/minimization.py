@@ -14,15 +14,16 @@ __all__ = ['calculate_ground_state_local_singlesite']
 def calculate_ground_state_local_singlesite(H, psi, numsweeps, numiter_lanczos=25):
     """
     Approximate the ground state MPS by left and right sweeps and local single-site optimizations;
-    virtual bond dimensions of starting state 'psi' can only decrease.
+    virtual bond dimensions of starting state `psi` can only decrease.
 
     Args:
         H: Hamiltonian as MPO
         psi: initial MPS used for optimization; will be overwritten
         numsweeps: maximum number of left and right sweeps
         numiter_lanczos: number of local Lanczos iterations
+
     Returns:
-        array of approximate ground state energies after each iteration
+        numpy.ndarray: array of approximate ground state energies after each iteration
 
     Reference:
         Ulrich Schollw"ock

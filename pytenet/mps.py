@@ -9,12 +9,12 @@ class MPS(object):
     """
     Matrix product state (MPS) class.
 
-    The i-th MPS tensor has dimension [d, D[i], D[i+1]] with d the physical
-    dimension at each site and D the list of virtual bond dimensions.
+    The i-th MPS tensor has dimension `[d, D[i], D[i+1]]` with `d` the physical
+    dimension at each site and `D` the list of virtual bond dimensions.
 
     Quantum numbers are assumed to be additive and stored as integers.
-    qd stores the list of physical quantum numbers at each site,
-    and qD the virtual bond quantum numbers.
+    `qd` stores the list of physical quantum numbers at each site,
+    and `qD` the virtual bond quantum numbers.
     The sum of physical and left virtual bond quantum number of each non-zero
     tensor entry must be equal to the right virtual bond quantum number.
     """
@@ -118,7 +118,7 @@ class MPS(object):
 
 def local_orthonormalize_left_qr(A, Anext, qd, qD):
     """
-    Left-orthonormalize local site tensor A by a QR decomposition,
+    Left-orthonormalize local site tensor `A` by a QR decomposition,
     and update tensor at next site.
     """
     # perform QR decomposition and replace A by reshaped Q matrix
@@ -134,7 +134,7 @@ def local_orthonormalize_left_qr(A, Anext, qd, qD):
 
 def local_orthonormalize_right_qr(A, Aprev, qd, qD):
     """
-    Right-orthonormalize local site tensor A by a QR decomposition,
+    Right-orthonormalize local site tensor `A` by a QR decomposition,
     and update tensor at previous site.
     """
     # flip left and right virtual bond dimensions
@@ -162,8 +162,8 @@ def merge_MPS_tensor_pair(A0, A1):
 
 def split_MPS_tensor(A, qd0, qd1, qD, svd_distr, tol=0):
     """
-    Split a MPS tensor with dimension d0*d1 x D0 x D2 into two MPS tensors
-    with dimensions d0 x D0 x D1 and d1 x D1 x D2, respectively.
+    Split a MPS tensor with dimension `d0*d1 x D0 x D2` into two MPS tensors
+    with dimensions `d0 x D0 x D1` and `d1 x D1 x D2`, respectively.
     """
     assert A.ndim == 3
     d0 = len(qd0)

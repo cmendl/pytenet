@@ -51,7 +51,7 @@ class TestEvolution(unittest.TestCase):
         # total spin operator as MPO
         Sztot = ptn.local_opchains_to_MPO(mpoH.qd, L, [ptn.OpChain([np.diag([0.5, -0.5])], [])])
 
-        # explicity compute average spin
+        # explicitly compute average spin
         spin_avr = ptn.operator_average(psi, Sztot)
         self.assertAlmostEqual(abs(spin_avr - spin_tot), 0, delta=1e-14,
             msg='average spin must be equal to prescribed value')

@@ -9,12 +9,12 @@ class MPO(object):
     """
     Matrix product operator (MPO) class.
 
-    The i-th MPO tensor has dimension [d, d, D[i], D[i+1]] with d the physical
-    dimension at each site and D the list of virtual bond dimensions.
+    The i-th MPO tensor has dimension `[d, d, D[i], D[i+1]]` with `d` the physical
+    dimension at each site and `D` the list of virtual bond dimensions.
 
     Quantum numbers are assumed to be additive and stored as integers.
-    qd stores the list of physical quantum numbers at each site (assumed to agree
-    for first and second physical dimension), and qD the virtual bond quantum numbers.
+    `qd` stores the list of physical quantum numbers at each site (assumed to agree
+    for first and second physical dimension), and `qD` the virtual bond quantum numbers.
     The sum of first physical and left virtual bond quantum number of each
     non-zero tensor entry must be equal to the sum of second physical and
     right virtual bond quantum number.
@@ -52,7 +52,17 @@ class MPO(object):
 
     @classmethod
     def from_opchains(cls, qd, L, opchains):
-        """Construct a MPO representation of a sum of "operator chains"."""
+        """
+        Construct a MPO representation of a sum of "operator chains".
+
+        Args:
+            qd: physical quantum numbers at each site (same for all sites)
+            L:  number of lattice sites
+            opchains: list of operator chains
+
+        Returns:
+            MPO: MPO representation of `opchains`
+        """
 
         # filter out empty operator chains
         opchains = [opc for opc in opchains if opc.length > 0]
@@ -187,7 +197,7 @@ class MPO(object):
 
 def local_orthonormalize_left_qr(A, Anext, qd, qD):
     """
-    Left-orthonormalize local site tensor A by a QR decomposition,
+    Left-orthonormalize local site tensor `A` by a QR decomposition,
     and update tensor at next site.
     """
     # perform QR decomposition and replace A by reshaped Q matrix
@@ -203,7 +213,7 @@ def local_orthonormalize_left_qr(A, Anext, qd, qD):
 
 def local_orthonormalize_right_qr(A, Aprev, qd, qD):
     """
-    Right-orthonormalize local site tensor A by a QR decomposition,
+    Right-orthonormalize local site tensor `A` by a QR decomposition,
     and update tensor at previous site.
     """
     # flip left and right virtual bond dimensions

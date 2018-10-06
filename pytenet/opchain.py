@@ -5,10 +5,10 @@ __all__ = ['OpChain']
 
 class OpChain(object):
     """
-    Operator chain op_i x op_{i+1} x ... x op_{i+n-1},
-    with op_i acting on lattice site i.
+    Operator chain `op_i x op_{i+1} x ... x op_{i+n-1}`,
+    with `op_i` acting on lattice site `i`.
 
-    A single bond quantum number is interleaved between each op_i and op_{i+1};
+    A single bond quantum number is interleaved between each `op_i` and `op_{i+1}`;
     set all quantum numbers to zero to effectively disable them.
     """
 
@@ -51,7 +51,7 @@ class OpChain(object):
         self.istart = 0
 
     def as_matrix(self, d, L):
-        """Construct matrix representation on full Hilbert space (dimension d^L x d^L)."""
+        """Construct matrix representation on full Hilbert space (dimension `d^L x d^L`)."""
         if len(self.oplist) == 0:
             A = np.zeros((d**L, d**L))
         else:

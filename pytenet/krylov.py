@@ -13,9 +13,10 @@ def lanczos_iteration(Afunc, vstart, numiter):
         numiter:    number of iterations (should be much smaller than dimension of vstart)
 
     Returns:
-        alpha:      diagonal real entries of Hessenberg matrix
-        beta:       off-diagonal real entries of Hessenberg matrix
-        V:          len(vstart) x numiter matrix containing the orthonormal Lanczos vectors
+        tuple: tuple containing
+          - alpha:      diagonal real entries of Hessenberg matrix
+          - beta:       off-diagonal real entries of Hessenberg matrix
+          - V:          `len(vstart) x numiter` matrix containing the orthonormal Lanczos vectors
     """
 
     # normalize starting vector
@@ -60,8 +61,9 @@ def eigh_krylov(Afunc, vstart, numiter, numeig):
 
 
 def expm_krylov(Afunc, v, dt, numiter):
-    """Compute Krylov subspace approximation of the matrix exponential
-    applied to input vector: expm(dt*A)*v.
+    """
+    Compute Krylov subspace approximation of the matrix exponential
+    applied to input vector: `expm(dt*A)*v`.
 
     Reference:
         M. Hochbruck and C. Lubich
