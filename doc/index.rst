@@ -1,0 +1,25 @@
+Welcome to PyTeNet's documentation!
+===================================
+
+.. include:: ../ReadMe.rst
+    :start-after: doc-inclusion-marker-start
+    :end-before:  doc-inclusion-marker-end
+
+
+Tutorials
+---------
+The following tutorials provide an introduction to the main concepts and features of PyTeNet:
+
+.. toctree::
+    :numbered:
+    :maxdepth: 1
+
+    basics
+
+
+Indices and tables
+------------------
+
+- :ref:`genindex`
+- :ref:`modindex`
+- :ref:`search`

@@ -5,6 +5,8 @@
 PyTeNet
 =======
 
+.. doc-inclusion-marker-start
+
 PyTeNet is a Python implementation of quantum tensor network operations and simulations within the
 matrix product state framework, using NumPy to handle tensors.
 
@@ -47,6 +49,8 @@ Installation
 To install PyTeNet, download the `source code <https://github.com/cmendl/pytenet>`_ and
 run ``python setup.py install`` from within the main PyTeNet directory, or
 add the `pytenet/` subfolder to your Python search path.
+
+.. doc-inclusion-marker-end
 
 
 Directory structure
