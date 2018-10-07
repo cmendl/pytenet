@@ -57,7 +57,7 @@ Contribute
 Directory structure
 -------------------
 - __pytenet__: source code of the actual PyTeNet package
-- __docs__: documentation and tutorials
+- __doc__: documentation and tutorials
 - __test__: unit tests (might serve as detailed documentation, too)
 - __experiments__: numerical experiments on more advanced, in-depth topics
 - __paper__: JOSS manuscript
