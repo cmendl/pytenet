@@ -1,17 +1,18 @@
 from setuptools import setup
-import re
 
 
-with open('ReadMe.md', 'r') as f:
+with open('ReadMe.rst', 'r') as f:
+    # skip the build status banner
+    for n in range(4):
+        next(f)
     long_desc = f.read()
-    # cut out the build status banner
-    long_desc = re.sub('[![Build Status](.*?)](.*?)\n\n', '', long_desc)
 
 setup(
     name='pytenet',
     version='1.0',
     description='Tensor network library for quantum simulations',
     long_description=long_desc,
+    long_description_content_type='text/x-rst',
     license='BSD 2-Clause',
     author='Christian B. Mendl',
     author_email='christian.b.mendl@gmail.com',
