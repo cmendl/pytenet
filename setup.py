@@ -3,9 +3,8 @@ from setuptools import setup
 
 with open('ReadMe.rst', 'r') as f:
     # skip the build status banner
-    for n in range(4):
-        next(f)
-    long_desc = f.read()
+    lines = f.readlines()[4:]
+    long_desc = ''.join(lines)
 
 setup(
     name='pytenet',
