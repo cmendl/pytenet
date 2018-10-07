@@ -53,6 +53,11 @@ add the `pytenet/` subfolder to your Python search path.
 .. doc-inclusion-marker-end
 
 
+Documentation
+-------------
+The full documentation is available at `pytenet.readthedocs.io <https://pytenet.readthedocs.io>`_.
+
+
 Directory structure
 -------------------
 - **pytenet**: source code of the actual PyTeNet package
