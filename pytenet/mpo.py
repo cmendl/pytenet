@@ -1,4 +1,5 @@
 import numpy as np
+import copy
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
 from .bond_ops import qr
 
@@ -77,11 +78,13 @@ class MPO(object):
 
         # right-pad first operator chain with identity matrices
         # (required for trailing identity operations in each chain)
+        opchains[0] = copy.deepcopy(opchains[0])
         opchains[0].pad_identities_right(d, L)
 
         # find operator chain with largest starting index
         maxidxS = np.argmax([op.istart for op in opchains])
         # left-pad this operator chain with identity matrices (for leading identity operations in each chain)
+        opchains[maxidxS] = copy.deepcopy(opchains[maxidxS])
         opchains[maxidxS].pad_identities_left(d)
 
         # allocate virtual bond slots between operators for each operator chain
