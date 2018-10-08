@@ -15,6 +15,7 @@ The following tutorials provide an introduction to the main concepts and feature
     :maxdepth: 1
 
     basics
+    hamiltonian_mpo
 
 
 Indices and tables
