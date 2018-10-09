@@ -27,10 +27,10 @@ def main():
     # realize commutator [H, .] as matrix product operator
     mpoHcomm = heisenberg_XXZ_comm_MPO(L, J, DH, h)
     mpoHcomm.zero_qnumbers()
-    print('norm of [H, .] operator:', np.linalg.norm(mpoHcomm.as_matrix()))
+    print('2-norm of [H, .] operator:', np.linalg.norm(mpoHcomm.as_matrix(), 2))
 
     # initial density matrix as MPO with random entries (not necessarily Hermitian)
-    Dmax = 20
+    Dmax = 40
     D = np.minimum(np.minimum(d**(2*np.arange(L + 1)), d**(2*(L - np.arange(L + 1)))), Dmax)
     np.random.seed(42)
     rho = ptn.MPO(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
@@ -55,8 +55,8 @@ def main():
             np.concatenate((2*np.arange(L, dtype=int), 2*np.arange(L, dtype=int)+1))).reshape((d**L, d**L))
     print('commutator reference check error: {:g}'.format(np.linalg.norm(comm - comm_ref)))
 
-    # relatively small evolution time since norm of [H, .] operator is large
-    t = 0.01 + 0.05j
+    # mixed real and imaginary time evolution
+    t = 0.1 + 0.5j
 
     # reference calculation: exp(-t H) rho exp(t H)
     rho_t_ref = np.dot(np.dot(expm(-t*mpoH.as_matrix()), rho_mat), expm(t*mpoH.as_matrix()))
@@ -98,7 +98,7 @@ def cast_to_MPO(mps, qd):
     Cast a matrix product state into MPO form by interpreting the physical
     dimension as Kronecker product of a pair of dimensions.
     """
-    assert not np.any(mps.qd - ptn.qnumber_flatten([qd, -qd]))
+    assert np.array_equal(mps.qd, ptn.qnumber_flatten([qd, -qd]))
 
     mpo = ptn.MPO(qd, mps.qD, fill=0.0)
     for i in range(mps.nsites):

@@ -41,7 +41,12 @@ def main():
     psi.orthonormalize(mode='right')
     psi.orthonormalize(mode='left')
 
-    t = 0.1 + 0.5j
+    # initial average energy (should be conserved)
+    e_avr_0 = ptn.operator_average(psi, mpoH).real
+    print('e_avr_0:', e_avr_0)
+
+    # purely real time evolution
+    t = 0.5j
 
     # reference calculation
     psi_ref = np.dot(expm(-t*mpoH.as_matrix()), psi.as_vector())
@@ -60,6 +65,13 @@ def main():
         ptn.integrate_local_singlesite(mpoH, psi_t, dt, n, numiter_lanczos=10)
 
         err[i] = np.linalg.norm(psi_t.as_vector() - psi_ref)
+
+        # expecting numerically exact energy conservation
+        # (for real time evolution)
+        e_avr_t = ptn.operator_average(psi_t, mpoH).real
+        print('e_avr_t:', e_avr_t)
+        print('abs(e_avr_t - e_avr_0):', abs(e_avr_t - e_avr_0))
+
 
     dtinv = numsteps / abs(t)
     plt.loglog(dtinv, err, '.-')
