@@ -7,10 +7,11 @@ PyTeNet
 
 .. doc-inclusion-marker-start
 
-PyTeNet is a Python implementation of quantum tensor network operations and simulations within the
-matrix product state framework, using NumPy to handle tensors.
+`PyTeNet <https://github.com/cmendl/pytenet>`_ is a Python implementation of quantum
+tensor network operations and simulations within the matrix product state framework,
+using NumPy to handle tensors.
 
-Example usage for TDVP time evolution (assuming `psi` is a matrix product state):
+Example usage for TDVP time evolution:
 
 .. code-block:: python
 
