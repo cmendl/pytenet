@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.linalg import eigh_tridiagonal
+import warnings
 
 __all__ = ['lanczos_iteration', 'eigh_krylov', 'expm_krylov']
 
@@ -35,7 +36,13 @@ def lanczos_iteration(Afunc, vstart, numiter):
         alpha[j] = np.vdot(w, V[j]).real
         w -= alpha[j]*V[j] + (beta[j-1]*V[j-1] if j > 0 else 0)
         beta[j] = np.linalg.norm(w)
-        assert beta[j] > 0
+        if beta[j] < 100*len(vstart)*np.finfo(float).eps:
+            warnings.warn(
+                'beta[{}] ~= 0 encountered during Lanczos iteration.'.format(j),
+                RuntimeWarning)
+            # premature end of iteration
+            numiter = j + 1
+            return (alpha[:numiter], beta[:numiter-1], V[:numiter, :].T)
         V[j+1] = w / beta[j]
 
     # complete final iteration
