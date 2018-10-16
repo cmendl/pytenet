@@ -81,6 +81,16 @@ Directory structure
 - **paper**: JOSS manuscript
 
 
+Contributing
+------------
+Feature requests, discussions and code contributions to PyTeNet in the form of
+`pull requests <https://github.com/cmendl/pytenet/pulls>`_ are of course welcome.
+Creating an `issue <https://github.com/cmendl/pytenet/issues>`_ might be a good starting point.
+New code should be well documented (`Google style docstrings <https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html>`_)
+and unit-tested (see the `test/` subfolder).
+For questions and additional support, fell free to contact christian.b.mendl@gmail.com
+
+
 License
 -------
 PyTeNet is licensed under the BSD 2-Clause license.
