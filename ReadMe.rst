@@ -1,11 +1,13 @@
 .. image:: https://travis-ci.com/cmendl/pytenet.svg?branch=master
   :target: https://travis-ci.com/cmendl/pytenet
+.. image:: http://joss.theoj.org/papers/10.21105/joss.00948/status.svg
+  :target: https://doi.org/10.21105/joss.00948
 
 
 PyTeNet
 =======
 
-.. doc-inclusion-marker-start
+.. doc-inclusion-marker1-start
 
 `PyTeNet <https://github.com/cmendl/pytenet>`_ is a Python implementation of quantum
 tensor network operations and simulations within the matrix product state framework,
@@ -64,7 +66,7 @@ To install PyTeNet, download the `source code <https://github.com/cmendl/pytenet
 run ``python setup.py install`` from within the main PyTeNet directory, or
 add the `pytenet/` subfolder to your Python search path.
 
-.. doc-inclusion-marker-end
+.. doc-inclusion-marker1-end
 
 
 Documentation
@@ -81,6 +83,8 @@ Directory structure
 - **paper**: JOSS manuscript
 
 
+.. doc-inclusion-marker2-start
+
 Contributing
 ------------
 Feature requests, discussions and code contributions to PyTeNet in the form of
@@ -89,6 +93,25 @@ Creating an `issue <https://github.com/cmendl/pytenet/issues>`_ might be a good 
 New code should be well documented (`Google style docstrings <https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html>`_)
 and unit-tested (see the `test/` subfolder).
 For questions and additional support, fell free to contact christian.b.mendl@gmail.com
+
+
+Citing
+------
+PyTeNet is `published <https://doi.org/10.21105/joss.00948>`_ in the Journal of Open Source Software -
+if it's ever useful for a research project please consider citing it:
+
+.. code-block:: latex
+
+    @ARTICLE{pytenet,
+      author = {Mendl, C. B.},
+      title = {PyTeNet: A concise Python implementation of quantum tensor network algorithms},
+      journal = {Journal of Open Source Software},
+      year = {2018},
+      volume = {3},
+      number = {30},
+      pages = {948},
+      doi = {10.21105/joss.00948},
+    }
 
 
 License
@@ -110,3 +133,5 @@ References
 4. | T. Barthel
    | Precise evaluation of thermal response functions by optimized density matrix renormalization group schemes
    | New J. Phys. 15, 073010 (2013) `arXiv:1301.2246 <https://arxiv.org/abs/1301.2246>`_, `DOI <https://doi.org/10.1088/1367-2630/15/7/073010>`_
+
+.. doc-inclusion-marker2-end

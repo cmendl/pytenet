@@ -2,8 +2,8 @@ from setuptools import setup
 
 
 with open('ReadMe.rst', 'r') as f:
-    # skip the build status banner
-    lines = f.readlines()[4:]
+    # skip the banners
+    lines = f.readlines()[6:]
     long_desc = ''.join(lines)
 
 setup(
