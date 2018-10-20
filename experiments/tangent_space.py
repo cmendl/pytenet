@@ -1,5 +1,5 @@
 """
-Numerically investigate MPS tangent space dimension.
+Numerically investigate MPS tangent space dimension and projector.
 
 Reference:
     J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, F. Verstraete
@@ -9,7 +9,57 @@ Reference:
 
 from __future__ import print_function
 import numpy as np
+import scipy
+import copy
 import pytenet as ptn
+
+
+def tangent_space_projector(psi):
+    """Construct tangent space projector as matrix based on MPS formalism."""
+
+    # physical local site dimension
+    d = len(psi.qd)
+
+    # number of lattice sites
+    L = psi.nsites
+
+    psi_c = copy.deepcopy(psi)
+
+    # construct P_L operators
+    psi_c.orthonormalize(mode='left')
+    PL = []
+    x = np.array([[[1.]]])
+    for i in range(L):
+        x = ptn.merge_MPS_tensor_pair(x, psi_c.A[i])
+        assert x.ndim == 3 and x.shape[1] == 1
+        xmat = x.reshape((x.shape[0], x.shape[2]))
+        # check orthonormalization
+        assert np.linalg.norm(np.dot(xmat.conj().T, xmat) - np.identity(xmat.shape[1])) < 1e-14
+        PL.append(np.dot(xmat, xmat.conj().T))
+
+    # construct P_R operators
+    psi_c.orthonormalize(mode='right')
+    PR = []
+    x = np.array([[[1.]]])
+    for i in reversed(range(L)):
+        x = ptn.merge_MPS_tensor_pair(psi_c.A[i], x)
+        assert x.ndim == 3 and x.shape[2] == 1
+        xmat = x.reshape(x.shape[:2])
+        # check orthonormalization
+        assert np.linalg.norm(np.dot(xmat.conj().T, xmat) - np.identity(xmat.shape[1])) < 1e-14
+        PR.append(np.dot(xmat, xmat.conj().T))
+    PR = list(reversed(PR))
+
+    # construct projector
+    P = 0
+    P += np.kron(np.identity(d), PR[1])
+    for i in range(1, L-1):
+        P += np.kron(np.kron(PL[i-1], np.identity(d)), PR[i+1])
+    P += np.kron(PL[L-2], np.identity(d))
+    for i in range(0, L-1):
+        P -= np.kron(PL[i], PR[i+1])
+
+    return P
 
 
 def main():
@@ -25,6 +75,7 @@ def main():
 
     psi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in D], fill='random')
 
+    # construct MPS derivatives with respect to entries of the A tensors
     T = []
     for i in range(L):
         s = psi.A[i].shape
@@ -49,7 +100,8 @@ def main():
     print('rank of T:', np.linalg.matrix_rank(T))
     # number of degrees of freedom based on sandwiching "X" matrices between bonds,
     # -2 for omitting the leading and trailing entry 1 in D
-    print('expected: ', num_entries - ((np.array(D)**2).sum() - 2))
+    rank = num_entries - ((np.array(D)**2).sum() - 2)
+    print('expected: ', rank)
 
     # realization of random X matrices
     X = [np.identity(1, dtype=complex)]
@@ -74,6 +126,20 @@ def main():
     # should be numerically zero by construction
     z = np.dot(N.transpose(), np.ones(L))
     print('|z|:', np.linalg.norm(z), '(should be numerically zero)')
+
+    # reference tangent space projector based on T
+    # rank-revealing QR decomposition
+    Q, R, _ = scipy.linalg.qr(T.T, mode='economic', pivoting=True)
+    P_ref = np.dot(Q[:, :rank], Q[:, :rank].conj().T)
+
+    # construct tangent space projector based on MPS formalism
+    P = tangent_space_projector(psi)
+    # compare
+    print('|P - P_ref|:', np.linalg.norm(P - P_ref), '(should be numerically zero)')
+
+    # apply projector to psi (psi should remain unaffected)
+    x = psi.as_vector()
+    print('|P psi - psi|:', np.linalg.norm(np.dot(P, x) - x), '(should be numerically zero)')
 
 
 if __name__ == '__main__':
