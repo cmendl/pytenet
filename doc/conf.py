@@ -26,7 +26,7 @@ author = 'Christian B. Mendl'
 # The short X.Y version
 version = '1.0'
 # The full version, including alpha/beta/rc tags
-release = '1.0'
+release = '1.0.1'
 
 
 # -- General configuration ---------------------------------------------------
@@ -41,6 +41,7 @@ release = '1.0'
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
+    'sphinx.ext.intersphinx',
     'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
@@ -113,3 +114,11 @@ html_static_path = ['_static']
 
 
 # -- Extension configuration -------------------------------------------------
+
+# -- Options for intersphinx extension ---------------------------------------
+
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/', None),
+    'numpy':  ('https://docs.scipy.org/doc/numpy', None),
+    'scipy':  ('https://docs.scipy.org/doc/scipy/reference', None),
+}
