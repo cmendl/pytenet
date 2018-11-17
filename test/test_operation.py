@@ -5,6 +5,43 @@ import pytenet as ptn
 
 class TestOperation(unittest.TestCase):
 
+    def test_vdot(self):
+
+        # physical dimension
+        d = 4
+
+        # create random matrix product states
+        psi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in [1, 3, 9, 13, 4, 1]], fill='random')
+        chi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in [1, 4, 7, 8,  2, 1]], fill='random')
+
+        # calculate dot product <chi | psi>
+        s = ptn.vdot(chi, psi)
+
+        # reference value
+        s_ref = np.vdot(chi.as_vector(), psi.as_vector())
+
+        # relative error
+        err = abs(s - s_ref) / max(abs(s_ref), 1e-12)
+        self.assertAlmostEqual(err, 0., delta=1e-12, msg='dot product must match reference value')
+
+    def test_norm(self):
+
+        # physical dimension
+        d = 3
+
+        # create random matrix product state
+        psi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in [1, 3, 5, 8, 7, 2, 1]], fill='random')
+
+        # calculate the norm of psi using the MPS representation
+        n = ptn.norm(psi)
+
+        # reference value
+        n_ref = np.linalg.norm(psi.as_vector())
+
+        # relative error
+        err = abs(n - n_ref) / max(abs(n_ref), 1e-12)
+        self.assertAlmostEqual(err, 0., delta=1e-12, msg='wavefunction norm must match reference value')
+
     def test_operator_average(self):
 
         # physical dimension
@@ -24,7 +61,7 @@ class TestOperation(unittest.TestCase):
         D = [1, 5, 16, 14, 17, 4, 1]
         # set bond quantum numbers to zero since otherwise,
         # sparsity pattern often leads to <psi | op | psi> = 0
-        op = ptn.MPO(qd, [np.zeros(Di) for Di in D], fill='random')
+        op = ptn.MPO(qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
 
         # calculate average (expectation value) <psi | op | psi>
         avr = ptn.operator_average(psi, op)

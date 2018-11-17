@@ -1,6 +1,104 @@
 import numpy as np
 
-__all__ = ['operator_average', 'compute_right_operator_blocks', 'apply_local_hamiltonian', 'apply_local_bond_contraction']
+__all__ = ['vdot', 'norm', 'operator_average', 'compute_right_operator_blocks', 'apply_local_hamiltonian', 'apply_local_bond_contraction']
+
+
+def vdot(chi, psi):
+    """
+    Compute the dot (scalar) product `<chi | psi>`, complex conjugating `chi`.
+
+    Args:
+        chi: wavefunction represented as MPS
+        psi: wavefunction represented as MPS
+
+    Returns:
+        complex: `<chi | psi>`
+    """
+
+    assert psi.nsites == chi.nsites
+
+    if psi.nsites == 0:
+        return 0
+
+    # initialize T by identity matrix
+    T = np.identity(psi.A[-1].shape[2], dtype=psi.A[-1].dtype)
+
+    for i in reversed(range(psi.nsites)):
+        T = contraction_step_right(psi.A[i], chi.A[i], T)
+
+    # T should now be a 1x1 tensor
+    assert T.shape == (1, 1)
+
+    return T[0, 0]
+
+
+def norm(psi):
+    """Compute the standard L2 norm of a matrix product state."""
+    return np.sqrt(vdot(psi, psi).real)
+
+
+def contraction_step_right(A, B, R):
+    """
+    Contraction step from right to left, for example to compute the
+    inner product of two matrix product states.
+
+    To-be contracted tensor network::
+
+          _____           ______
+         /     \         /
+      ---|1 B*2|---   ---|1
+         \__0__/         |
+            |            |
+                         |    R
+          __|__          |
+         /  0  \         |
+      ---|1 A 2|---   ---|0
+         \_____/         \______
+    """
+
+    assert A.ndim == 3
+    assert B.ndim == 3
+    assert R.ndim == 2
+
+    # multiply with A tensor
+    T = np.tensordot(A, R, 1)
+
+    # multiply with conjugated B tensor
+    Rnext = np.tensordot(T, B.conj(), axes=((0, 2), (0, 2)))
+
+    return Rnext
+
+
+def contraction_step_left(A, B, L):
+    """
+    Contraction step from left to right, for example to compute the
+    inner product of two matrix product states.
+
+    To-be contracted tensor network::
+
+     ______           _____
+           \         /     \
+          1|---   ---|1 B*2|---
+           |         \__0__/
+           |            |
+      L    |
+           |          __|__
+           |         /  0  \
+          0|---   ---|1 A 2|---
+     ______/         \_____/
+    """
+
+    assert A.ndim == 3
+    assert B.ndim == 3
+    assert L.ndim == 2
+
+    # multiply with conjugated B tensor
+    T = np.tensordot(L, B.conj(), axes=(1, 1))
+
+    # multiply with A tensor
+    Lnext = np.tensordot(A, T, axes=((0, 1), (1, 0)))
+
+    return Lnext
 
 
 def operator_average(psi, op):
@@ -84,23 +182,23 @@ def contraction_operator_step_left(A, W, L):
 
     To-be contracted tensor network::
 
-      ______           _____
-            \         /     \
-           2|---   ---|1 A*2|---
-            |         \__0__/
-            |            |
-            |
-            |          __|__
-            |         /  0  \
-       L   1|---   ---|2 W 3|---
-            |         \__1__/
-            |            |
-            |
-            |          __|__
-            |         /  0  \
-           0|---   ---|1 A 2|---
-      ______/         \_____/
-     """
+     ______           _____
+           \         /     \
+          2|---   ---|1 A*2|---
+           |         \__0__/
+           |            |
+           |
+           |          __|__
+           |         /  0  \
+      L   1|---   ---|2 W 3|---
+           |         \__1__/
+           |            |
+           |
+           |          __|__
+           |         /  0  \
+          0|---   ---|1 A 2|---
+     ______/         \_____/
+    """
 
     assert A.ndim == 3
     assert W.ndim == 4
