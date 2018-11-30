@@ -1,5 +1,5 @@
 import numpy as np
-from .qnumber import qnumber_outer_sum, qnumber_flatten
+from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
 from .bond_ops import qr, split_matrix_svd
 
 __all__ = ['MPS', 'merge_MPS_tensor_pair', 'split_MPS_tensor']
@@ -115,6 +115,10 @@ class MPS(object):
         assert psi.shape[1] == 1 and psi.shape[2] == 1
         return psi.reshape(-1)
 
+    def __add__(self, other):
+        """Add MPS to another."""
+        return add_MPS(self, other)
+
 
 def local_orthonormalize_left_qr(A, Anext, qd, qD):
     """
@@ -191,3 +195,56 @@ def split_MPS_tensor(A, qd0, qd1, qD, svd_distr, tol=0):
     # move physical dimension to the front
     A1 = A1.transpose((1, 0, 2))
     return (A0, A1, qbond)
+
+
+def add_MPS(mps0, mps1):
+    """"Logical addition of two matrix product states (effectively sum virtual bond dimensions)."""
+    # number of lattice sites must agree
+    assert mps0.nsites == mps1.nsites
+    L = mps0.nsites
+    # physical quantum numbers must agree
+    assert np.array_equal(mps0.qd, mps1.qd)
+    d = len(mps0.qd)
+
+    # initialize with dummy tensors and bond quantum numbers
+    mps = MPS(mps0.qd, (L+1)*[[0]])
+
+    if L == 1:
+        # single site
+        # dummy bond quantum numbers must agree
+        assert np.array_equal(mps0.qD[0], mps1.qD[0])
+        assert np.array_equal(mps0.qD[1], mps1.qD[1])
+        mps.qD[0] = mps0.qD[0].copy()
+        mps.qD[1] = mps0.qD[1].copy()
+        # simply add MPS tensors
+        mps.A[0] = mps0.A[0] + mps1.A[0]
+        # consistency check
+        assert is_qsparse(mps.A[0], [mps.qd, mps.qD[0], -mps.qD[1]]), \
+            'sparsity pattern of MPS tensor does not match quantum numbers'
+    elif L > 1:
+        # combine virtual bond quantum numbers
+        # leading and trailing (dummy) bond quantum numbers must agree
+        assert np.array_equal(mps0.qD[ 0], mps1.qD[ 0])
+        assert np.array_equal(mps0.qD[-1], mps1.qD[-1])
+        mps.qD[ 0] = mps0.qD[ 0].copy()
+        mps.qD[-1] = mps0.qD[-1].copy()
+        # intermediate bond quantum numbers
+        for i in range(1, L):
+            mps.qD[i] = np.concatenate((mps0.qD[i], mps1.qD[i]))
+
+        # leftmost tensor
+        mps.A[0] = np.block([mps0.A[0], mps1.A[0]])
+        # intermediate tensors
+        for i in range(1, L - 1):
+            s0 = mps0.A[i].shape
+            s1 = mps1.A[i].shape
+            # form block-diagonal tensor
+            mps.A[i] = np.block([[mps0.A[i], np.zeros((d, s0[1], s1[2]))], [np.zeros((d, s1[1], s0[2])), mps1.A[i]]])
+        # rightmost tensor
+        mps.A[-1] = np.block([[mps0.A[-1]], [mps1.A[-1]]])
+
+        # consistency check
+        for i in range(1, L):
+            assert is_qsparse(mps.A[i], [mps.qd, mps.qD[i], -mps.qD[i+1]]), \
+                'sparsity pattern of MPS tensor does not match quantum numbers'
+    return mps
