@@ -2,7 +2,7 @@ import numpy as np
 from .mpo import MPO
 from .opchain import OpChain
 
-__all__ = ['ising_MPO', 'heisenberg_XXZ_MPO', 'bose_hubbard_MPO', 'fermi_hubbard_MPO', 'local_opchains_to_MPO']
+__all__ = ['ising_MPO', 'heisenberg_XXZ_MPO', 'heisenberg_XXZ_spin1_MPO', 'bose_hubbard_MPO', 'fermi_hubbard_MPO', 'local_opchains_to_MPO']
 
 
 def ising_MPO(L, J, h, g):
@@ -53,6 +53,35 @@ def heisenberg_XXZ_MPO(L, J, D, h):
     # local two-site and single-site terms
     lopchains = [OpChain([0.5*J*Sup, Sdn], [ 2]),
                  OpChain([0.5*J*Sdn, Sup], [-2]),
+                 OpChain([D*Sz, Sz], [0]), OpChain([-h*Sz], [])]
+    # convert to MPO
+    return local_opchains_to_MPO(qd, L, lopchains)
+
+
+def heisenberg_XXZ_spin1_MPO(L, J, D, h):
+    """
+    Construct spin-1 XXZ Heisenberg Hamiltonian `sum J X X + J Y Y + D Z Z - h Z`
+    on a 1D lattice as MPO.
+
+    Args:
+        L:  number of lattice sites
+        J:  J parameter
+        D:  Delta parameter
+        h:  field strength
+
+    Returns:
+        MPO: spin-1 XXZ Heisenberg Hamiltonian
+    """
+    # physical quantum numbers
+    qd = [1, 0, -1]
+    # spin operators
+    sq2 = np.sqrt(2.)
+    Sup = np.array([[0.,  sq2, 0.], [0.,  0.,  sq2], [0.,  0.,  0.]])
+    Sdn = np.array([[0.,  0.,  0.], [sq2, 0.,  0. ], [0.,  sq2, 0.]])
+    Sz  = np.array([[1.,  0.,  0.], [0.,  0.,  0. ], [0.,  0., -1.]])
+    # local two-site and single-site terms
+    lopchains = [OpChain([0.5*J*Sup, Sdn], [ 1]),
+                 OpChain([0.5*J*Sdn, Sup], [-1]),
                  OpChain([D*Sz, Sz], [0]), OpChain([-h*Sz], [])]
     # convert to MPO
     return local_opchains_to_MPO(qd, L, lopchains)

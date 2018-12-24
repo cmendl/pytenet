@@ -39,6 +39,23 @@ class TestHamiltonian(unittest.TestCase):
         self.assertAlmostEqual(np.linalg.norm(H - Href), 0., delta=1e-12,
             msg='matrix representation of MPO and reference Hamiltonian must match')
 
+    def test_heisenberg_XXZ_spin1(self):
+        # Hamiltonian parameters
+        J =  1.2
+        D = -0.9
+        h =  1.0/7
+        # number of lattice sites
+        L = 6
+        # construct MPO
+        mpoH = ptn.heisenberg_XXZ_spin1_MPO(L, J, D, h)
+        # matrix representation, for comparison with reference
+        H = mpoH.as_matrix()
+        # reference Hamiltonian
+        Href = np.load('test_hamiltonian_heisenberg_XXZ_spin1.npz')['H']
+        # compare
+        self.assertAlmostEqual(np.linalg.norm(H - Href), 0., delta=1e-12,
+            msg='matrix representation of MPO and reference Hamiltonian must match')
+
     def test_bose_hubbard(self):
         # physical dimension per site (maximal occupancy is d - 1)
         d = 4
