@@ -1,5 +1,5 @@
 """
-Perform (mixed real and imaginary) time evolution using the TDVP algorithm and
+Perform real time evolution using the TDVP algorithm and
 numerically investigate rate of convergence (should be quadratic).
 
 Reference:
@@ -16,7 +16,24 @@ import matplotlib.pyplot as plt
 import pytenet as ptn
 
 
+def entropy(lmbda):
+    """Compute the Neumann entropy given the eigenvalues of the density matrix."""
+    lmbda = lmbda[lmbda > 0]
+    return -np.dot(lmbda, np.log2(lmbda))
+
+
+def schmidt_coefficients(d, L, psi):
+    """
+    Compute the Schmidt coefficients (singular values)
+    of a wavefunction for symmetric left-right partitioning.
+    """
+    return np.linalg.svd(psi.reshape((d**(L//2), d**(L//2))), full_matrices=0, compute_uv=False)
+
+
 def main():
+
+    # physical local Hilbert space dimension
+    d = 2
 
     # number of lattice sites
     L = 10
@@ -30,7 +47,7 @@ def main():
 
     # initial wavefunction as MPS with random entries
     Dmax = 20
-    D = np.minimum(np.minimum(2**np.arange(L + 1), 2**(L - np.arange(L + 1))), Dmax)
+    D = np.minimum(np.minimum(d**np.arange(L + 1), d**(L - np.arange(L + 1))), Dmax)
     print('D:', D)
     np.random.seed(42)
     psi = ptn.MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
@@ -45,11 +62,31 @@ def main():
     e_avr_0 = ptn.operator_average(psi, mpoH).real
     print('e_avr_0:', e_avr_0)
 
+    # exact singular values (Schmidt coefficients) initial state
+    sigma_0 = schmidt_coefficients(d, L, psi.as_vector())
+    plt.semilogy(np.arange(len(sigma_0)) + 1, sigma_0, '.')
+    plt.xlabel('i')
+    plt.ylabel('$\sigma_i$')
+    plt.title('Schmidt coefficients of initial state')
+    plt.savefig('evolution_schmidt_0.pdf')
+    plt.show()
+    print('entropy of initial state:', entropy((sigma_0 / np.linalg.norm(sigma_0))**2))
+
     # purely real time evolution
     t = 0.5j
 
     # reference calculation
     psi_ref = np.dot(expm(-t*mpoH.as_matrix()), psi.as_vector())
+
+    # exact Schmidt coefficients (singular values) of time-evolved state
+    sigma_t = schmidt_coefficients(d, L, psi_ref)
+    plt.semilogy(np.arange(len(sigma_t)) + 1, sigma_t, '.')
+    plt.xlabel('i')
+    plt.ylabel('$\sigma_i$')
+    plt.title('Schmidt coefficients of time-evolved state (t = {:g})\n(based on exact time evolution)'.format(t.imag))
+    plt.savefig('evolution_schmidt_t.pdf')
+    plt.show()
+    print('entropy of time-evolved state:', entropy((sigma_t / np.linalg.norm(sigma_t))**2))
 
     # number of time steps
     numsteps = 2**(np.arange(5))
@@ -72,25 +109,14 @@ def main():
         print('e_avr_t:', e_avr_t)
         print('abs(e_avr_t - e_avr_0):', abs(e_avr_t - e_avr_0))
 
-
     dtinv = numsteps / abs(t)
     plt.loglog(dtinv, err, '.-')
     # show quadratic scaling for comparison
     plt.loglog(dtinv, 1.75e-4/dtinv**2, '--')
     plt.xlabel('1/dt')
-    plt.ylabel('err')
-    plt.title('TDVP time evolution rate of convergence for\nHeisenberg XXZ model (J={:g}, D={:g}, h={:g})'.format(J, DH, h))
+    plt.ylabel(r'$\Vert\psi[A](t) - \psi_\mathrm{ref}(t)\Vert$')
+    plt.title('TDVP time evolution rate of convergence (t = {:g}) for\nHeisenberg XXZ model (J={:g}, D={:g}, h={:g})'.format(t.imag, J, DH, h))
     plt.savefig('evolution_convergence.pdf')
-    plt.show()
-
-    # exact singular values (Schmidt coefficients) at center bond
-    sigma = np.linalg.svd(np.reshape(psi_ref, (2**(L//2), 2**(L//2))),
-                          full_matrices=0, compute_uv=False)
-    plt.semilogy(np.arange(len(sigma)) + 1, sigma, '.')
-    plt.xlabel('i')
-    plt.ylabel('$\sigma_i$')
-    plt.title('Schmidt coefficients of time-evolved state at center bond')
-    plt.savefig('evolution_convergence_sigma.pdf')
     plt.show()
 
 

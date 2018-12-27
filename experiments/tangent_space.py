@@ -141,6 +141,23 @@ def main():
     x = psi.as_vector()
     print('|P psi - psi|:', np.linalg.norm(np.dot(P, x) - x), '(should be numerically zero)')
 
+    # define another state
+    # fictitious bond dimensions (should be bounded by d^i and d^(L-i))
+    D = [1, 4, 7, 5, 3, 1]
+    chi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in D], fill='random')
+
+    # tangent space projector corresponding to the sum of two states
+    Psum = tangent_space_projector(psi + chi)
+    # apply projector to psi (should remain unaffected)
+    x = psi.as_vector()
+    print('|Psum psi - psi|:', np.linalg.norm(np.dot(Psum, x) - x), '(should be numerically zero)')
+    # apply projector to chi (should remain unaffected)
+    x = chi.as_vector()
+    print('|Psum chi - chi|:', np.linalg.norm(np.dot(Psum, x) - x), '(should be numerically zero)')
+    # apply projector to psi + chi (should remain unaffected)
+    x = psi.as_vector() + chi.as_vector()
+    print('|Psum (psi + chi) - (psi + chi)|:', np.linalg.norm(np.dot(Psum, x) - x), '(should be numerically zero)')
+
 
 if __name__ == '__main__':
     main()
