@@ -73,6 +73,22 @@ class TestMPO(unittest.TestCase):
                                    msg='right-orthonormalization')
 
 
+    def test_identity(self):
+
+        # dimensions
+        d = 3
+        L = 6
+
+        # physical quantum numbers
+        qd = np.random.randint(-2, 3, size=d)
+
+        # construct MPO representation of identity
+        idop = ptn.MPO.identity(qd, L)
+
+        self.assertEqual(np.linalg.norm(idop.as_matrix() - np.identity(d**L)), 0.,
+            msg='MPO representation of identity')
+
+
     def test_from_opchains(self):
 
         # dimensions

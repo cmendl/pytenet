@@ -52,6 +52,15 @@ class MPO(object):
             self.A[i] = np.where(mask == 0, self.A[i], 0)
 
     @classmethod
+    def identity(cls, qd, L, scale=1, dtype=complex):
+        """Construct MPO representation of the identity operation."""
+        d = len(qd)
+        mpo = cls(qd, (L+1)*[[0]])
+        for i in range(L):
+            mpo.A[i] = scale * np.identity(d, dtype=dtype).reshape((d, d, 1, 1))
+        return mpo
+
+    @classmethod
     def from_opchains(cls, qd, L, opchains):
         """
         Construct a MPO representation of a sum of "operator chains".

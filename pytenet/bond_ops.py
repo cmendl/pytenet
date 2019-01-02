@@ -44,7 +44,8 @@ def split_matrix_svd(A, q0, q1, tol):
         v = np.zeros((1, A.shape[1]), dtype=A.dtype)
         s = np.zeros(1)
         # single column of 'u' should have norm 1
-        u[0, 0] = 1
+        if A.shape[0] > 0:
+            u[0, 0] = 1
         # ensure non-zero entry in 'u' formally matches quantum numbers
         q = q0[:1]
         # 'v' must remain zero matrix to satisfy quantum number constraints
