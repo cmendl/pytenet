@@ -220,7 +220,7 @@ def compute_right_operator_blocks(psi, op):
     """Compute all partial contractions from the right."""
 
     L = psi.nsites
-    assert(L == op.nsites)
+    assert L == op.nsites
 
     BR = [None for _ in range(L)]
 
