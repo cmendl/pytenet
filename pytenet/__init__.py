@@ -12,6 +12,7 @@ from .qnumber      import *
 from .opchain      import *
 from .mps          import *
 from .mpo          import *
+from .imps         import *
 from .hamiltonian  import *
 from .operation    import *
 from .krylov       import *
