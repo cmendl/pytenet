@@ -1,6 +1,6 @@
 import numpy as np
 
-__all__ = ['vdot', 'norm', 'operator_average', 'compute_right_operator_blocks', 'apply_local_hamiltonian', 'apply_local_bond_contraction']
+__all__ = ['vdot', 'norm', 'operator_average', 'operator_density_average', 'compute_right_operator_blocks', 'apply_local_hamiltonian', 'apply_local_bond_contraction']
 
 
 def vdot(chi, psi):
@@ -131,6 +131,35 @@ def operator_average(psi, op):
     return T[0, 0, 0]
 
 
+def operator_density_average(rho, op):
+    """
+    Compute the expectation value `tr[op rho]`.
+
+    Args:
+        rho: density matrix represented as MPO
+        op:  operator represented as MPO
+
+    Returns:
+        complex: `tr[op rho]`
+    """
+
+    assert rho.nsites == op.nsites
+
+    if rho.nsites == 0:
+        return 0
+
+    # initialize T as 1x1 matrix
+    T = np.identity(1, dtype=rho.A[-1].dtype)
+
+    for i in reversed(range(rho.nsites)):
+        T = contraction_operator_density_step_right(rho.A[i], op.A[i], T)
+
+    # T should now be a 1x1 matrix
+    assert T.shape == (1, 1)
+
+    return T[0, 0]
+
+
 def contraction_operator_step_right(A, W, R):
     """
     Contraction step from right to left, with a matrix product operator
@@ -214,6 +243,41 @@ def contraction_operator_step_left(A, W, L):
     Lnext = np.tensordot(A, T, axes=((0, 1), (0, 2)))
 
     return Lnext
+
+
+def contraction_operator_density_step_right(A, W, R):
+    """
+    Contraction step between two matrix product operators
+    (typically density matrix and Hamiltonian).
+
+    To-be contracted tensor network (with = denoting a connected loop)::
+
+            =
+          __|__           ______
+         /  0  \         /
+      ---|2 W 3|---   ---|1
+         \__1__/         |
+            |            |
+                         |    R
+          __|__          |
+         /  0  \         |
+      ---|2 A 3|---   ---|0
+         \__1__/         \______
+            |
+            =
+    """
+
+    assert A.ndim == 4
+    assert W.ndim == 4
+    assert R.ndim == 2
+
+    # multiply with A tensor
+    T = np.tensordot(A, R, 1)
+
+    # multiply with W tensor
+    T = np.tensordot(T, W, axes=((1, 0, 3), (0, 1, 3)))
+
+    return T
 
 
 def compute_right_operator_blocks(psi, op):
