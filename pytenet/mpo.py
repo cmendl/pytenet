@@ -202,6 +202,10 @@ class MPO(object):
         """Add MPO to another."""
         return add_MPOs(self, other)
 
+    def __sub__(self, other):
+        """Subtract another MPO."""
+        return add_MPOs(self, other, alpha=-1)
+
     def __mul__(self, other):
         """Multiply MPO with another (composition along physical dimension)."""
         return multiply_MPOs(self, other)
@@ -251,8 +255,11 @@ def merge_MPO_tensor_pair(A0, A1):
     return A
 
 
-def add_MPOs(op0, op1):
-    """"Logical addition of two MPOs (effectively sum virtual bond dimensions)."""
+def add_MPOs(op0, op1, alpha=1):
+    """
+    Logical addition of two MPOs (effectively sum virtual bond dimensions)
+    with the second MPO scaled by 'alpha'.
+    """
     # number of lattice sites must agree
     assert op0.nsites == op1.nsites
     L = op0.nsites
@@ -271,7 +278,7 @@ def add_MPOs(op0, op1):
         op.qD[0] = op0.qD[0].copy()
         op.qD[1] = op0.qD[1].copy()
         # simply add MPO tensors
-        op.A[0] = op0.A[0] + op1.A[0]
+        op.A[0] = op0.A[0] + alpha*op1.A[0]
         # consistency check
         assert is_qsparse(op.A[0], [op.qd, -op.qd, op.qD[0], -op.qD[1]]), \
             'sparsity pattern of MPO tensor does not match quantum numbers'
@@ -287,7 +294,7 @@ def add_MPOs(op0, op1):
             op.qD[i] = np.concatenate((op0.qD[i], op1.qD[i]))
 
         # leftmost tensor
-        op.A[0] = np.block([op0.A[0], op1.A[0]])
+        op.A[0] = np.block([op0.A[0], alpha*op1.A[0]])
         # intermediate tensors
         for i in range(1, L - 1):
             s0 = op0.A[i].shape
@@ -305,7 +312,7 @@ def add_MPOs(op0, op1):
 
 
 def multiply_MPOs(op0, op1):
-    """"Multiply two MPOs (composition along physical dimension)."""
+    """Multiply two MPOs (composition along physical dimension)."""
     # number of lattice sites must agree
     assert op0.nsites == op1.nsites
     L = op0.nsites

@@ -119,6 +119,10 @@ class MPS(object):
         """Add MPS to another."""
         return add_MPS(self, other)
 
+    def __sub__(self, other):
+        """Subtract another MPS."""
+        return add_MPS(self, other, alpha=-1)
+
 
 def local_orthonormalize_left_qr(A, Anext, qd, qD):
     """
@@ -197,8 +201,11 @@ def split_MPS_tensor(A, qd0, qd1, qD, svd_distr, tol=0):
     return (A0, A1, qbond)
 
 
-def add_MPS(mps0, mps1):
-    """"Logical addition of two matrix product states (effectively sum virtual bond dimensions)."""
+def add_MPS(mps0, mps1, alpha=1):
+    """
+    Logical addition of two matrix product states (effectively sum virtual bond dimensions),
+    with the second MPS scaled by 'alpha'.
+    """
     # number of lattice sites must agree
     assert mps0.nsites == mps1.nsites
     L = mps0.nsites
@@ -217,7 +224,7 @@ def add_MPS(mps0, mps1):
         mps.qD[0] = mps0.qD[0].copy()
         mps.qD[1] = mps0.qD[1].copy()
         # simply add MPS tensors
-        mps.A[0] = mps0.A[0] + mps1.A[0]
+        mps.A[0] = mps0.A[0] + alpha*mps1.A[0]
         # consistency check
         assert is_qsparse(mps.A[0], [mps.qd, mps.qD[0], -mps.qD[1]]), \
             'sparsity pattern of MPS tensor does not match quantum numbers'
@@ -233,7 +240,7 @@ def add_MPS(mps0, mps1):
             mps.qD[i] = np.concatenate((mps0.qD[i], mps1.qD[i]))
 
         # leftmost tensor
-        mps.A[0] = np.block([mps0.A[0], mps1.A[0]])
+        mps.A[0] = np.block([mps0.A[0], alpha*mps1.A[0]])
         # intermediate tensors
         for i in range(1, L - 1):
             s0 = mps0.A[i].shape
