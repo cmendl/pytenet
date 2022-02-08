@@ -12,11 +12,11 @@ class TestKrylov(unittest.TestCase):
         numiter = 24
 
         # random Hermitian matrix
-        A = randn_complex((n, n)) / np.sqrt(n)
+        A = crandn((n, n)) / np.sqrt(n)
         A = 0.5 * (A + A.conj().T)
 
         # random complex starting vector
-        vstart = randn_complex(n) / np.sqrt(n)
+        vstart = crandn(n) / np.sqrt(n)
 
         # simply use A as linear transformation
         alpha, beta, V = ptn.lanczos_iteration(lambda x: np.dot(A, x), vstart, numiter)
@@ -30,6 +30,28 @@ class TestKrylov(unittest.TestCase):
         self.assertAlmostEqual(np.linalg.norm(np.dot(V.conj().T, np.dot(A, V)) - T), 0., delta=1e-12,
                                msg='Lanczos vectors must tridiagonalize A')
 
+
+    def test_arnoldi_iteration(self):
+
+        n = 256
+        numiter = 24
+
+        # random matrix
+        A = crandn((n, n))
+        # random complex starting vector
+        vstart = crandn(n) / np.sqrt(n)
+
+        # simply use A as linear transformation
+        H, V = ptn.arnoldi_iteration(lambda x: A @ x, vstart, numiter)
+
+        # check orthogonality of Arnoldi vectors
+        self.assertAlmostEqual(np.linalg.norm(V.conj().T @ V - np.identity(V.shape[1])), 0., delta=1e-12,
+                               msg='matrix of Arnoldi vectors must be orthonormalized')
+
+        self.assertAlmostEqual(np.linalg.norm(V.conj().T @ A @ V - H), 0., delta=1e-12,
+                               msg='Arnoldi vectors must transform A to upper Hessenberg form')
+
+
     def test_eigh_krylov(self):
 
         n = 196
@@ -37,11 +59,11 @@ class TestKrylov(unittest.TestCase):
         numeig  = 2
 
         # random Hermitian matrix
-        A = randn_complex((n, n)) / np.sqrt(n)
+        A = crandn((n, n)) / np.sqrt(n)
         A = 0.5 * (A + A.conj().T)
 
         # random complex starting vector
-        vstart = randn_complex(n) / np.sqrt(n)
+        vstart = crandn(n) / np.sqrt(n)
 
         # simply use A as linear transformation;
         w, u_ritz = ptn.eigh_krylov(lambda x: np.dot(A, x), vstart, numiter, numeig)
@@ -64,32 +86,35 @@ class TestKrylov(unittest.TestCase):
         self.assertAlmostEqual(w[1], w_ref[1], delta=0.02,
                                msg='second-lowest Lanczos eigenvalue should approximate exact eigenvalue')
 
+
     def test_expm_krylov(self):
 
         n = 320
         numiter = 12
-
-        # random Hermitian matrix
-        A = randn_complex((n, n)) / np.sqrt(n)
-        A = 0.5 * (A + A.conj().T)
-
-        # random complex vector
-        v = randn_complex(n) / np.sqrt(n)
-
         # time step
         dt = 0.4 + 0.2j
 
-        # Krylov subspace approximation of expm(dt*A)*v
-        vt = ptn.expm_krylov(lambda x: np.dot(A, x), v, dt, numiter)
+        for hermitian in [True, False]:
+            # random complex matrix
+            A = crandn((n, n)) / np.sqrt(n)
+            if hermitian:
+                # symmetrize
+                A = 0.5 * (A + A.conj().T)
 
-        # reference
-        vt_ref = np.dot(expm(dt*A), v)
+            # random complex vector
+            v = crandn(n) / np.sqrt(n)
 
-        self.assertAlmostEqual(np.linalg.norm(vt - vt_ref), 0., delta=1e-11,
-                               msg='Krylov subspace approximation of expm(dt*A)*v should match reference')
+            # Krylov subspace approximation of expm(dt*A)*v
+            vt = ptn.expm_krylov(lambda x: np.dot(A, x), v, dt, numiter, hermitian=hermitian)
+
+            # reference
+            vt_ref = np.dot(expm(dt*A), v)
+
+            self.assertAlmostEqual(np.linalg.norm(vt - vt_ref), 0., delta=1e-11,
+                                   msg='Krylov subspace approximation of expm(dt*A)*v should match reference')
 
 
-def randn_complex(size):
+def crandn(size):
     return (np.random.standard_normal(size)
        + 1j*np.random.standard_normal(size)) / np.sqrt(2)
 
