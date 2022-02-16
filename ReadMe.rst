@@ -1,5 +1,5 @@
-.. image:: https://travis-ci.com/cmendl/pytenet.svg?branch=master
-  :target: https://travis-ci.com/cmendl/pytenet
+.. image:: https://app.travis-ci.com/cmendl/pytenet.svg?branch=master
+  :target: https://app.travis-ci.com/cmendl/pytenet
 .. image:: http://joss.theoj.org/papers/10.21105/joss.00948/status.svg
   :target: https://doi.org/10.21105/joss.00948
 
