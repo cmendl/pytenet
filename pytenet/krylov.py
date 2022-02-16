@@ -23,7 +23,7 @@ def lanczos_iteration(Afunc, vstart, numiter):
     # normalize starting vector
     nrmv = np.linalg.norm(vstart)
     assert nrmv > 0
-    vstart /= nrmv
+    vstart = vstart / nrmv
 
     alpha = np.zeros(numiter)
     beta  = np.zeros(numiter-1)
@@ -69,7 +69,7 @@ def arnoldi_iteration(Afunc, vstart, numiter):
     # normalize starting vector
     nrmv = np.linalg.norm(vstart)
     assert nrmv > 0
-    vstart /= nrmv
+    vstart = vstart / nrmv
 
     H = np.zeros((numiter, numiter), dtype=complex)
     V = np.zeros((numiter, len(vstart)), dtype=complex)
