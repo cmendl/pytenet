@@ -42,13 +42,13 @@ class TestKrylov(unittest.TestCase):
         vstart = crandn(n) / np.sqrt(n)
 
         # simply use A as linear transformation
-        H, V = ptn.arnoldi_iteration(lambda x: A @ x, vstart, numiter)
+        H, V = ptn.arnoldi_iteration(lambda x: np.dot(A, x), vstart, numiter)
 
         # check orthogonality of Arnoldi vectors
-        self.assertAlmostEqual(np.linalg.norm(V.conj().T @ V - np.identity(V.shape[1])), 0., delta=1e-12,
+        self.assertAlmostEqual(np.linalg.norm(np.dot(V.conj().T, V) - np.identity(V.shape[1])), 0., delta=1e-12,
                                msg='matrix of Arnoldi vectors must be orthonormalized')
 
-        self.assertAlmostEqual(np.linalg.norm(V.conj().T @ A @ V - H), 0., delta=1e-12,
+        self.assertAlmostEqual(np.linalg.norm(np.dot(V.conj().T, np.dot(A, V)) - H), 0., delta=1e-12,
                                msg='Arnoldi vectors must transform A to upper Hessenberg form')
 
 
