@@ -130,7 +130,7 @@ class MPS(object):
         return psi.reshape(-1)
 
     @classmethod
-    def from_vector(cls, d: int, nsites: int, v, tol=0):
+    def from_vector(cls, d, nsites, v, tol=0):
         """
         Construct the MPS representation of the vector `v` via the TT-SVD algorithm,
         for local dimension `d`.
