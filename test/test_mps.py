@@ -105,6 +105,19 @@ class TestMPS(unittest.TestCase):
                                    msg='splitting and subsequent merging must give the same tensor')
 
 
+    def test_from_vector(self):
+
+        # physical local dimension
+        d = 3
+        # number of lattice sites
+        nsites = 7
+        # random vector
+        v = randn_complex(d**nsites)
+        mps = ptn.MPS.from_vector(d, nsites, v)
+        self.assertAlmostEqual(np.linalg.norm(mps.as_vector() - v) / np.linalg.norm(v), 0., delta=1e-13,
+                               msg='MPS constructed from a vector must match original vector')
+
+
     def test_add(self):
 
         # physical quantum numbers

@@ -1,6 +1,6 @@
 import numpy as np
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
-from .bond_ops import qr, split_matrix_svd
+from .bond_ops import qr, retained_bond_indices, split_matrix_svd
 
 __all__ = ['MPS', 'merge_MPS_tensor_pair', 'split_MPS_tensor']
 
@@ -27,7 +27,8 @@ class MPS(object):
             qd: physical quantum numbers at each site (same for all sites)
             qD: virtual bond quantum numbers (list of quantum number lists)
             fill: explicit scalar number to fill MPS tensors with, or
-                  'random' to initialize tensors with random complex entries
+                  'random' to initialize tensors with random complex entries, or
+                  'postpone' to leave MPS tensors unallocated
         """
         # require NumPy arrays
         self.qd = np.array(qd)
@@ -44,21 +45,28 @@ class MPS(object):
             self.A = [
                     np.random.normal(size=(d, D[i], D[i+1]), scale=1./np.sqrt(d*D[i]*D[i+1])) +
                  1j*np.random.normal(size=(d, D[i], D[i+1]), scale=1./np.sqrt(d*D[i]*D[i+1])) for i in range(len(D)-1)]
+        elif fill == 'postpone':
+            self.A = (len(D) - 1) * [None]
         else:
             raise ValueError('fill = {} invalid; must be a number or "random".'.format(fill))
-        # enforce block sparsity structure dictated by quantum numbers
-        for i in range(len(self.A)):
-            mask = qnumber_outer_sum([self.qd, self.qD[i], -self.qD[i+1]])
-            self.A[i] = np.where(mask == 0, self.A[i], 0)
+        if fill != 'postpone':
+            # enforce block sparsity structure dictated by quantum numbers
+            for i in range(len(self.A)):
+                mask = qnumber_outer_sum([self.qd, self.qD[i], -self.qD[i+1]])
+                self.A[i] = np.where(mask == 0, self.A[i], 0)
 
     @property
     def nsites(self):
-        """Number of lattice sites."""
+        """
+        Number of lattice sites.
+        """
         return len(self.A)
 
     @property
     def bond_dims(self):
-        """Virtual bond dimensions."""
+        """
+        Virtual bond dimensions.
+        """
         if len(self.A) == 0:
             return []
         else:
@@ -67,13 +75,17 @@ class MPS(object):
             return D
 
     def zero_qnumbers(self):
-        """Set all quantum numbers to zero (effectively disabling them)."""
+        """
+        Set all quantum numbers to zero (effectively disabling them).
+        """
         self.qd.fill(0)
         for i in range(len(self.qD)):
             self.qD[i].fill(0)
 
     def orthonormalize(self, mode='left'):
-        """Left- or right-orthonormalize the MPS using QR decompositions."""
+        """
+        Left- or right-orthonormalize the MPS using QR decompositions.
+        """
         if len(self.A) == 0:
             return
 
@@ -107,7 +119,9 @@ class MPS(object):
             raise ValueError('mode = {} invalid; must be "left" or "right".'.format(mode))
 
     def as_vector(self):
-        """Merge all tensors to obtain the vector representation on the full Hilbert space."""
+        """
+        Merge all tensors to obtain the vector representation on the full Hilbert space.
+        """
         psi = self.A[0]
         for i in range(1, len(self.A)):
             psi = merge_MPS_tensor_pair(psi, self.A[i])
@@ -115,12 +129,51 @@ class MPS(object):
         assert psi.shape[1] == 1 and psi.shape[2] == 1
         return psi.reshape(-1)
 
+    @classmethod
+    def from_vector(cls, d: int, nsites: int, v, tol=0):
+        """
+        Construct the MPS representation of the vector `v` via the TT-SVD algorithm,
+        for local dimension `d`.
+
+        All quantum numbers are set to zero for simplicity.
+        """
+        v = np.array(v)
+        assert v.ndim == 1 and len(v) == d**nsites, "`v` has length {}, expecting {}.".format(len(v), d**nsites)
+        # allocate a MPS with dummy virtual bonds of dimension 1
+        mps = cls(d*[0], [[0] for _ in range(nsites + 1)], fill='postpone')
+        # endow `v` with a dummy left virtual bond dimension
+        v = np.reshape(v, (1, len(v)))
+        for i in range(nsites):
+            assert v.shape[1] == d**(nsites - i)
+            Dleft = v.shape[0]
+            # partition physical dimension into local dimension and the rest,
+            # split by SVD and assign the right SVD matrix to `v`
+            u, s, v = np.linalg.svd(v.reshape((Dleft*d, d**(nsites-i-1))), full_matrices=False)
+            # truncate small singular values
+            idx = retained_bond_indices(s, tol)
+            u = u[:, idx]
+            v = v[idx, :]
+            s = s[idx]
+            # use broadcasting to distribute singular values to the right
+            v = v * s[:, None]
+            # assign MPS tensor at current site i, transposing physical dimension to the front
+            mps.A[i] = u.reshape((Dleft, d, len(s))).transpose((1, 0, 2))
+            mps.qD[i + 1] = len(s) * [0]
+        assert v.shape == (1, 1)
+        # include scalar factor in last MPS tensor
+        mps.A[-1] *= v[0, 0]
+        return mps
+
     def __add__(self, other):
-        """Add MPS to another."""
+        """
+        Add MPS to another.
+        """
         return add_MPS(self, other)
 
     def __sub__(self, other):
-        """Subtract another MPS."""
+        """
+        Subtract another MPS.
+        """
         return add_MPS(self, other, alpha=-1)
 
 
