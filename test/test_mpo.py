@@ -33,17 +33,16 @@ class TestMPO(unittest.TestCase):
 
         # density matrices before and after left-normalization must match
         # (up to normalization factor)
-        self.assertAlmostEqual(np.linalg.norm(cL*rhoL - rho), 0., delta=1e-10,
-                               msg='density matrices before and after left-normalization must match')
+        self.assertTrue(np.allclose(cL*rhoL, rho, rtol=1e-10),
+                        msg='density matrices before and after left-normalization must match')
 
         # check left-orthonormalization
         for i in range(mpo0.nsites):
             s = mpo0.A[i].shape
             assert s[0] == d and s[1] == d
             Q = mpo0.A[i].reshape((s[0]*s[1]*s[2], s[3]))
-            QH_Q = np.dot(Q.conj().T, Q)
-            self.assertAlmostEqual(np.linalg.norm(QH_Q - np.identity(s[3])), 0., delta=1e-12,
-                                   msg='left-orthonormalization')
+            self.assertTrue(np.allclose(Q.conj().T @ Q, np.identity(s[3]), rtol=1e-12),
+                            msg='left-orthonormalization')
 
         # performing right-orthonormalization...
         cR = mpo0.orthonormalize(mode='right')
@@ -68,9 +67,8 @@ class TestMPO(unittest.TestCase):
             s = mpo0.A[i].shape
             assert s[0] == d and s[1] == d
             Q = mpo0.A[i].transpose((0, 1, 3, 2)).reshape((s[0]*s[1]*s[3], s[2]))
-            QH_Q = np.dot(Q.conj().T, Q)
-            self.assertAlmostEqual(np.linalg.norm(QH_Q - np.identity(s[2])), 0., delta=1e-12,
-                                   msg='right-orthonormalization')
+            self.assertTrue(np.allclose(Q.conj().T @ Q, np.identity(s[2]), rtol=1e-12),
+                            msg='right-orthonormalization')
 
 
     def test_identity(self):
@@ -85,7 +83,7 @@ class TestMPO(unittest.TestCase):
         # construct MPO representation of identity
         idop = ptn.MPO.identity(qd, L)
 
-        self.assertEqual(np.linalg.norm(idop.as_matrix() - np.identity(d**L)), 0.,
+        self.assertTrue(np.array_equal(idop.as_matrix(), np.identity(d**L)),
             msg='MPO representation of identity')
 
 
@@ -104,7 +102,7 @@ class TestMPO(unittest.TestCase):
         for _ in range(n):
             istart = np.random.randint(L)
             length = np.random.randint(1, L - istart + 1)
-            oplist = [randn_complex((d, d)) for _ in range(length)]
+            oplist = [crandn((d, d)) for _ in range(length)]
             qD = np.random.randint(-2, 3, size=length-1)
             # enforce sparsity structure dictated by quantum numbers
             qDpad = np.pad(qD, 1, mode='constant')
@@ -124,7 +122,7 @@ class TestMPO(unittest.TestCase):
         Href = sum([opc.as_matrix(d, L) for opc in opchains])
 
         # compare
-        self.assertAlmostEqual(np.linalg.norm(mpo0.as_matrix() - Href), 0., delta=1e-10,
+        self.assertTrue(np.allclose(mpo0.as_matrix(), Href, rtol=1e-10),
             msg='full merging of MPO must be equal to matrix representation of operator chains')
 
 
@@ -148,9 +146,8 @@ class TestMPO(unittest.TestCase):
         # reference calculation
         op_ref = op0.as_matrix() + op1.as_matrix()
 
-        # relative error
-        err = np.linalg.norm(op.as_matrix() - op_ref) / max(np.linalg.norm(op_ref), 1e-12)
-        self.assertAlmostEqual(err, 0., delta=1e-14,
+        # compare
+        self.assertTrue(np.allclose(op.as_matrix(), op_ref, rtol=1e-12),
             msg='addition two MPOs must agree with matrix representation')
 
 
@@ -173,9 +170,8 @@ class TestMPO(unittest.TestCase):
         # reference calculation
         op_ref = op0.as_matrix() + op1.as_matrix()
 
-        # relative error
-        err = np.linalg.norm(op.as_matrix() - op_ref) / max(np.linalg.norm(op_ref), 1e-12)
-        self.assertAlmostEqual(err, 0., delta=1e-14,
+        # compare
+        self.assertTrue(np.allclose(op.as_matrix(), op_ref, rtol=1e-12),
             msg='addition two MPOs must agree with matrix representation')
 
 
@@ -199,9 +195,8 @@ class TestMPO(unittest.TestCase):
         # reference calculation
         op_ref = op0.as_matrix() - op1.as_matrix()
 
-        # relative error
-        err = np.linalg.norm(op.as_matrix() - op_ref) / max(np.linalg.norm(op_ref), 1e-12)
-        self.assertAlmostEqual(err, 0., delta=1e-14,
+        # compare
+        self.assertTrue(np.allclose(op.as_matrix(), op_ref, rtol=1e-12),
             msg='subtraction two MPOs must agree with matrix representation')
 
 
@@ -224,9 +219,8 @@ class TestMPO(unittest.TestCase):
         # reference calculation
         op_ref = op0.as_matrix() - op1.as_matrix()
 
-        # relative error
-        err = np.linalg.norm(op.as_matrix() - op_ref) / max(np.linalg.norm(op_ref), 1e-12)
-        self.assertAlmostEqual(err, 0., delta=1e-14,
+        # compare
+        self.assertTrue(np.allclose(op.as_matrix(), op_ref, rtol=1e-12),
             msg='subtraction two MPOs must agree with matrix representation')
 
 
@@ -240,18 +234,21 @@ class TestMPO(unittest.TestCase):
         op1 = ptn.MPO(qd, [np.random.randint(-2, 3, size=Di) for Di in [1, 8, 17, 11, 23, 13, 1]], fill='random')
 
         # MPO multiplication (composition)
-        op = op0 * op1
+        op = op0 @ op1
 
         # reference calculation
-        op_ref = np.dot(op0.as_matrix(), op1.as_matrix())
+        op_ref = op0.as_matrix() @ op1.as_matrix()
 
-        # relative error
-        err = np.linalg.norm(op.as_matrix() - op_ref) / max(np.linalg.norm(op_ref), 1e-12)
-        self.assertAlmostEqual(err, 0., delta=1e-14,
+        # compare
+        self.assertTrue(np.allclose(op.as_matrix(), op_ref, rtol=1e-12),
             msg='composition of two MPOs must agree with matrix representation')
 
 
-def randn_complex(size):
+def crandn(size):
+    """
+    Draw random samples from the standard complex normal (Gaussian) distribution.
+    """
+    # 1/sqrt(2) is a normalization factor
     return (np.random.standard_normal(size)
        + 1j*np.random.standard_normal(size)) / np.sqrt(2)
 

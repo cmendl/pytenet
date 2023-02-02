@@ -1,11 +1,12 @@
 import numpy as np
+from typing import Sequence
 from .mpo import MPO
 from .opchain import OpChain
 
 __all__ = ['ising_MPO', 'heisenberg_XXZ_MPO', 'heisenberg_XXZ_spin1_MPO', 'bose_hubbard_MPO', 'fermi_hubbard_MPO', 'local_opchains_to_MPO']
 
 
-def ising_MPO(L, J, h, g):
+def ising_MPO(L: int, J: float, h: float, g: float):
     """
     Construct Ising Hamiltonian `sum J sz sz + h sz + g sx`
     on a 1D lattice as MPO.
@@ -30,7 +31,7 @@ def ising_MPO(L, J, h, g):
     return local_opchains_to_MPO(qd, L, lopchains)
 
 
-def heisenberg_XXZ_MPO(L, J, D, h):
+def heisenberg_XXZ_MPO(L: int, J: float, D: float, h: float):
     """
     Construct XXZ Heisenberg Hamiltonian `sum J X X + J Y Y + D Z Z - h Z`
     on a 1D lattice as MPO.
@@ -58,7 +59,7 @@ def heisenberg_XXZ_MPO(L, J, D, h):
     return local_opchains_to_MPO(qd, L, lopchains)
 
 
-def heisenberg_XXZ_spin1_MPO(L, J, D, h):
+def heisenberg_XXZ_spin1_MPO(L: int, J: float, D: float, h: float):
     """
     Construct spin-1 XXZ Heisenberg Hamiltonian `sum J X X + J Y Y + D Z Z - h Z`
     on a 1D lattice as MPO.
@@ -87,7 +88,7 @@ def heisenberg_XXZ_spin1_MPO(L, J, D, h):
     return local_opchains_to_MPO(qd, L, lopchains)
 
 
-def bose_hubbard_MPO(d, L, t, U, mu):
+def bose_hubbard_MPO(d: int, L: int, t: float, U: float, mu: float):
     """
     Construct Bose-Hubbard Hamiltonian
     with nearest-neighbor hopping on a 1D lattice as MPO.
@@ -113,12 +114,12 @@ def bose_hubbard_MPO(d, L, t, U, mu):
     # local two-site and single-site terms
     lopchains = [OpChain([-t*b_dag, b_ann], [ 1]),
                  OpChain([b_ann, -t*b_dag], [-1]),
-                 OpChain([0.5*U*np.dot(numop, numop - np.identity(d)) - mu*numop], [])]
+                 OpChain([0.5*U*(numop @ (numop - np.identity(d))) - mu*numop], [])]
     # convert to MPO
     return local_opchains_to_MPO(qd, L, lopchains)
 
 
-def fermi_hubbard_MPO(L, t, U, mu):
+def fermi_hubbard_MPO(L: int, t: float, U: float, mu: float):
     """
     Construct Fermi-Hubbard Hamiltonian
     with nearest-neighbor hopping on a 1D lattice as MPO.
@@ -161,7 +162,7 @@ def fermi_hubbard_MPO(L, t, U, mu):
     return local_opchains_to_MPO(qd, L, lopchains)
 
 
-def local_opchains_to_MPO(qd, L, lopchains):
+def local_opchains_to_MPO(qd: Sequence[int], L: int, lopchains):
     """
     Construct Hamiltonian as MPO based on local operator chains,
     which are shifted along a 1D lattice.

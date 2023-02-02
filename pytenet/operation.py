@@ -1,9 +1,11 @@
 import numpy as np
+from .mps import MPS
+from .mpo import MPO
 
 __all__ = ['vdot', 'norm', 'operator_average', 'operator_density_average', 'compute_right_operator_blocks', 'apply_local_hamiltonian', 'apply_local_bond_contraction']
 
 
-def vdot(chi, psi):
+def vdot(chi: MPS, psi: MPS):
     """
     Compute the dot (scalar) product `<chi | psi>`, complex conjugating `chi`.
 
@@ -14,30 +16,26 @@ def vdot(chi, psi):
     Returns:
         complex: `<chi | psi>`
     """
-
     assert psi.nsites == chi.nsites
-
     if psi.nsites == 0:
         return 0
-
     # initialize T by identity matrix
     T = np.identity(psi.A[-1].shape[2], dtype=psi.A[-1].dtype)
-
     for i in reversed(range(psi.nsites)):
         T = contraction_step_right(psi.A[i], chi.A[i], T)
-
     # T should now be a 1x1 tensor
     assert T.shape == (1, 1)
-
     return T[0, 0]
 
 
-def norm(psi):
-    """Compute the standard L2 norm of a matrix product state."""
+def norm(psi: MPS):
+    """
+    Compute the standard L2 norm of a matrix product state.
+    """
     return np.sqrt(vdot(psi, psi).real)
 
 
-def contraction_step_right(A, B, R):
+def contraction_step_right(A: np.ndarray, B: np.ndarray, R: np.ndarray):
     """
     Contraction step from right to left, for example to compute the
     inner product of two matrix product states.
@@ -59,17 +57,14 @@ def contraction_step_right(A, B, R):
     assert A.ndim == 3
     assert B.ndim == 3
     assert R.ndim == 2
-
     # multiply with A tensor
     T = np.tensordot(A, R, 1)
-
     # multiply with conjugated B tensor
     Rnext = np.tensordot(T, B.conj(), axes=((0, 2), (0, 2)))
-
     return Rnext
 
 
-def contraction_step_left(A, B, L):
+def contraction_step_left(A: np.ndarray, B: np.ndarray, L: np.ndarray):
     """
     Contraction step from left to right, for example to compute the
     inner product of two matrix product states.
@@ -87,21 +82,17 @@ def contraction_step_left(A, B, L):
           0|---   ---|1 A 2|---
      ______/         \_____/
     """
-
     assert A.ndim == 3
     assert B.ndim == 3
     assert L.ndim == 2
-
     # multiply with conjugated B tensor
     T = np.tensordot(L, B.conj(), axes=(1, 1))
-
     # multiply with A tensor
     Lnext = np.tensordot(A, T, axes=((0, 1), (1, 0)))
-
     return Lnext
 
 
-def operator_average(psi, op):
+def operator_average(psi: MPS, op: MPO):
     """
     Compute the expectation value `<psi | op | psi>`.
 
@@ -112,26 +103,20 @@ def operator_average(psi, op):
     Returns:
         complex: `<psi | op | psi>`
     """
-
     assert psi.nsites == op.nsites
-
     if psi.nsites == 0:
         return 0
-
     # initialize T by identity matrix
     T = np.identity(psi.A[-1].shape[2], dtype=psi.A[-1].dtype)
     T = T.reshape((psi.A[-1].shape[2], 1, psi.A[-1].shape[2]))
-
     for i in reversed(range(psi.nsites)):
         T = contraction_operator_step_right(psi.A[i], op.A[i], T)
-
     # T should now be a 1x1x1 tensor
     assert T.shape == (1, 1, 1)
-
     return T[0, 0, 0]
 
 
-def operator_density_average(rho, op):
+def operator_density_average(rho: MPO, op: MPO):
     """
     Compute the expectation value `tr[op rho]`.
 
@@ -142,25 +127,19 @@ def operator_density_average(rho, op):
     Returns:
         complex: `tr[op rho]`
     """
-
     assert rho.nsites == op.nsites
-
     if rho.nsites == 0:
         return 0
-
     # initialize T as 1x1 matrix
     T = np.identity(1, dtype=rho.A[-1].dtype)
-
     for i in reversed(range(rho.nsites)):
         T = contraction_operator_density_step_right(rho.A[i], op.A[i], T)
-
     # T should now be a 1x1 matrix
     assert T.shape == (1, 1)
-
     return T[0, 0]
 
 
-def contraction_operator_step_right(A, W, R):
+def contraction_operator_step_right(A: np.ndarray, W: np.ndarray, R: np.ndarray):
     """
     Contraction step from right to left, with a matrix product operator
     sandwiched in between.
@@ -184,27 +163,21 @@ def contraction_operator_step_right(A, W, R):
       ---|1 A 2|---   ---|0
          \_____/         \______
     """
-
     assert A.ndim == 3
     assert W.ndim == 4
     assert R.ndim == 3
-
     # multiply with A tensor
     T = np.tensordot(A, R, 1)
-
     # multiply with W tensor
     T = np.tensordot(W, T, axes=((1, 3), (0, 2)))
-
     # interchange levels 0 <-> 2 in T
     T = T.transpose((2, 1, 0, 3))
-
     # multiply with conjugated A tensor
     Rnext = np.tensordot(T, A.conj(), axes=((2, 3), (0, 2)))
-
     return Rnext
 
 
-def contraction_operator_step_left(A, W, L):
+def contraction_operator_step_left(A: np.ndarray, W: np.ndarray, L: np.ndarray):
     """
     Contraction step from left to right, with a matrix product operator
     sandwiched in between.
@@ -228,24 +201,19 @@ def contraction_operator_step_left(A, W, L):
           0|---   ---|1 A 2|---
      ______/         \_____/
     """
-
     assert A.ndim == 3
     assert W.ndim == 4
     assert L.ndim == 3
-
     # multiply with conjugated A tensor
     T = np.tensordot(L, A.conj(), axes=(2, 1))
-
     # multiply with W tensor
     T = np.tensordot(W, T, axes=((0, 2), (2, 1)))
-
     # multiply with A tensor
     Lnext = np.tensordot(A, T, axes=((0, 1), (0, 2)))
-
     return Lnext
 
 
-def contraction_operator_density_step_right(A, W, R):
+def contraction_operator_density_step_right(A: np.ndarray, W: np.ndarray, R: np.ndarray):
     """
     Contraction step between two matrix product operators
     (typically density matrix and Hamiltonian).
@@ -266,38 +234,31 @@ def contraction_operator_density_step_right(A, W, R):
             |
             =
     """
-
     assert A.ndim == 4
     assert W.ndim == 4
     assert R.ndim == 2
-
     # multiply with A tensor
     T = np.tensordot(A, R, 1)
-
     # multiply with W tensor
     T = np.tensordot(T, W, axes=((1, 0, 3), (0, 1, 3)))
-
     return T
 
 
-def compute_right_operator_blocks(psi, op):
-    """Compute all partial contractions from the right."""
-
+def compute_right_operator_blocks(psi: MPS, op: MPO):
+    """
+    Compute all partial contractions from the right.
+    """
     L = psi.nsites
     assert L == op.nsites
-
     BR = [None for _ in range(L)]
-
     # initialize rightmost dummy block
     BR[L-1] = np.array([[[1]]], dtype=complex)
-
     for i in reversed(range(L-1)):
         BR[i] = contraction_operator_step_right(psi.A[i+1], op.A[i+1], BR[i+1])
-
     return BR
 
 
-def apply_local_hamiltonian(L, R, W, A):
+def apply_local_hamiltonian(L: np.ndarray, R: np.ndarray, W: np.ndarray, A: np.ndarray):
     """
     Apply site-local Hamiltonian operator.
 
@@ -320,24 +281,18 @@ def apply_local_hamiltonian(L, R, W, A):
           0|---   ---|1 A 2|---   ---|0
      ______/         \_____/         \______
     """
-
     assert L.ndim == 3
     assert R.ndim == 3
     assert W.ndim == 4
     assert A.ndim == 3
-
     # multiply A with R tensor and store result in T
     T = np.tensordot(A, R, 1)
-
     # multiply T with W tensor
     T = np.tensordot(W, T, axes=((1, 3), (0, 2)))
-
     # multiply T with L tensor
     T = np.tensordot(T, L, axes=((2, 1), (0, 1)))
-
     # interchange levels 1 <-> 2 in T
     T = T.transpose((0, 2, 1))
-
     return T
 
 
@@ -364,15 +319,11 @@ def apply_local_bond_contraction(L, R, C):
           0|---   ---|0 C 1|---   ---|0
      ______/         \_____/         \______
     """
-
     assert L.ndim == 3
     assert R.ndim == 3
     assert C.ndim == 2
-
     # multiply C with R tensor and store result in T
     T = np.tensordot(C, R, 1)
-
     # multiply L with T tensor
     T = np.tensordot(L, T, axes=((0, 1), (0, 1)))
-
     return T

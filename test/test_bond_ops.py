@@ -7,7 +7,7 @@ class TestBondOps(unittest.TestCase):
 
     def test_qr(self):
 
-        A = randn_complex((23, 15))
+        A = crandn((23, 15))
 
         # fictitious quantum numbers
         q0 = np.random.randint(-2, 3, size=A.shape[0])
@@ -20,11 +20,11 @@ class TestBondOps(unittest.TestCase):
         # perform QR decomposition, taking quantum numbers into account
         Q, R, qinterm = ptn.qr(A, q0, q1)
 
-        self.assertAlmostEqual(np.linalg.norm(np.dot(Q, R) - A), 0.,
-                               delta=1e-14, msg='Q.R must match A matrix')
+        self.assertTrue(np.allclose(Q @ R, A, rtol=1e-14),
+                        msg='Q @ R must match A matrix')
 
-        self.assertAlmostEqual(np.linalg.norm(np.dot(Q.conj().T, Q) - np.identity(Q.shape[1])), 0.,
-                               delta=1e-14, msg='columns of Q matrix must be orthonormalized')
+        self.assertTrue(np.allclose(Q.conj().T @ Q, np.identity(Q.shape[1]), rtol=1e-14),
+                        msg='columns of Q matrix must be orthonormalized')
 
         self.assertTrue(ptn.is_qsparse(Q, [q0, -qinterm]),
                         msg='sparsity pattern of Q matrix must match quantum numbers')
@@ -34,7 +34,7 @@ class TestBondOps(unittest.TestCase):
 
     def test_split_matrix_svd(self):
 
-        A = randn_complex((17, 26))
+        A = crandn((17, 26))
 
         # fictitious quantum numbers
         q0 = np.random.randint(-2, 3, size=A.shape[0])
@@ -47,11 +47,11 @@ class TestBondOps(unittest.TestCase):
         # perform SVD decomposition without truncation
         u, s, v, qinterm = ptn.split_matrix_svd(A, q0, q1, 0.)
 
-        self.assertAlmostEqual(np.linalg.norm(np.dot(u * s, v) - A), 0.,
-                               delta=1e-13, msg='U.S.V must match A matrix')
+        self.assertTrue(np.allclose((u * s) @ v, A, rtol=1e-13),
+                        msg='U @ S @ V must match A matrix')
 
-        self.assertAlmostEqual(np.linalg.norm(np.dot(u.conj().T, u) - np.identity(u.shape[1])), 0.,
-                               delta=1e-14, msg='columns of U matrix must be orthonormalized')
+        self.assertTrue(np.allclose(u.conj().T @ u, np.identity(u.shape[1]), rtol=1e-14),
+                        msg='columns of U matrix must be orthonormalized')
 
         self.assertTrue(ptn.is_qsparse(u, [q0, -qinterm]),
                         msg='sparsity pattern of U matrix must match quantum numbers')
@@ -63,11 +63,11 @@ class TestBondOps(unittest.TestCase):
         # perform SVD decomposition with truncation
         u, s, v, qinterm = ptn.split_matrix_svd(A, q0, q1, 0.15)
 
-        self.assertAlmostEqual(np.linalg.norm(np.dot(u * s, v) - A), np.sqrt(s_norm**2 - np.linalg.norm(s)**2),
+        self.assertAlmostEqual(np.linalg.norm((u * s) @ v - A), np.sqrt(s_norm**2 - np.linalg.norm(s)**2),
                                delta=1e-14, msg='weight of truncated singular values must agree with norm of matrix difference')
 
-        self.assertAlmostEqual(np.linalg.norm(np.dot(u.conj().T, u) - np.identity(u.shape[1])), 0.,
-                               delta=1e-14, msg='columns of U matrix must be orthonormalized')
+        self.assertTrue(np.allclose(u.conj().T @ u, np.identity(u.shape[1]), rtol=1e-14),
+                        msg='columns of U matrix must be orthonormalized')
 
         self.assertTrue(ptn.is_qsparse(u, [q0, -qinterm]),
                         msg='sparsity pattern of U matrix must match quantum numbers')
@@ -75,7 +75,11 @@ class TestBondOps(unittest.TestCase):
                         msg='sparsity pattern of V matrix must match quantum numbers')
 
 
-def randn_complex(size):
+def crandn(size):
+    """
+    Draw random samples from the standard complex normal (Gaussian) distribution.
+    """
+    # 1/sqrt(2) is a normalization factor
     return (np.random.standard_normal(size)
        + 1j*np.random.standard_normal(size)) / np.sqrt(2)
 

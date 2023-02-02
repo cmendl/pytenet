@@ -1,11 +1,12 @@
 import numpy as np
+from typing import Sequence
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
 from .bond_ops import qr, retained_bond_indices, split_matrix_svd
 
 __all__ = ['MPS', 'merge_MPS_tensor_pair', 'split_MPS_tensor']
 
 
-class MPS(object):
+class MPS:
     """
     Matrix product state (MPS) class.
 
@@ -19,7 +20,7 @@ class MPS(object):
     tensor entry must be equal to the right virtual bond quantum number.
     """
 
-    def __init__(self, qd, qD, fill=0.0):
+    def __init__(self, qd: Sequence[int], qD: Sequence[Sequence[int]], fill=0.0):
         """
         Create a matrix product state.
 
@@ -48,7 +49,7 @@ class MPS(object):
         elif fill == 'postpone':
             self.A = (len(D) - 1) * [None]
         else:
-            raise ValueError('fill = {} invalid; must be a number or "random".'.format(fill))
+            raise ValueError(f'fill = {fill} invalid; must be a number or "random".')
         if fill != 'postpone':
             # enforce block sparsity structure dictated by quantum numbers
             for i in range(len(self.A)):
@@ -56,14 +57,14 @@ class MPS(object):
                 self.A[i] = np.where(mask == 0, self.A[i], 0)
 
     @property
-    def nsites(self):
+    def nsites(self) -> int:
         """
         Number of lattice sites.
         """
         return len(self.A)
 
     @property
-    def bond_dims(self):
+    def bond_dims(self) -> list:
         """
         Virtual bond dimensions.
         """
@@ -81,6 +82,8 @@ class MPS(object):
         self.qd.fill(0)
         for i in range(len(self.qD)):
             self.qD[i].fill(0)
+        # enable chaining
+        return self
 
     def orthonormalize(self, mode='left'):
         """
@@ -116,9 +119,9 @@ class MPS(object):
                 nrm = -nrm
             return nrm
         else:
-            raise ValueError('mode = {} invalid; must be "left" or "right".'.format(mode))
+            raise ValueError(f'mode = {mode} invalid; must be "left" or "right".')
 
-    def as_vector(self):
+    def as_vector(self) -> np.ndarray:
         """
         Merge all tensors to obtain the vector representation on the full Hilbert space.
         """
@@ -130,7 +133,7 @@ class MPS(object):
         return psi.reshape(-1)
 
     @classmethod
-    def from_vector(cls, d, nsites, v, tol=0):
+    def from_vector(cls, d: int, nsites: int, v: np.ndarray, tol: float = 0):
         """
         Construct the MPS representation of the vector `v` via the TT-SVD algorithm,
         for local dimension `d`.
@@ -138,7 +141,7 @@ class MPS(object):
         All quantum numbers are set to zero for simplicity.
         """
         v = np.array(v)
-        assert v.ndim == 1 and len(v) == d**nsites, "`v` has length {}, expecting {}.".format(len(v), d**nsites)
+        assert v.ndim == 1 and len(v) == d**nsites, f"`v` has length {len(v)}, expecting {d**nsites}."
         # allocate a MPS with dummy virtual bonds of dimension 1
         mps = cls(d*[0], [[0] for _ in range(nsites + 1)], fill='postpone')
         # endow `v` with a dummy left virtual bond dimension
@@ -177,7 +180,7 @@ class MPS(object):
         return add_MPS(self, other, alpha=-1)
 
 
-def local_orthonormalize_left_qr(A, Anext, qd, qD):
+def local_orthonormalize_left_qr(A: np.ndarray, Anext: np.ndarray, qd: Sequence[int], qD: Sequence[Sequence[int]]):
     """
     Left-orthonormalize local site tensor `A` by a QR decomposition,
     and update tensor at next site.
@@ -186,14 +189,14 @@ def local_orthonormalize_left_qr(A, Anext, qd, qD):
     s = A.shape
     assert len(s) == 3
     q0 = qnumber_flatten([qd, qD[0]])
-    (Q, R, qbond) = qr(A.reshape((s[0]*s[1], s[2])), q0, qD[1])
+    Q, R, qbond = qr(A.reshape((s[0]*s[1], s[2])), q0, qD[1])
     A = Q.reshape((s[0], s[1], Q.shape[1]))
     # update Anext tensor: multiply with R from left
     Anext = np.tensordot(R, Anext, (1, 1)).transpose((1, 0, 2))
     return (A, Anext, qbond)
 
 
-def local_orthonormalize_right_qr(A, Aprev, qd, qD):
+def local_orthonormalize_right_qr(A: np.ndarray, Aprev: np.ndarray, qd: Sequence[int], qD: Sequence[Sequence[int]]):
     """
     Right-orthonormalize local site tensor `A` by a QR decomposition,
     and update tensor at previous site.
@@ -204,24 +207,24 @@ def local_orthonormalize_right_qr(A, Aprev, qd, qD):
     s = A.shape
     assert len(s) == 3
     q0 = qnumber_flatten([qd, -qD[1]])
-    (Q, R, qbond) = qr(A.reshape((s[0]*s[1], s[2])), q0, -qD[0])
+    Q, R, qbond = qr(A.reshape((s[0]*s[1], s[2])), q0, -qD[0])
     A = Q.reshape((s[0], s[1], Q.shape[1])).transpose((0, 2, 1))
     # update Aprev tensor: multiply with R from right
     Aprev = np.tensordot(Aprev, R, (2, 1))
     return (A, Aprev, -qbond)
 
 
-def merge_MPS_tensor_pair(A0, A1):
-    """Merge two neighboring MPS tensors."""
-    A = np.tensordot(A0, A1, (2, 1))
-    # pair original physical dimensions of A0 and A1
-    A = A.transpose((0, 2, 1, 3))
+def merge_MPS_tensor_pair(A0: np.ndarray, A1: np.ndarray) -> np.ndarray:
+    """
+    Merge two neighboring MPS tensors.
+    """
+    A = np.einsum(A0, (0, 2, 3), A1, (1, 3, 4), (0, 1, 2, 4), optimize=True)
     # combine original physical dimensions
     A = A.reshape((A.shape[0]*A.shape[1], A.shape[2], A.shape[3]))
     return A
 
 
-def split_MPS_tensor(A, qd0, qd1, qD, svd_distr, tol=0):
+def split_MPS_tensor(A: np.ndarray, qd0: Sequence[int], qd1: Sequence[int], qD: Sequence[Sequence[int]], svd_distr: str, tol=0):
     """
     Split a MPS tensor with dimension `d0*d1 x D0 x D2` into two MPS tensors
     with dimensions `d0 x D0 x D1` and `d1 x D1 x D2`, respectively.
@@ -254,7 +257,7 @@ def split_MPS_tensor(A, qd0, qd1, qD, svd_distr, tol=0):
     return (A0, A1, qbond)
 
 
-def add_MPS(mps0, mps1, alpha=1):
+def add_MPS(mps0: MPS, mps1: MPS, alpha=1) -> MPS:
     """
     Logical addition of two matrix product states (effectively sum virtual bond dimensions),
     with the second MPS scaled by 'alpha'.

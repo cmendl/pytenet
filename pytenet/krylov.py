@@ -38,7 +38,7 @@ def lanczos_iteration(Afunc, vstart, numiter):
         beta[j] = np.linalg.norm(w)
         if beta[j] < 100*len(vstart)*np.finfo(float).eps:
             warnings.warn(
-                'beta[{}] ~= 0 encountered during Lanczos iteration.'.format(j),
+                f'beta[{j}] ~= 0 encountered during Lanczos iteration.',
                 RuntimeWarning)
             # premature end of iteration
             numiter = j + 1
@@ -84,7 +84,7 @@ def arnoldi_iteration(Afunc, vstart, numiter):
         H[j+1, j] = np.linalg.norm(w)
         if H[j+1, j] < 100*len(vstart)*np.finfo(float).eps:
             warnings.warn(
-                'H[{}, {}] ~= 0 encountered during Arnoldi iteration.'.format(j+1, j),
+                f'H[{j+1}, {j}] ~= 0 encountered during Arnoldi iteration.',
                 RuntimeWarning)
             # premature end of iteration
             numiter = j + 1
@@ -106,13 +106,10 @@ def eigh_krylov(Afunc, vstart, numiter, numeig):
     Compute Krylov subspace approximation of eigenvalues and vectors.
     """
     alpha, beta, V = lanczos_iteration(Afunc, vstart, numiter)
-
     # diagonalize Hessenberg matrix
     w_hess, u_hess = eigh_tridiagonal(alpha, beta)
-
     # compute Ritz eigenvectors
-    u_ritz = np.dot(V, u_hess[:, 0:numeig])
-
+    u_ritz = V @ u_hess[:, 0:numeig]
     return (w_hess[0:numeig], u_ritz)
 
 
@@ -130,7 +127,7 @@ def expm_krylov(Afunc, v, dt, numiter, hermitian=False):
         alpha, beta, V = lanczos_iteration(Afunc, v, numiter)
         # diagonalize Hessenberg matrix
         w_hess, u_hess = eigh_tridiagonal(alpha, beta)
-        return np.dot(V, np.dot(u_hess, np.linalg.norm(v) * np.exp(dt*w_hess) * u_hess[0]))
+        return V @ (u_hess @ (np.linalg.norm(v) * np.exp(dt*w_hess) * u_hess[0]))
     else:
         H, V = arnoldi_iteration(Afunc, v, numiter)
-        return np.dot(V, np.linalg.norm(v) * expm(dt*H)[:, 0])
+        return V @ (np.linalg.norm(v) * expm(dt*H)[:, 0])

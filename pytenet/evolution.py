@@ -1,4 +1,6 @@
 import numpy as np
+from .mps import MPS
+from .mpo import MPO
 from .operation import (
         contraction_operator_step_right,
         contraction_operator_step_left,
@@ -12,7 +14,7 @@ from .bond_ops import qr
 __all__ = ['integrate_local_singlesite']
 
 
-def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
+def integrate_local_singlesite(H: MPO, psi: MPS, dt: float | complex, numsteps: int, numiter_lanczos: int = 25):
     """
     Symmetric single-site integration.
     `psi` is overwritten in-place with time-evolved state.
@@ -68,7 +70,7 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
             # evolve C backward in time by half a time step
             C = _local_bond_step(BL[i+1], BR[i], C, -0.5*dt, numiter_lanczos)
             # update psi.A[i+1] tensor: multiply with C from left
-            psi.A[i+1] = np.tensordot(C, psi.A[i+1], (1, 1)).transpose((1, 0, 2))
+            psi.A[i+1] = np.einsum(psi.A[i+1], (0, 3, 2), C, (1, 3), (0, 1, 2), optimize=True)
 
         # evolve psi.A[L-1] forward in time by a full time step
         i = L - 1
@@ -92,7 +94,7 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
             C = np.transpose(C)
             C = _local_bond_step(BL[i], BR[i-1], C, -0.5*dt, numiter_lanczos)
             # update psi.A[i-1] tensor: multiply with C from right
-            psi.A[i-1] = np.tensordot(psi.A[i-1], C, 1)
+            psi.A[i-1] = np.einsum(psi.A[i-1], (0, 1, 3), C, (3, 2), (0, 1, 2), optimize=True)
             # evolve psi.A[i-1] forward in time by half a time step
             psi.A[i-1] = _local_hamiltonian_step(BL[i-1], BR[i-1], H.A[i-1], psi.A[i-1], 0.5*dt, numiter_lanczos)
 
@@ -100,15 +102,19 @@ def integrate_local_singlesite(H, psi, dt, numsteps, numiter_lanczos=25):
     return nrm
 
 
-def _local_hamiltonian_step(L, R, W, A, dt, numiter):
-    """Local time step effected by Hamiltonian, based on a Lanczos iteration."""
+def _local_hamiltonian_step(L, R, W, A, dt: float | complex, numiter: int):
+    """
+    Local time step effected by Hamiltonian, based on a Lanczos iteration.
+    """
     return expm_krylov(
         lambda x: apply_local_hamiltonian(L, R, W, x.reshape(A.shape)).reshape(-1),
             A.reshape(-1), -dt, numiter, hermitian=True).reshape(A.shape)
 
 
-def _local_bond_step(L, R, C, dt, numiter):
-    """Local "zero-site" bond step, based on a Lanczos iteration."""
+def _local_bond_step(L, R, C, dt: float | complex, numiter: int):
+    """
+    Local "zero-site" bond step, based on a Lanczos iteration.
+    """
     return expm_krylov(
         lambda x: apply_local_bond_contraction(L, R, x.reshape(C.shape)).reshape(-1),
             C.reshape(-1), -dt, numiter, hermitian=True).reshape(C.shape)

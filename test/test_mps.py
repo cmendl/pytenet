@@ -41,9 +41,8 @@ class TestMPS(unittest.TestCase):
             s = mps0.A[i].shape
             assert s[0] == d
             Q = mps0.A[i].reshape((s[0]*s[1], s[2]))
-            QH_Q = np.dot(Q.conj().T, Q)
-            self.assertAlmostEqual(np.linalg.norm(QH_Q - np.identity(s[2])), 0., delta=1e-12,
-                                   msg='left-orthonormalization')
+            self.assertTrue(np.allclose(Q.conj().T @ Q, np.identity(s[2]), rtol=1e-12),
+                            msg='left-orthonormalization')
 
         # performing right-orthonormalization...
         cR = mps0.orthonormalize(mode='right')
@@ -60,17 +59,16 @@ class TestMPS(unittest.TestCase):
 
         psiR = mps0.as_vector()
         # wavefunctions must match
-        self.assertAlmostEqual(np.linalg.norm(psiL - cR*psiR), 0., delta=1e-10,
-                               msg='wavefunctions after left- and right-orthonormalization must match')
+        self.assertTrue(np.allclose(psiL, cR*psiR, rtol=1e-10),
+                        msg='wavefunctions after left- and right-orthonormalization must match')
 
         # check right-orthonormalization
         for i in range(mps0.nsites):
             s = mps0.A[i].shape
             assert s[0] == d
             Q = mps0.A[i].transpose((0, 2, 1)).reshape((s[0]*s[2], s[1]))
-            QH_Q = np.dot(Q.conj().T, Q)
-            self.assertAlmostEqual(np.linalg.norm(QH_Q - np.identity(s[1])), 0., delta=1e-12,
-                                   msg='right-orthonormalization')
+            self.assertTrue(np.allclose(Q.conj().T @ Q, np.identity(s[1]), rtol=1e-12),
+                            msg='right-orthonormalization')
 
 
     def test_split_tensor(self):
@@ -80,7 +78,7 @@ class TestMPS(unittest.TestCase):
         # outer virtual bond dimensions
         D0, D2 = 14, 17
 
-        Apair = randn_complex((d0*d1, D0, D2)) / np.sqrt(d0*d1*D0*D2)
+        Apair = crandn((d0*d1, D0, D2)) / np.sqrt(d0*d1*D0*D2)
 
         # fictitious quantum numbers
         qd0 = np.random.randint(-2, 3, size=d0)
@@ -101,8 +99,8 @@ class TestMPS(unittest.TestCase):
 
             # merged tensor must agree with the original tensor
             Amrg = ptn.merge_MPS_tensor_pair(A0, A1)
-            self.assertAlmostEqual(np.linalg.norm(Amrg - Apair), 0., delta=1e-13,
-                                   msg='splitting and subsequent merging must give the same tensor')
+            self.assertTrue(np.allclose(Amrg, Apair, rtol=1e-13),
+                            msg='splitting and subsequent merging must give the same tensor')
 
 
     def test_from_vector(self):
@@ -112,10 +110,10 @@ class TestMPS(unittest.TestCase):
         # number of lattice sites
         nsites = 7
         # random vector
-        v = randn_complex(d**nsites)
+        v = crandn(d**nsites)
         mps = ptn.MPS.from_vector(d, nsites, v)
-        self.assertAlmostEqual(np.linalg.norm(mps.as_vector() - v) / np.linalg.norm(v), 0., delta=1e-13,
-                               msg='MPS constructed from a vector must match original vector')
+        self.assertTrue(np.allclose(mps.as_vector(), v, rtol=1e-13),
+                        msg='MPS constructed from a vector must match original vector')
 
 
     def test_add(self):
@@ -138,9 +136,8 @@ class TestMPS(unittest.TestCase):
         # reference calculation
         mps_ref = mps0.as_vector() + mps1.as_vector()
 
-        # relative error
-        err = np.linalg.norm(mps.as_vector() - mps_ref) / max(np.linalg.norm(mps_ref), 1e-12)
-        self.assertAlmostEqual(err, 0., delta=1e-14,
+        # compare
+        self.assertTrue(np.allclose(mps.as_vector(), mps_ref, rtol=1e-13),
             msg='addition of two matrix product states must agree with vector representation')
 
 
@@ -163,9 +160,8 @@ class TestMPS(unittest.TestCase):
         # reference calculation
         mps_ref = mps0.as_vector() + mps1.as_vector()
 
-        # relative error
-        err = np.linalg.norm(mps.as_vector() - mps_ref) / max(np.linalg.norm(mps_ref), 1e-12)
-        self.assertAlmostEqual(err, 0., delta=1e-14,
+        # compare
+        self.assertTrue(np.allclose(mps.as_vector(), mps_ref, rtol=1e-13),
             msg='addition of two matrix product states must agree with vector representation')
 
 
@@ -189,9 +185,8 @@ class TestMPS(unittest.TestCase):
         # reference calculation
         mps_ref = mps0.as_vector() - mps1.as_vector()
 
-        # relative error
-        err = np.linalg.norm(mps.as_vector() - mps_ref) / max(np.linalg.norm(mps_ref), 1e-12)
-        self.assertAlmostEqual(err, 0., delta=1e-14,
+        # compare
+        self.assertTrue(np.allclose(mps.as_vector(), mps_ref, rtol=1e-12),
             msg='subtraction of two matrix product states must agree with vector representation')
 
 
@@ -214,13 +209,16 @@ class TestMPS(unittest.TestCase):
         # reference calculation
         mps_ref = mps0.as_vector() - mps1.as_vector()
 
-        # relative error
-        err = np.linalg.norm(mps.as_vector() - mps_ref) / max(np.linalg.norm(mps_ref), 1e-12)
-        self.assertAlmostEqual(err, 0., delta=1e-14,
+        # compare
+        self.assertTrue(np.allclose(mps.as_vector(), mps_ref, rtol=1e-12),
             msg='subtraction of two matrix product states must agree with vector representation')
 
 
-def randn_complex(size):
+def crandn(size):
+    """
+    Draw random samples from the standard complex normal (Gaussian) distribution.
+    """
+    # 1/sqrt(2) is a normalization factor
     return (np.random.standard_normal(size)
        + 1j*np.random.standard_normal(size)) / np.sqrt(2)
 

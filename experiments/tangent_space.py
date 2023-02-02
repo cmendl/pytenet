@@ -7,16 +7,16 @@ Reference:
     Phys. Rev. B 94, 165116 (2016) (arXiv:1408.5056)
 """
 
-from __future__ import print_function
 import numpy as np
 import scipy
 import copy
 import pytenet as ptn
 
 
-def tangent_space_projector(psi):
-    """Construct tangent space projector as matrix based on MPS formalism."""
-
+def tangent_space_projector(psi: ptn.MPS):
+    """
+    Construct tangent space projector as matrix based on MPS formalism.
+    """
     # physical local site dimension
     d = len(psi.qd)
 
@@ -34,8 +34,8 @@ def tangent_space_projector(psi):
         assert x.ndim == 3 and x.shape[1] == 1
         xmat = x.reshape((x.shape[0], x.shape[2]))
         # check orthonormalization
-        assert np.linalg.norm(np.dot(xmat.conj().T, xmat) - np.identity(xmat.shape[1])) < 1e-14
-        PL.append(np.dot(xmat, xmat.conj().T))
+        assert np.allclose(xmat.conj().T @ xmat, np.identity(xmat.shape[1]))
+        PL.append(xmat @ xmat.conj().T)
 
     # construct P_R operators
     psi_c.orthonormalize(mode='right')
@@ -46,8 +46,8 @@ def tangent_space_projector(psi):
         assert x.ndim == 3 and x.shape[2] == 1
         xmat = x.reshape(x.shape[:2])
         # check orthonormalization
-        assert np.linalg.norm(np.dot(xmat.conj().T, xmat) - np.identity(xmat.shape[1])) < 1e-14
-        PR.append(np.dot(xmat, xmat.conj().T))
+        assert np.allclose(xmat.conj().T @ xmat, np.identity(xmat.shape[1]))
+        PR.append(xmat @ xmat.conj().T)
     PR = list(reversed(PR))
 
     # construct projector
@@ -124,13 +124,13 @@ def main():
     print('rank of [T, N]:', np.linalg.matrix_rank(np.concatenate((T, N), axis=0)),
           '(should agree with rank of T)')
     # should be numerically zero by construction
-    z = np.dot(N.transpose(), np.ones(L))
+    z = N.transpose() @ np.ones(L)
     print('|z|:', np.linalg.norm(z), '(should be numerically zero)')
 
     # reference tangent space projector based on T
     # rank-revealing QR decomposition
     Q, R, _ = scipy.linalg.qr(T.T, mode='economic', pivoting=True)
-    P_ref = np.dot(Q[:, :rank], Q[:, :rank].conj().T)
+    P_ref = Q[:, :rank] @ Q[:, :rank].conj().T
 
     # construct tangent space projector based on MPS formalism
     P = tangent_space_projector(psi)
@@ -139,7 +139,7 @@ def main():
 
     # apply projector to psi (psi should remain unaffected)
     x = psi.as_vector()
-    print('|P psi - psi|:', np.linalg.norm(np.dot(P, x) - x), '(should be numerically zero)')
+    print('|P psi - psi|:', np.linalg.norm(P @ x - x), '(should be numerically zero)')
 
     # define another state
     # fictitious bond dimensions (should be bounded by d^i and d^(L-i))
@@ -150,13 +150,13 @@ def main():
     Psum = tangent_space_projector(psi + chi)
     # apply projector to psi (should remain unaffected)
     x = psi.as_vector()
-    print('|Psum psi - psi|:', np.linalg.norm(np.dot(Psum, x) - x), '(should be numerically zero)')
+    print('|Psum psi - psi|:', np.linalg.norm(Psum @ x - x), '(should be numerically zero)')
     # apply projector to chi (should remain unaffected)
     x = chi.as_vector()
-    print('|Psum chi - chi|:', np.linalg.norm(np.dot(Psum, x) - x), '(should be numerically zero)')
+    print('|Psum chi - chi|:', np.linalg.norm(Psum @ x - x), '(should be numerically zero)')
     # apply projector to psi + chi (should remain unaffected)
     x = psi.as_vector() + chi.as_vector()
-    print('|Psum (psi + chi) - (psi + chi)|:', np.linalg.norm(np.dot(Psum, x) - x), '(should be numerically zero)')
+    print('|Psum (psi + chi) - (psi + chi)|:', np.linalg.norm(Psum @ x - x), '(should be numerically zero)')
 
 
 if __name__ == '__main__':

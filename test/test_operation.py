@@ -68,7 +68,24 @@ class TestOperation(unittest.TestCase):
 
         # reference value based on full Fock space representation
         x = psi.as_vector()
-        avr_ref = np.vdot(x, np.dot(op.as_matrix(), x))
+        avr_ref = np.vdot(x, op.as_matrix() @ x)
+
+        # relative error
+        err = abs(avr - avr_ref) / max(abs(avr_ref), 1e-12)
+        self.assertAlmostEqual(err, 0., delta=1e-12, msg='operator average must match reference value')
+
+        # represent a density matrix as random matrix product operator
+        # (Hermition property not relevant here)
+        D = [1, 3, 7, 6, 11, 5, 1]
+        # set bond quantum numbers to zero since otherwise,
+        # sparsity pattern often leads to <psi | op | psi> = 0
+        rho = ptn.MPO(qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
+
+        # calculate average (expectation value) tr[op rho]
+        avr = ptn.operator_density_average(rho, op)
+
+        # reference value based on full Fock space representation
+        avr_ref = np.trace(op.as_matrix() @ rho.as_matrix())
 
         # relative error
         err = abs(avr - avr_ref) / max(abs(avr_ref), 1e-12)

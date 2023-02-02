@@ -1,5 +1,6 @@
 import numpy as np
 import copy
+from typing import Sequence
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
 from .bond_ops import qr
 
@@ -21,7 +22,7 @@ class MPO(object):
     right virtual bond quantum number.
     """
 
-    def __init__(self, qd, qD, fill=0.0):
+    def __init__(self, qd: Sequence[int], qD: Sequence[Sequence[int]], fill=0.0):
         """
         Create a matrix product operator.
 
@@ -45,15 +46,17 @@ class MPO(object):
                     np.random.normal(size=(d, d, D[i], D[i+1]), scale=1./np.sqrt(d*D[i]*D[i+1])) +
                  1j*np.random.normal(size=(d, d, D[i], D[i+1]), scale=1./np.sqrt(d*D[i]*D[i+1])) for i in range(len(D)-1)]
         else:
-            raise ValueError('fill = {} invalid; must be a number or "random".'.format(fill))
+            raise ValueError(f'fill = {fill} invalid; must be a number or "random".')
         # enforce block sparsity structure dictated by quantum numbers
         for i in range(len(self.A)):
             mask = qnumber_outer_sum([self.qd, -self.qd, self.qD[i], -self.qD[i+1]])
             self.A[i] = np.where(mask == 0, self.A[i], 0)
 
     @classmethod
-    def identity(cls, qd, L, scale=1, dtype=complex):
-        """Construct MPO representation of the identity operation."""
+    def identity(cls, qd: Sequence[int], L: int, scale: float = 1, dtype=complex):
+        """
+        Construct MPO representation of the identity operation.
+        """
         d = len(qd)
         mpo = cls(qd, (L+1)*[[0]])
         for i in range(L):
@@ -61,7 +64,7 @@ class MPO(object):
         return mpo
 
     @classmethod
-    def from_opchains(cls, qd, L, opchains):
+    def from_opchains(cls, qd: Sequence[int], L: int, opchains):
         """
         Construct a MPO representation of a sum of "operator chains".
 
@@ -132,13 +135,17 @@ class MPO(object):
         return op
 
     @property
-    def nsites(self):
-        """Number of lattice sites."""
+    def nsites(self) -> int:
+        """
+        Number of lattice sites.
+        """
         return len(self.A)
 
     @property
-    def bond_dims(self):
-        """Virtual bond dimensions."""
+    def bond_dims(self) -> list:
+        """
+        Virtual bond dimensions.
+        """
         if len(self.A) == 0:
             return []
         else:
@@ -147,16 +154,21 @@ class MPO(object):
             return D
 
     def zero_qnumbers(self):
-        """Set all quantum numbers to zero (effectively disabling them)."""
+        """
+        Set all quantum numbers to zero (effectively disabling them).
+        """
         self.qd.fill(0)
         for i in range(len(self.qD)):
             self.qD[i].fill(0)
+        # enable chaining
+        return self
 
     def orthonormalize(self, mode='left'):
-        """Left- or right-orthonormalize the MPO (Frobenius norm) using QR decompositions."""
+        """
+        Left- or right-orthonormalize the MPO (Frobenius norm) using QR decompositions.
+        """
         if len(self.A) == 0:
             return
-
         if mode == 'left':
             for i in range(len(self.A) - 1):
                 self.A[i], self.A[i+1], self.qD[i+1] = local_orthonormalize_left_qr(
@@ -186,10 +198,12 @@ class MPO(object):
                 nrm = -nrm
             return nrm
         else:
-            raise ValueError('mode = {} invalid; must be "left" or "right".'.format(mode))
+            raise ValueError(f'mode = {mode} invalid; must be "left" or "right".')
 
-    def as_matrix(self):
-        """Merge all tensors to obtain the matrix representation on the full Hilbert space."""
+    def as_matrix(self) -> np.ndarray:
+        """
+        Merge all tensors to obtain the matrix representation on the full Hilbert space.
+        """
         op = self.A[0]
         for i in range(1, len(self.A)):
             op = merge_MPO_tensor_pair(op, self.A[i])
@@ -199,19 +213,25 @@ class MPO(object):
         return op
 
     def __add__(self, other):
-        """Add MPO to another."""
+        """
+        Add MPO to another.
+        """
         return add_MPOs(self, other)
 
     def __sub__(self, other):
-        """Subtract another MPO."""
+        """
+        Subtract another MPO.
+        """
         return add_MPOs(self, other, alpha=-1)
 
-    def __mul__(self, other):
-        """Multiply MPO with another (composition along physical dimension)."""
+    def __matmul__(self, other):
+        """
+        Multiply MPO with another (composition along physical dimension).
+        """
         return multiply_MPOs(self, other)
 
 
-def local_orthonormalize_left_qr(A, Anext, qd, qD):
+def local_orthonormalize_left_qr(A: np.ndarray, Anext: np.ndarray, qd: Sequence[int], qD: Sequence[Sequence[int]]):
     """
     Left-orthonormalize local site tensor `A` by a QR decomposition,
     and update tensor at next site.
@@ -220,14 +240,14 @@ def local_orthonormalize_left_qr(A, Anext, qd, qD):
     s = A.shape
     assert len(s) == 4
     q0 = qnumber_flatten([qd, -qd, qD[0]])
-    (Q, R, qbond) = qr(A.reshape((s[0]*s[1]*s[2], s[3])), q0, qD[1])
+    Q, R, qbond = qr(A.reshape((s[0]*s[1]*s[2], s[3])), q0, qD[1])
     A = Q.reshape((s[0], s[1], s[2], Q.shape[1]))
     # update Anext tensor: multiply with R from left
     Anext = np.tensordot(R, Anext, (1, 2)).transpose((1, 2, 0, 3))
     return (A, Anext, qbond)
 
 
-def local_orthonormalize_right_qr(A, Aprev, qd, qD):
+def local_orthonormalize_right_qr(A: np.ndarray, Aprev: np.ndarray, qd: Sequence[int], qD: Sequence[Sequence[int]]):
     """
     Right-orthonormalize local site tensor `A` by a QR decomposition,
     and update tensor at previous site.
@@ -238,24 +258,25 @@ def local_orthonormalize_right_qr(A, Aprev, qd, qD):
     s = A.shape
     assert len(s) == 4
     q0 = qnumber_flatten([qd, -qd, -qD[1]])
-    (Q, R, qbond) = qr(A.reshape((s[0]*s[1]*s[2], s[3])), q0, -qD[0])
+    Q, R, qbond = qr(A.reshape((s[0]*s[1]*s[2], s[3])), q0, -qD[0])
     A = Q.reshape((s[0], s[1], s[2], Q.shape[1])).transpose((0, 1, 3, 2))
     # update Aprev tensor: multiply with R from right
     Aprev = np.tensordot(Aprev, R, (3, 1))
     return (A, Aprev, -qbond)
 
 
-def merge_MPO_tensor_pair(A0, A1):
-    """Merge two neighboring MPO tensors."""
-    A = np.tensordot(A0, A1, (3, 2))
-    # pair original physical dimensions of A0 and A1
-    A = A.transpose((0, 3, 1, 4, 2, 5))
+def merge_MPO_tensor_pair(A0: np.ndarray, A1: np.ndarray) -> np.ndarray:
+    """
+    Merge two neighboring MPO tensors.
+    """
+    A = np.einsum(A0, (0, 2, 4, 6), A1, (1, 3, 6, 5), (0, 1, 2, 3, 4, 5), optimize=True)
     # combine original physical dimensions
-    A = A.reshape((A.shape[0]*A.shape[1], A.shape[2]*A.shape[3], A.shape[4], A.shape[5]))
+    s = A.shape
+    A = A.reshape((s[0]*s[1], s[2]*s[3], s[4], s[5]))
     return A
 
 
-def add_MPOs(op0, op1, alpha=1):
+def add_MPOs(op0: MPO, op1: MPO, alpha: float | complex = 1) -> MPO:
     """
     Logical addition of two MPOs (effectively sum virtual bond dimensions)
     with the second MPO scaled by 'alpha'.
@@ -311,8 +332,10 @@ def add_MPOs(op0, op1, alpha=1):
     return op
 
 
-def multiply_MPOs(op0, op1):
-    """Multiply two MPOs (composition along physical dimension)."""
+def multiply_MPOs(op0: MPO, op1: MPO) -> MPO:
+    """
+    Multiply two MPOs (composition along physical dimension).
+    """
     # number of lattice sites must agree
     assert op0.nsites == op1.nsites
     L = op0.nsites

@@ -57,7 +57,7 @@ class TestEvolution(unittest.TestCase):
             msg='average spin must be equal to prescribed value')
 
         # reference time evolution
-        psi_ref = np.dot(expm(-dt*numsteps * mpoH.as_matrix()), psi.as_vector())
+        psi_ref = expm(-dt*numsteps * mpoH.as_matrix()) @ psi.as_vector()
 
         # run TDVP time evolution
         ptn.integrate_local_singlesite(mpoH, psi, dt, numsteps, numiter_lanczos=5)

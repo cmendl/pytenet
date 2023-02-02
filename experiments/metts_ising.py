@@ -8,7 +8,6 @@ Reference:
     New J. Phys. 12, 055026 (2010) (arXiv:1002.1305)
 """
 
-from __future__ import print_function
 import numpy as np
 import scipy
 import pytenet as ptn
@@ -16,14 +15,16 @@ import matplotlib.pyplot as plt
 
 
 def random_bloch_basis():
-    """Generate a uniformly random orthonormal Bloch basis."""
+    """
+    Generate a uniformly random orthonormal Bloch basis.
+    """
     theta = np.arccos(2*np.random.random_sample()-1)
     phi   = 2*np.pi*np.random.random_sample()
     return np.array([[               np.cos(theta/2),               -np.sin(theta/2)],
                      [np.exp(1j*phi)*np.sin(theta/2), np.exp(1j*phi)*np.cos(theta/2)]])
 
 
-def collapse_random_cps(L, psi):
+def collapse_random_cps(L: int, psi: np.ndarray):
     """"
     Sequentially collapse wavefunction `psi` onto a classical product state (CPS)
     using a random local Bloch basis for each site.
@@ -32,7 +33,7 @@ def collapse_random_cps(L, psi):
     for i in range(L):
         U = random_bloch_basis()
         # project wavefunction onto normalized U states at leading site
-        chi = np.dot(U.conj().T, np.reshape(psi, (2, -1)))
+        chi = U.conj().T @ np.reshape(psi, (2, -1))
         p = (np.linalg.norm(chi[0]), np.linalg.norm(chi[1]))
         # randomly choose one of the two states
         if np.random.random_sample() < p[0]**2:
@@ -45,8 +46,10 @@ def collapse_random_cps(L, psi):
     return cps
 
 
-def site_operator(L, i, op):
-    """Construct operator acting non-trivially on a single site."""
+def site_operator(L: int, i: int, op: np.ndarray):
+    """
+    Construct operator acting non-trivially on a single site.
+    """
     return np.kron(np.identity(2**i), np.kron(op, np.identity(2**(L-i-1))))
 
 
@@ -93,11 +96,11 @@ def main():
     chi_n = []
     s = 0
     for n in range(1, nsamples+1):
-        phi = np.dot(rho_beta, cps)
+        phi = rho_beta @ cps
         phi /= np.linalg.norm(phi)
         # A(-t/2)|phi> and B(t/2)^{dagger}|phi>
-        sA = np.dot(Utmax,    np.dot(opA,          np.dot(Utmaxinv, phi)))
-        sB = np.dot(Utmaxinv, np.dot(opB.conj().T, np.dot(Utmax,    phi)))
+        sA = Utmax    @ opA          @ Utmaxinv @ phi
+        sB = Utmaxinv @ opB.conj().T @ Utmax    @ phi
         s += np.vdot(sB, sA)
         if (n & (n - 1)) == 0:
             # if n is a power of 2...
@@ -111,12 +114,12 @@ def main():
     for i, t in enumerate(tlist):
         U    = scipy.linalg.expm(-0.5j*t*H)
         Uinv = scipy.linalg.expm( 0.5j*t*H)
-        tA = np.dot(np.dot(U,    np.dot(opA, rho_beta)), Uinv)
-        tB = np.dot(np.dot(Uinv, np.dot(rho_beta, opB)), U   )
-        chi_ref[i] = np.trace(np.dot(tB, tA)) / Z
+        tA = U    @ opA      @ rho_beta @ Uinv
+        tB = Uinv @ rho_beta @ opB      @ U
+        chi_ref[i] = np.trace(tB @ tA) / Z
 
-    print('reference <B(t) A(0)>_beta at t =', tlist[-1], ':', chi_ref[-1])
-    print('METTS approximation using', nsamples, 'samples:', chi_n[-1])
+    print(f'reference <B(t) A(0)>_beta at t = {tlist[-1]}: {chi_ref[-1]}')
+    print(f'METTS approximation using {nsamples} samples: {chi_n[-1]}')
 
     # visualize response function
     plt.plot(tlist, chi_ref.real, tlist, chi_ref.imag)
@@ -130,7 +133,7 @@ def main():
     plt.loglog(nlist, abs(chi_n - chi_ref[-1])/abs(chi_ref[-1]))
     plt.xlabel('num samples')
     plt.ylabel('rel err')
-    plt.title('METTS approximation error of response function at t = {}'.format(tlist[-1]))
+    plt.title(f'METTS approximation error of response function at t = {tlist[-1]}')
     plt.show()
 
 

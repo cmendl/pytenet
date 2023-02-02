@@ -3,7 +3,7 @@ import numpy as np
 __all__ = ['OpChain']
 
 
-class OpChain(object):
+class OpChain:
     """
     Operator chain `op_i x op_{i+1} x ... x op_{i+n-1}`,
     with `op_i` acting on lattice site `i`.
@@ -11,7 +11,6 @@ class OpChain(object):
     A single bond quantum number is interleaved between each `op_i` and `op_{i+1}`;
     set all quantum numbers to zero to effectively disable them.
     """
-
     def __init__(self, oplist, qD, istart=0):
         """
         Create an operator chain.

@@ -3,7 +3,6 @@ Apply the TDVP time evolution algorithm to a general matrix product operator
 by casting it into MPS form.
 """
 
-from __future__ import print_function
 import numpy as np
 from scipy.linalg import expm
 import copy
@@ -12,13 +11,15 @@ import pytenet as ptn
 from tangent_space import tangent_space_projector
 
 
-def entropy(lmbda):
-    """Compute the Neumann entropy given the eigenvalues of the density matrix."""
+def entropy(lmbda: np.ndarray):
+    """
+    Compute the Neumann entropy given the eigenvalues of the density matrix.
+    """
     lmbda = lmbda[lmbda > 0]
     return -np.dot(lmbda, np.log2(lmbda))
 
 
-def schmidt_coefficients_wavefunction(d, L, psi):
+def schmidt_coefficients_wavefunction(d: int, L: int, psi: np.ndarray):
     """
     Compute the Schmidt coefficients (singular values)
     of a wavefunction for symmetric left-right partitioning.
@@ -26,7 +27,7 @@ def schmidt_coefficients_wavefunction(d, L, psi):
     return np.linalg.svd(psi.reshape((d**(L//2), d**(L//2))), full_matrices=0, compute_uv=False)
 
 
-def schmidt_coefficients_operator(d, L, op):
+def schmidt_coefficients_operator(d: int, L: int, op: np.ndarray):
     """
     Compute the Schmidt coefficients (singular values)
     of an operator for symmetric left-right partitioning.
@@ -58,8 +59,8 @@ def main():
     print('mpsH.bond_dims:', mpsH.bond_dims)
     print('ptn.norm(mpsH):', ptn.norm(mpsH))
 
-    print('[H, .] applied to H as vector (should be zero): {:g}'.format(
-          np.linalg.norm(np.dot(mpoHcomm.as_matrix(), mpsH.as_vector()))))
+    print('[H, .] applied to H as vector (should be zero):',
+          np.linalg.norm(mpoHcomm.as_matrix() @ mpsH.as_vector()))
 
     # initial MPO with random entries (not necessarily Hermitian)
     Dmax = 40
@@ -84,13 +85,13 @@ def main():
     print('psi.bond_dims:', psi.bond_dims)
 
     # check: commutator
-    comm_ref = np.dot(op_mat, mpoH.as_matrix()) - np.dot(mpoH.as_matrix(), op_mat)
-    comm = np.dot(mpoHcomm.as_matrix(), psi.as_vector()).reshape((2*L)*[d]).transpose(
+    comm_ref = op_mat @ mpoH.as_matrix() - mpoH.as_matrix() @ op_mat
+    comm = (mpoHcomm.as_matrix() @ psi.as_vector()).reshape((2*L)*[d]).transpose(
             np.concatenate((2*np.arange(L, dtype=int), 2*np.arange(L, dtype=int)+1))).reshape((d**L, d**L))
-    print('commutator reference check error: {:g}'.format(np.linalg.norm(comm - comm_ref)))
+    print('commutator reference check error:', np.linalg.norm(comm - comm_ref))
 
     # initial average energy (should be conserved)
-    en_avr_0 = np.trace(np.dot(mpoH.as_matrix(), op_mat))
+    en_avr_0 = np.trace(mpoH.as_matrix() @ op_mat)
     en_avr_0_alt = ptn.vdot(mpsH, psi)
     print('en_avr_0:', en_avr_0)
     print('abs(en_avr_0_alt - en_avr_0):', abs(en_avr_0_alt - en_avr_0))
@@ -112,14 +113,14 @@ def main():
     t = 0.1 + 0.5j
 
     # reference calculation: exp(t H) op exp(-t H)
-    op_t_ref = np.dot(np.dot(expm(t*mpoH.as_matrix()), op_mat), expm(-t*mpoH.as_matrix()))
+    op_t_ref = expm(t*mpoH.as_matrix()) @ op_mat @ expm(-t*mpoH.as_matrix())
 
     # Frobenius norm not preserved by mixed real and imaginary time evolution
-    print('Frobenius norm of initial op: {:g}'.format(np.linalg.norm(op_mat, 'fro')))
-    print('Frobenius norm of op(t):      {:g}'.format(np.linalg.norm(op_t_ref, 'fro')))
+    print('Frobenius norm of initial op:', np.linalg.norm(op_mat, 'fro'))
+    print('Frobenius norm of op(t):     ', np.linalg.norm(op_t_ref, 'fro'))
 
     # energy should be conserved
-    en_avr_t_ref = np.trace(np.dot(mpoH.as_matrix(), op_t_ref))
+    en_avr_t_ref = np.trace(mpoH.as_matrix() @ op_t_ref)
     print('en_avr_t_ref:', en_avr_t_ref)
     print('abs(en_avr_t_ref - en_avr_0):', abs(en_avr_t_ref - en_avr_0))
 
@@ -128,7 +129,7 @@ def main():
     plt.semilogy(np.arange(len(sigma_t)) + 1, sigma_t, '.')
     plt.xlabel('i')
     plt.ylabel(r'$\sigma_i$')
-    plt.title('Schmidt coefficients of time-evolved state (t = {:g})\n(based on exact time evolution)'.format(-1j*t))
+    plt.title(f'Schmidt coefficients of time-evolved state (t = {-1j*t:g})\n(based on exact time evolution)')
     plt.savefig('evolution_operator_schmidt_t.pdf')
     plt.show()
 
@@ -136,8 +137,8 @@ def main():
     print('entropy of time-evolved state:', S)
 
     P = tangent_space_projector(psi)
-    print('np.linalg.norm(np.dot(P, mpsH.as_vector()) - mpsH.as_vector()) (in general non-zero):',
-          np.linalg.norm(np.dot(P, mpsH.as_vector()) - mpsH.as_vector()))
+    print('np.linalg.norm(P @ mpsH.as_vector() - mpsH.as_vector()) (in general non-zero):',
+          np.linalg.norm(P @ mpsH.as_vector() - mpsH.as_vector()))
 
     # number of time steps
     numsteps = 2**(np.arange(5))
@@ -157,7 +158,7 @@ def main():
 
         err_op[i] = np.linalg.norm(op_t.as_matrix() - op_t_ref, ord=1)
 
-        en_avr_t = np.trace(np.dot(mpoH.as_matrix(), op_t.as_matrix()))
+        en_avr_t = np.trace(mpoH.as_matrix() @ op_t.as_matrix())
         # relative energy error
         err_en[i] = abs(en_avr_t - en_avr_0) / abs(en_avr_0)
 
@@ -167,7 +168,7 @@ def main():
     plt.loglog(dtinv, 1.75e-2/dtinv**2, '--')
     plt.xlabel('1/dt')
     plt.ylabel(r'$\Vert\mathcal{O}[A](t) - \mathcal{O}_\mathrm{ref}(t)\Vert_1$')
-    plt.title('TDVP time evolution (applied to operator) rate of convergence for\nHeisenberg XXZ model (J={:g}, D={:g}, h={:g}), L={}, t={:g}'.format(J, DH, h, L, -1j*t))
+    plt.title(f'TDVP time evolution (applied to operator) rate of convergence for\nHeisenberg XXZ model (J={J:g}, D={DH:g}, h={h:g}), L={L}, t={-1j*t:g}')
     plt.savefig('evolution_operator_convergence.pdf')
     plt.show()
 
@@ -176,7 +177,7 @@ def main():
     plt.loglog(dtinv, 1e-2/dtinv**2, '--')
     plt.xlabel('1/dt')
     plt.ylabel(r'$\frac{\vert\epsilon(t) - \epsilon(0)\vert}{\vert\epsilon(0)\vert}, \quad \epsilon(t) = \mathrm{tr}[H \mathcal{O}[A](t)]$')
-    plt.title('TDVP time evolution (applied to operator) relative energy error for\nHeisenberg XXZ model (J={:g}, D={:g}, h={:g}), L={}, t={:g}'.format(J, DH, h, L, -1j*t))
+    plt.title(f'TDVP time evolution (applied to operator) relative energy error for\nHeisenberg XXZ model (J={J:g}, D={DH:g}, h={h:g}), L={L}, t={-1j*t:g}')
     plt.savefig('evolution_operator_energy_conv.pdf')
     plt.show()
 
@@ -210,7 +211,9 @@ def cast_to_MPO(mps, qd):
 
 
 def construct_comm_opchain(opchain):
-    """Construct operator chain on enlarged physical space to realize commutator."""
+    """
+    Construct operator chain on enlarged physical space to realize commutator.
+    """
     # -opchain acting from the left
     oplist = [np.kron(op, np.identity(len(op))) for op in opchain.oplist]
     oplist[0] *= -1
@@ -222,8 +225,10 @@ def construct_comm_opchain(opchain):
 
 
 def heisenberg_XXZ_comm_MPO(L, J, D, h):
-    """Construct commutator with XXZ Heisenberg Hamiltonian
-    'sum J X X + J Y Y + D Z Z - h Z' on a 1D lattice as MPO."""
+    """
+    Construct commutator with XXZ Heisenberg Hamiltonian
+    'sum J X X + J Y Y + D Z Z - h Z' on a 1D lattice as MPO.
+    """
     # physical quantum numbers (multiplied by 2)
     qd = np.array([1, -1])
     # spin operators

@@ -8,7 +8,7 @@ with open('ReadMe.rst', 'r') as f:
 
 setup(
     name='pytenet',
-    version='1.0',
+    version='1.0.1',
     description='Tensor network library for quantum simulations',
     long_description=long_desc,
     long_description_content_type='text/x-rst',
@@ -24,5 +24,5 @@ setup(
     extras_require={
         'test': ['unittest']
     },
-    python_requires='>=2.7'
+    python_requires='>=3.6'
 )

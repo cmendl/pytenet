@@ -8,7 +8,6 @@ Reference:
     Phys. Rev. B 94, 165116 (2016) (arXiv:1408.5056)
 """
 
-from __future__ import print_function
 import numpy as np
 from scipy.linalg import expm
 import copy
@@ -16,13 +15,15 @@ import matplotlib.pyplot as plt
 import pytenet as ptn
 
 
-def entropy(lmbda):
-    """Compute the Neumann entropy given the eigenvalues of the density matrix."""
+def entropy(lmbda: np.ndarray):
+    """
+    Compute the Neumann entropy given the eigenvalues of the density matrix.
+    """
     lmbda = lmbda[lmbda > 0]
     return -np.dot(lmbda, np.log2(lmbda))
 
 
-def schmidt_coefficients(d, L, psi):
+def schmidt_coefficients(d: int, L: int, psi: np.ndarray):
     """
     Compute the Schmidt coefficients (singular values)
     of a wavefunction for symmetric left-right partitioning.
@@ -76,14 +77,14 @@ def main():
     t = 0.5j
 
     # reference calculation
-    psi_ref = np.dot(expm(-t*mpoH.as_matrix()), psi.as_vector())
+    psi_ref = expm(-t*mpoH.as_matrix()) @ psi.as_vector()
 
     # exact Schmidt coefficients (singular values) of time-evolved state
     sigma_t = schmidt_coefficients(d, L, psi_ref)
     plt.semilogy(np.arange(len(sigma_t)) + 1, sigma_t, '.')
     plt.xlabel('i')
     plt.ylabel('$\sigma_i$')
-    plt.title('Schmidt coefficients of time-evolved state (t = {:g})\n(based on exact time evolution)'.format(t.imag))
+    plt.title(f'Schmidt coefficients of time-evolved state (t = {t.imag:g})\n(based on exact time evolution)')
     plt.savefig('evolution_schmidt_t.pdf')
     plt.show()
     print('entropy of time-evolved state:', entropy((sigma_t / np.linalg.norm(sigma_t))**2))
@@ -115,7 +116,7 @@ def main():
     plt.loglog(dtinv, 1.75e-4/dtinv**2, '--')
     plt.xlabel('1/dt')
     plt.ylabel(r'$\Vert\psi[A](t) - \psi_\mathrm{ref}(t)\Vert$')
-    plt.title('TDVP time evolution rate of convergence (t = {:g}) for\nHeisenberg XXZ model (J={:g}, D={:g}, h={:g})'.format(t.imag, J, DH, h))
+    plt.title(f'TDVP time evolution rate of convergence (t = {t.imag:g}) for\nHeisenberg XXZ model (J={J:g}, D={DH:g}, h={h:g})')
     plt.savefig('evolution_convergence.pdf')
     plt.show()
 
