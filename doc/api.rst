@@ -14,7 +14,10 @@ API documentation
     pytenet.krylov
     pytenet.minimization
     pytenet.mpo
+    pytenet.mpo.MPO
     pytenet.mps
+    pytenet.mps.MPS
     pytenet.opchain
+    pytenet.opchain.OpChain
     pytenet.operation
     pytenet.qnumber
