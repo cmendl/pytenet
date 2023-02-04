@@ -14,7 +14,7 @@ from .bond_ops import qr
 __all__ = ['integrate_local_singlesite']
 
 
-def integrate_local_singlesite(H: MPO, psi: MPS, dt: float | complex, numsteps: int, numiter_lanczos: int = 25):
+def integrate_local_singlesite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanczos: int = 25):
     """
     Symmetric single-site integration.
     `psi` is overwritten in-place with time-evolved state.
@@ -102,7 +102,7 @@ def integrate_local_singlesite(H: MPO, psi: MPS, dt: float | complex, numsteps: 
     return nrm
 
 
-def _local_hamiltonian_step(L, R, W, A, dt: float | complex, numiter: int):
+def _local_hamiltonian_step(L, R, W, A, dt, numiter: int):
     """
     Local time step effected by Hamiltonian, based on a Lanczos iteration.
     """
@@ -111,7 +111,7 @@ def _local_hamiltonian_step(L, R, W, A, dt: float | complex, numiter: int):
             A.reshape(-1), -dt, numiter, hermitian=True).reshape(A.shape)
 
 
-def _local_bond_step(L, R, C, dt: float | complex, numiter: int):
+def _local_bond_step(L, R, C, dt, numiter: int):
     """
     Local "zero-site" bond step, based on a Lanczos iteration.
     """

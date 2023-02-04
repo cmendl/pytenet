@@ -276,7 +276,7 @@ def merge_MPO_tensor_pair(A0: np.ndarray, A1: np.ndarray) -> np.ndarray:
     return A
 
 
-def add_MPOs(op0: MPO, op1: MPO, alpha: float | complex = 1) -> MPO:
+def add_MPOs(op0: MPO, op1: MPO, alpha=1) -> MPO:
     """
     Logical addition of two MPOs (effectively sum virtual bond dimensions)
     with the second MPO scaled by 'alpha'.
