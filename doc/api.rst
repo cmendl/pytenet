@@ -4,8 +4,10 @@ API documentation
 =================
 
 .. autosummary::
+    :recursive:
     :toctree: _autosummary
 
+    pytenet
     pytenet.bond_ops
     pytenet.evolution
     pytenet.hamiltonian

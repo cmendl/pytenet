@@ -44,7 +44,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
-    'sphinx.ext.viewcode',
+    'sphinx.ext.linkcode',
     'nbsphinx',
 ]
 
@@ -84,6 +84,18 @@ exclude_patterns = ['_build', '**.ipynb_checkpoints', 'Thumbs.db', '.DS_Store']
 pygments_style = None
 
 
+def linkcode_resolve(domain, info):
+    """
+    Code link resolve function for sphinx.ext.linkcode extension.
+    """
+    if domain != "py":
+        return None
+    if not info["module"]:
+        return None
+    filename = info["module"].replace(".", "/")
+    return f"https://github.com/cmendl/pytenet/blob/master/pytenet/{filename}.py"
+
+
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -118,7 +130,7 @@ html_static_path = ['_static']
 # -- Options for intersphinx extension ---------------------------------------
 
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/', None),
-    'numpy':  ('https://docs.scipy.org/doc/numpy', None),
-    'scipy':  ('https://docs.scipy.org/doc/scipy/reference', None),
+    "python": ("https://docs.python.org/3/", None),
+    "numpy":  ("https://numpy.org/doc/stable", None),
+    "scipy":  ("https://docs.scipy.org/doc/scipy", None),
 }
