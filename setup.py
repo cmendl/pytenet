@@ -1,7 +1,7 @@
 from setuptools import setup
 
 
-with open('ReadMe.rst', 'r') as f:
+with open('README.rst', 'r') as f:
     # skip the banners
     lines = f.readlines()[6:]
     long_desc = ''.join(lines)

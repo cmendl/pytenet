@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytenet"
+version = "1.0.1"
+description = "Tensor network library for quantum simulations"
+readme = "README.rst"
+authors = [{ name = "Christian B. Mendl", email = "christian.b.mendl@gmail.com" }]
+license = { text = "BSD-2-Clause" }
+requires-python = ">=3.6"
+dependencies = [
+    "numpy",
+    "scipy",
+]
+
+[project.urls]
+Homepage = "https://github.com/cmendl/pytenet"

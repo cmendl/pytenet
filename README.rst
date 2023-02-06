@@ -62,9 +62,17 @@ Features
 
 Installation
 ------------
-To install PyTeNet, download the `source code <https://github.com/cmendl/pytenet>`_ and
-run ``python setup.py install`` from within the main PyTeNet directory, or
-add the `pytenet/` subfolder to your Python search path.
+To install PyTeNet from PyPI, call
+
+.. code-block:: python
+
+    python3 -m pip install pytenet
+
+Alternatively, you can clone the `repository <https://github.com/cmendl/pytenet>`_ and install it in development mode via
+
+.. code-block:: python
+
+    python3 -m pip install -e <path/to/repo>
 
 .. doc-inclusion-marker1-end
 

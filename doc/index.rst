@@ -1,7 +1,7 @@
 Welcome to PyTeNet's documentation!
 ===================================
 
-.. include:: ../ReadMe.rst
+.. include:: ../README.rst
     :start-after: doc-inclusion-marker1-start
     :end-before:  doc-inclusion-marker1-end
 
@@ -26,6 +26,6 @@ Indices and tables
 - :ref:`search`
 
 
-.. include:: ../ReadMe.rst
+.. include:: ../README.rst
     :start-after: doc-inclusion-marker2-start
     :end-before:  doc-inclusion-marker2-end
