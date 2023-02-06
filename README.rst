@@ -131,15 +131,15 @@ References
 ----------
 1. | U. Schollwöck
    | The density-matrix renormalization group in the age of matrix product states
-   | Ann. Phys. 326, 96-192 (2011) `arXiv:1008.3477 <https://arxiv.org/abs/1008.3477>`_, `DOI <https://doi.org/10.1016/j.aop.2010.09.012>`_
+   | `Ann. Phys. 326, 96-192 (2011) <https://doi.org/10.1016/j.aop.2010.09.012>`_ (`arXiv:1008.3477 <https://arxiv.org/abs/1008.3477>`_)
 2. | J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, F. Verstraete
    | Unifying time evolution and optimization with matrix product states
-   | Phys. Rev. B 94, 165116 (2016) `arXiv:1408.5056 <https://arxiv.org/abs/1408.5056>`_, `DOI <https://doi.org/10.1103/PhysRevB.94.165116>`_
+   | `Phys. Rev. B 94, 165116 (2016) <https://doi.org/10.1103/PhysRevB.94.165116>`_ (`arXiv:1408.5056 <https://arxiv.org/abs/1408.5056>`_)
 3. | I. P. McCulloch
    | From density-matrix renormalization group to matrix product states
-   | J. Stat. Mech. (2007) P10014 `arXiv:cond-mat/0701428 <https://arxiv.org/abs/cond-mat/0701428>`_, `DOI <https://doi.org/10.1088/1742-5468/2007/10/P10014>`_
+   | `J. Stat. Mech. (2007) P10014 <https://doi.org/10.1088/1742-5468/2007/10/P10014>`_ (`arXiv:cond-mat/0701428 <https://arxiv.org/abs/cond-mat/0701428>`_)
 4. | T. Barthel
    | Precise evaluation of thermal response functions by optimized density matrix renormalization group schemes
-   | New J. Phys. 15, 073010 (2013) `arXiv:1301.2246 <https://arxiv.org/abs/1301.2246>`_, `DOI <https://doi.org/10.1088/1367-2630/15/7/073010>`_
+   | `New J. Phys. 15, 073010 (2013) <https://doi.org/10.1088/1367-2630/15/7/073010>`_ (`arXiv:1301.2246 <https://arxiv.org/abs/1301.2246>`_)
 
 .. doc-inclusion-marker2-end
