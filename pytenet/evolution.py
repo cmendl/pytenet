@@ -1,6 +1,6 @@
 import numpy as np
-from .mps import MPS
-from .mpo import MPO
+from .mps import MPS, merge_MPS_tensor_pair, split_MPS_tensor
+from .mpo import MPO, merge_MPO_tensor_pair
 from .operation import (
         contraction_operator_step_right,
         contraction_operator_step_left,
@@ -11,19 +11,18 @@ from .krylov import expm_krylov
 from .qnumber import qnumber_flatten, is_qsparse
 from .bond_ops import qr
 
-__all__ = ['integrate_local_singlesite']
+__all__ = ['integrate_local_singlesite', 'integrate_local_twosite']
 
 
 def integrate_local_singlesite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanczos: int = 25):
     """
-    Symmetric single-site integration.
-    `psi` is overwritten in-place with time-evolved state.
+    Symmetric single-site TDVP integration.
+    `psi` is overwritten in-place with the time-evolved state.
 
     Args:
         H: Hamiltonian as MPO
         psi: initial state as MPS
-        dt: time step (without imaginary factor; for real-time evolution
-            use purely imaginary dt)
+        dt: time step; for real-time evolution, use purely imaginary dt
         numsteps: number of time steps
         numiter_lanczos: number of Lanczos iterations for each site-local step
 
@@ -97,6 +96,93 @@ def integrate_local_singlesite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanc
             psi.A[i-1] = np.einsum(psi.A[i-1], (0, 1, 3), C, (3, 2), (0, 1, 2), optimize=True)
             # evolve psi.A[i-1] forward in time by half a time step
             psi.A[i-1] = _local_hamiltonian_step(BL[i-1], BR[i-1], H.A[i-1], psi.A[i-1], 0.5*dt, numiter_lanczos)
+
+    # return norm of initial psi
+    return nrm
+
+
+def integrate_local_twosite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanczos: int = 25, tol_split = 0):
+    """
+    Symmetric two-site TDVP integration.
+    `psi` is overwritten in-place with the time-evolved state.
+
+    Args:
+        H: Hamiltonian as MPO
+        psi: initial state as MPS
+        dt: time step; for real-time evolution, use purely imaginary dt
+        numsteps: number of time steps
+        numiter_lanczos: number of Lanczos iterations for each site-local step
+        tol_split: tolerance for SVD-splitting of neighboring MPS tensors
+
+    Returns:
+        float: norm of initial psi
+
+    Reference:
+        J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, F. Verstraete
+        Unifying time evolution and optimization with matrix product states
+        Phys. Rev. B 94, 165116 (2016) (arXiv:1408.5056)
+    """
+
+    # number of lattice sites
+    L = H.nsites
+    assert L == psi.nsites
+    assert L >= 2
+
+    # right-normalize input matrix product state
+    nrm = psi.orthonormalize(mode='right')
+
+    # left and right operator blocks
+    # initialize leftmost block by 1x1x1 identity
+    BR = compute_right_operator_blocks(psi, H)
+    BL = [None for _ in range(L)]
+    BL[0] = np.array([[[1]]], dtype=BR[0].dtype)
+
+    # consistency check
+    for i in range(len(BR)):
+        assert is_qsparse(BR[i], [psi.qD[i+1], H.qD[i+1], -psi.qD[i+1]]), \
+            'sparsity pattern of operator blocks must match quantum numbers'
+
+    for n in range(numsteps):
+
+        # sweep from left to right
+        for i in range(L - 2):
+            # merge neighboring tensors
+            Am = merge_MPS_tensor_pair(psi.A[i], psi.A[i+1])
+            Hm = merge_MPO_tensor_pair(H.A[i], H.A[i+1])
+            # evolve Am forward in time by half a time step
+            Am = _local_hamiltonian_step(BL[i], BR[i+1], Hm, Am, 0.5*dt, numiter_lanczos)
+            # split Am
+            psi.A[i], psi.A[i+1], psi.qD[i+1] = split_MPS_tensor(Am, psi.qd, psi.qd, [psi.qD[i], psi.qD[i+2]], 'right', tol=tol_split)
+            # update the left blocks
+            BL[i+1] = contraction_operator_step_left(psi.A[i], H.A[i], BL[i])
+            # evolve psi.A[i+1] backward in time by half a time step
+            psi.A[i+1] = _local_hamiltonian_step(BL[i+1], BR[i+1], H.A[i+1], psi.A[i+1], -0.5*dt, numiter_lanczos)
+
+        # rightmost tensor pair
+        i = L - 2
+        # merge neighboring tensors
+        Am = merge_MPS_tensor_pair(psi.A[i], psi.A[i+1])
+        Hm = merge_MPO_tensor_pair(H.A[i], H.A[i+1])
+        # evolve Am forward in time by a full time step
+        Am = _local_hamiltonian_step(BL[i], BR[i+1], Hm, Am, dt, numiter_lanczos)
+        # split Am
+        psi.A[i], psi.A[i+1], psi.qD[i+1] = split_MPS_tensor(Am, psi.qd, psi.qd, [psi.qD[i], psi.qD[i+2]], 'left', tol=tol_split)
+        # update the right blocks
+        BR[i] = contraction_operator_step_right(psi.A[i+1], H.A[i+1], BR[i+1])
+
+        # sweep from right to left
+        for i in reversed(range(L - 2)):
+            # evolve psi.A[i+1] backward in time by half a time step
+            psi.A[i+1] = _local_hamiltonian_step(BL[i+1], BR[i+1], H.A[i+1], psi.A[i+1], -0.5*dt, numiter_lanczos)
+            # merge neighboring tensors
+            Am = merge_MPS_tensor_pair(psi.A[i], psi.A[i+1])
+            Hm = merge_MPO_tensor_pair(H.A[i], H.A[i+1])
+            # evolve Am forward in time by half a time step
+            Am = _local_hamiltonian_step(BL[i], BR[i+1], Hm, Am, 0.5*dt, numiter_lanczos)
+            # split Am
+            psi.A[i], psi.A[i+1], psi.qD[i+1] = split_MPS_tensor(Am, psi.qd, psi.qd, [psi.qD[i], psi.qD[i+2]], 'left', tol=tol_split)
+            # update the right blocks
+            BR[i] = contraction_operator_step_right(psi.A[i+1], H.A[i+1], BR[i+1])
 
     # return norm of initial psi
     return nrm

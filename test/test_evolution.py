@@ -1,12 +1,13 @@
 import unittest
 import numpy as np
 from scipy.linalg import expm
+import copy
 import pytenet as ptn
 
 
 class TestEvolution(unittest.TestCase):
 
-    def test_single_site(self):
+    def test_tdvp_approximation(self):
 
         # number of lattice sites
         L = 10
@@ -29,7 +30,7 @@ class TestEvolution(unittest.TestCase):
         # enumerate all possible virtual bond quantum numbers (including multiplicities);
         # will be implicitly reduced by orthonormalization steps below
         qD = [np.array([0])]
-        for i in range(L-1):
+        for i in range(L - 1):
             qD.append(np.sort(np.array([q + mpoH.qd for q in qD[-1]]).reshape(-1)))
         qD.append(np.array([2*spin_tot]))
 
@@ -60,11 +61,58 @@ class TestEvolution(unittest.TestCase):
         psi_ref = expm(-dt*numsteps * mpoH.as_matrix()) @ psi.as_vector()
 
         # run TDVP time evolution
-        ptn.integrate_local_singlesite(mpoH, psi, dt, numsteps, numiter_lanczos=5)
+        psi1 = copy.deepcopy(psi)
+        psi2 = copy.deepcopy(psi)
+        ptn.integrate_local_singlesite(mpoH, psi1, dt, numsteps, numiter_lanczos=5)
+        ptn.integrate_local_twosite(mpoH, psi2, dt, numsteps, numiter_lanczos=10)
 
         # compare time-evolved wavefunctions
-        self.assertAlmostEqual(np.linalg.norm(psi.as_vector() - psi_ref), 0, delta=2e-5,
-            msg='time-evolved wavefunction obtained by single-site MPS time evolution must match reference')
+        self.assertTrue(np.allclose(psi1.as_vector(), psi_ref, atol=2e-5),
+            msg='time-evolved wavefunction obtained by single-site TDVP time evolution must match reference')
+        self.assertTrue(np.allclose(psi2.as_vector(), psi_ref, atol=1e-10),
+            msg='time-evolved wavefunction obtained by two-site TDVP time evolution must match reference')
+
+
+    def test_tdvp_symmetry(self):
+
+        # number of lattice sites
+        L = 10
+
+        # real-time evolution
+        dt = 0.5j
+
+        # construct matrix product operator representation of Heisenberg Hamiltonian
+        J =  4.0/3
+        D =  5.0/13
+        h = -2.0/7
+        mpoH = ptn.heisenberg_XXZ_MPO(L, J, D, h)
+        mpoH.zero_qnumbers()
+
+        # quantum numbers not used here; set them to zero
+        qD = [np.array([0])]
+        for i in range(L - 1):
+            qD.append(np.zeros(5, dtype=int))
+        qD.append(np.array([0]))
+
+        # initial wavefunction as MPS with random entries
+        psi = ptn.MPS(mpoH.qd, qD, fill='random')
+        psi.orthonormalize(mode='left')
+
+        psi_ref = psi.as_vector()
+
+        # evolve forward and then backward in time;
+        # should arrive at initial state since integration method is symmetric
+        psi1 = copy.deepcopy(psi)
+        ptn.integrate_local_singlesite(mpoH, psi1,  dt, 1, numiter_lanczos=10)
+        ptn.integrate_local_singlesite(mpoH, psi1, -dt, 1, numiter_lanczos=10)
+        psi2 = copy.deepcopy(psi)
+        ptn.integrate_local_twosite(mpoH, psi2,  dt, 1, numiter_lanczos=10, tol_split=1e-10)
+        ptn.integrate_local_twosite(mpoH, psi2, -dt, 1, numiter_lanczos=10, tol_split=1e-10)
+
+        # compare
+        self.assertTrue(np.allclose(psi1.as_vector(), psi_ref, atol=1e-10))
+        # larger deviation for two-site TDVP presumably due to varying bond dimensions
+        self.assertTrue(np.allclose(psi2.as_vector(), psi_ref, atol=1e-6))
 
 
 if __name__ == '__main__':

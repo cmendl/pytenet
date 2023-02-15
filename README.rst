@@ -18,15 +18,15 @@ Example usage for TDVP time evolution:
 .. code-block:: python
 
     import pytenet as ptn
-    
+
     # number of lattice sites (1D with open boundary conditions)
     L = 10
-    
+
     # construct matrix product operator representation of
     # Heisenberg XXZ Hamiltonian (arguments are L, J, \Delta, h)
     mpoH = ptn.heisenberg_XXZ_MPO(L, 1.0, 0.8, -0.1)
     mpoH.zero_qnumbers()
-    
+
     # initial wavefunction as MPS with random entries
     # maximally allowed virtual bond dimensions
     D = [1, 2, 4, 8, 16, 28, 16, 8, 4, 2, 1]
@@ -37,12 +37,12 @@ Example usage for TDVP time evolution:
         psi.A[i][:, Dinit:, :] = 0
         psi.A[i][:, :, Dinit:] = 0
     psi.orthonormalize(mode='left')
-    
+
     # time step can have both real and imaginary parts;
     # for real time evolution use purely imaginary dt!
     dt = 0.01 - 0.05j
     numsteps = 100
-    
+
     # run TDVP time evolution
     ptn.integrate_local_singlesite(mpoH, psi, dt, numsteps, numiter_lanczos=5)
     # psi now stores the (approximated) time-evolved state exp(-dt*numsteps H) psi
@@ -53,7 +53,7 @@ Features
 - matrix product state and operator classes
 - construct common Hamiltonians as MPOs, straightforward to adapt to custom Hamiltonians
 - convert arbitrary operator chains to MPOs
-- TDVP time evolution (real and imaginary)
+- TDVP time evolution (single- and two-site, both real and imaginary time)
 - generate vector / matrix representations of matrix product states / operators
 - Krylov subspace methods for local operations
 - one-site local energy minimization using Lanczos iteration
