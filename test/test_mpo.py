@@ -119,7 +119,7 @@ class TestMPO(unittest.TestCase):
                             msg='sparsity pattern of MPO tensors must match quantum numbers')
 
         # construct full Hamiltonian from operator chains, as reference
-        Href = sum([opc.as_matrix(d, L) for opc in opchains])
+        Href = sum(opc.as_matrix(d, L) for opc in opchains)
 
         # compare
         self.assertTrue(np.allclose(mpo0.as_matrix(), Href, rtol=1e-10),

@@ -62,7 +62,7 @@ def main():
     J =  1.0
     h =  0.8
     g = -0.375
-    H = ptn.ising_MPO(L, J, h, g).as_matrix()
+    H = ptn.ising_mpo(L, J, h, g).as_matrix()
 
     # inverse temperature
     beta = 1.2

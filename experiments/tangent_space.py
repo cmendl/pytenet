@@ -30,7 +30,7 @@ def tangent_space_projector(psi: ptn.MPS):
     PL = []
     x = np.array([[[1.]]])
     for i in range(L):
-        x = ptn.merge_MPS_tensor_pair(x, psi_c.A[i])
+        x = ptn.merge_mps_tensor_pair(x, psi_c.A[i])
         assert x.ndim == 3 and x.shape[1] == 1
         xmat = x.reshape((x.shape[0], x.shape[2]))
         # check orthonormalization
@@ -42,7 +42,7 @@ def tangent_space_projector(psi: ptn.MPS):
     PR = []
     x = np.array([[[1.]]])
     for i in reversed(range(L)):
-        x = ptn.merge_MPS_tensor_pair(psi_c.A[i], x)
+        x = ptn.merge_mps_tensor_pair(psi_c.A[i], x)
         assert x.ndim == 3 and x.shape[2] == 1
         xmat = x.reshape(x.shape[:2])
         # check orthonormalization

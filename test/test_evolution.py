@@ -1,7 +1,7 @@
 import unittest
+import copy
 import numpy as np
 from scipy.linalg import expm
-import copy
 import pytenet as ptn
 
 
@@ -22,7 +22,7 @@ class TestEvolution(unittest.TestCase):
         J =  4.0/3
         D =  5.0/13
         h = -2.0/7
-        mpoH = ptn.heisenberg_XXZ_MPO(L, J, D, h)
+        mpoH = ptn.heisenberg_xxz_mpo(L, J, D, h)
 
         # fix total spin quantum number of wavefunction (trailing virtual bond)
         spin_tot = 2
@@ -50,7 +50,7 @@ class TestEvolution(unittest.TestCase):
             msg='trailing bond quantum number must not change during orthonormalization')
 
         # total spin operator as MPO
-        Sztot = ptn.local_opchains_to_MPO(mpoH.qd, L, [ptn.OpChain([np.diag([0.5, -0.5])], [])])
+        Sztot = ptn.local_opchains_to_mpo(mpoH.qd, L, [ptn.OpChain([np.diag([0.5, -0.5])], [])])
 
         # explicitly compute average spin
         spin_avr = ptn.operator_average(psi, Sztot)
@@ -85,12 +85,12 @@ class TestEvolution(unittest.TestCase):
         J =  4.0/3
         D =  5.0/13
         h = -2.0/7
-        mpoH = ptn.heisenberg_XXZ_MPO(L, J, D, h)
+        mpoH = ptn.heisenberg_xxz_mpo(L, J, D, h)
         mpoH.zero_qnumbers()
 
         # quantum numbers not used here; set them to zero
         qD = [np.array([0])]
-        for i in range(L - 1):
+        for _ in range(L - 1):
             qD.append(np.zeros(5, dtype=int))
         qD.append(np.array([0]))
 

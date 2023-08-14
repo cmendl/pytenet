@@ -3,9 +3,9 @@ Apply the TDVP time evolution algorithm to a general matrix product operator
 by casting it into MPS form.
 """
 
+import copy
 import numpy as np
 from scipy.linalg import expm
-import copy
 import matplotlib.pyplot as plt
 import pytenet as ptn
 from tangent_space import tangent_space_projector
@@ -48,14 +48,14 @@ def main():
     J  =  1.0
     DH =  1.2
     h  = -0.2
-    mpoH = ptn.heisenberg_XXZ_MPO(L, J, DH, h)
+    mpoH = ptn.heisenberg_xxz_mpo(L, J, DH, h)
     mpoH.zero_qnumbers()
     # realize commutator [H, .] as matrix product operator
-    mpoHcomm = heisenberg_XXZ_comm_MPO(L, J, DH, h)
+    mpoHcomm = heisenberg_xxz_comm_mpo(L, J, DH, h)
     mpoHcomm.zero_qnumbers()
     print('2-norm of [H, .] operator:', np.linalg.norm(mpoHcomm.as_matrix(), 2))
 
-    mpsH = cast_to_MPS(mpoH)
+    mpsH = cast_to_mps(mpoH)
     print('mpsH.bond_dims:', mpsH.bond_dims)
     print('ptn.norm(mpsH):', ptn.norm(mpsH))
 
@@ -80,7 +80,7 @@ def main():
     op_mat = op.as_matrix()
 
     # cast into MPS form
-    psi = cast_to_MPS(op)
+    psi = cast_to_mps(op)
     print('norm of psi:', np.linalg.norm(psi.as_vector()))
     print('psi.bond_dims:', psi.bond_dims)
 
@@ -100,7 +100,7 @@ def main():
     sigma_0 = schmidt_coefficients_operator(d, L, op_mat)
     plt.semilogy(np.arange(len(sigma_0)) + 1, sigma_0, '.')
     plt.xlabel('i')
-    plt.ylabel('$\sigma_i$')
+    plt.ylabel(r'$\sigma_i$')
     plt.title('Schmidt coefficients of initial state')
     plt.savefig('evolution_operator_schmidt_0.pdf')
     plt.show()
@@ -154,7 +154,7 @@ def main():
 
         psi_t = copy.deepcopy(psi)
         ptn.integrate_local_singlesite(mpoHcomm, psi_t, dt, n, numiter_lanczos=20)
-        op_t = cast_to_MPO(psi_t, op.qd)
+        op_t = cast_to_mpo(psi_t, op.qd)
 
         err_op[i] = np.linalg.norm(op_t.as_matrix() - op_t_ref, ord=1)
 
@@ -182,7 +182,7 @@ def main():
     plt.show()
 
 
-def cast_to_MPS(mpo):
+def cast_to_mps(mpo):
     """
     Cast a matrix product operator into MPS form by combining the pair of local
     physical dimensions into one dimension.
@@ -195,7 +195,7 @@ def cast_to_MPS(mpo):
     return mps
 
 
-def cast_to_MPO(mps, qd):
+def cast_to_mpo(mps, qd):
     """
     Cast a matrix product state into MPO form by interpreting the physical
     dimension as Kronecker product of a pair of dimensions.
@@ -224,7 +224,7 @@ def construct_comm_opchain(opchain):
     return [opcL, opcR]
 
 
-def heisenberg_XXZ_comm_MPO(L, J, D, h):
+def heisenberg_xxz_comm_mpo(L, J, D, h):
     """
     Construct commutator with XXZ Heisenberg Hamiltonian
     'sum J X X + J Y Y + D Z Z - h Z' on a 1D lattice as MPO.
@@ -243,7 +243,7 @@ def heisenberg_XXZ_comm_MPO(L, J, D, h):
     locopchains = []
     for opchain in lopchains:
         locopchains += construct_comm_opchain(opchain)
-    return ptn.local_opchains_to_MPO(ptn.qnumber_flatten([qd, -qd]), L, locopchains)
+    return ptn.local_opchains_to_mpo(ptn.qnumber_flatten([qd, -qd]), L, locopchains)
 
 
 if __name__ == '__main__':

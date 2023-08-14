@@ -1,9 +1,9 @@
-import numpy as np
 from typing import Sequence
+import numpy as np
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
 from .bond_ops import qr, retained_bond_indices, split_matrix_svd
 
-__all__ = ['MPS', 'merge_MPS_tensor_pair', 'split_MPS_tensor']
+__all__ = ['MPS', 'merge_mps_tensor_pair', 'split_mps_tensor']
 
 
 class MPS:
@@ -39,7 +39,7 @@ class MPS:
         D = [len(qb) for qb in qD]
         # leading and trailing bond dimensions must be 1
         assert D[0] == 1 and D[-1] == 1
-        if isinstance(fill, int) or isinstance(fill, float) or isinstance(fill, complex):
+        if isinstance(fill, (int, float, complex)):
             self.A = [np.full((d, D[i], D[i+1]), fill) for i in range(len(D)-1)]
         elif fill == 'random':
             # random complex entries
@@ -70,10 +70,9 @@ class MPS:
         """
         if len(self.A) == 0:
             return []
-        else:
-            D = [self.A[i].shape[1] for i in range(len(self.A))]
-            D.append(self.A[-1].shape[2])
-            return D
+        D = [self.A[i].shape[1] for i in range(len(self.A))]
+        D.append(self.A[-1].shape[2])
+        return D
 
     def zero_qnumbers(self):
         """
@@ -90,7 +89,7 @@ class MPS:
         Left- or right-orthonormalize the MPS using QR decompositions.
         """
         if len(self.A) == 0:
-            return
+            return 1
 
         if mode == 'left':
             for i in range(len(self.A) - 1):
@@ -105,7 +104,7 @@ class MPS:
                 self.A[-1] = -self.A[-1]
                 nrm = -nrm
             return nrm
-        elif mode == 'right':
+        if mode == 'right':
             for i in reversed(range(1, len(self.A))):
                 self.A[i], self.A[i-1], self.qD[i] = local_orthonormalize_right_qr(self.A[i], self.A[i-1], self.qd, self.qD[i:i+2])
             # first tensor
@@ -118,8 +117,7 @@ class MPS:
                 self.A[0] = -self.A[0]
                 nrm = -nrm
             return nrm
-        else:
-            raise ValueError(f'mode = {mode} invalid; must be "left" or "right".')
+        raise ValueError(f'mode = {mode} invalid; must be "left" or "right".')
 
     def as_vector(self) -> np.ndarray:
         """
@@ -127,7 +125,7 @@ class MPS:
         """
         psi = self.A[0]
         for i in range(1, len(self.A)):
-            psi = merge_MPS_tensor_pair(psi, self.A[i])
+            psi = merge_mps_tensor_pair(psi, self.A[i])
         assert psi.ndim == 3
         assert psi.shape[1] == 1 and psi.shape[2] == 1
         return psi.reshape(-1)
@@ -171,13 +169,13 @@ class MPS:
         """
         Add MPS to another.
         """
-        return add_MPS(self, other)
+        return add_mps(self, other)
 
     def __sub__(self, other):
         """
         Subtract another MPS.
         """
-        return add_MPS(self, other, alpha=-1)
+        return add_mps(self, other, alpha=-1)
 
 
 def local_orthonormalize_left_qr(A: np.ndarray, Anext: np.ndarray, qd: Sequence[int], qD: Sequence[Sequence[int]]):
@@ -214,7 +212,7 @@ def local_orthonormalize_right_qr(A: np.ndarray, Aprev: np.ndarray, qd: Sequence
     return (A, Aprev, -qbond)
 
 
-def merge_MPS_tensor_pair(A0: np.ndarray, A1: np.ndarray) -> np.ndarray:
+def merge_mps_tensor_pair(A0: np.ndarray, A1: np.ndarray) -> np.ndarray:
     """
     Merge two neighboring MPS tensors.
     """
@@ -224,7 +222,7 @@ def merge_MPS_tensor_pair(A0: np.ndarray, A1: np.ndarray) -> np.ndarray:
     return A
 
 
-def split_MPS_tensor(A: np.ndarray, qd0: Sequence[int], qd1: Sequence[int], qD: Sequence[Sequence[int]], svd_distr: str, tol=0):
+def split_mps_tensor(A: np.ndarray, qd0: Sequence[int], qd1: Sequence[int], qD: Sequence[Sequence[int]], svd_distr: str, tol=0):
     """
     Split a MPS tensor with dimension `d0*d1 x D0 x D2` into two MPS tensors
     with dimensions `d0 x D0 x D1` and `d1 x D1 x D2`, respectively.
@@ -257,7 +255,7 @@ def split_MPS_tensor(A: np.ndarray, qd0: Sequence[int], qd1: Sequence[int], qD: 
     return (A0, A1, qbond)
 
 
-def add_MPS(mps0: MPS, mps1: MPS, alpha=1) -> MPS:
+def add_mps(mps0: MPS, mps1: MPS, alpha=1) -> MPS:
     """
     Logical addition of two matrix product states (effectively sum virtual bond dimensions),
     with the second MPS scaled by 'alpha'.

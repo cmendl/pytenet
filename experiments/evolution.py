@@ -43,7 +43,7 @@ def main():
     J  =  1.0
     DH =  1.2
     h  = -0.2
-    mpoH = ptn.heisenberg_XXZ_MPO(L, J, DH, h)
+    mpoH = ptn.heisenberg_xxz_mpo(L, J, DH, h)
     mpoH.zero_qnumbers()
 
     # initial wavefunction as MPS with random entries

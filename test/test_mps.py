@@ -90,7 +90,7 @@ class TestMPS(unittest.TestCase):
         Apair = np.where(mask == 0, Apair, 0)
 
         for svd_distr in ['left', 'right', 'sqrt']:
-            (A0, A1, qbond) = ptn.split_MPS_tensor(Apair, qd0, qd1, qD, svd_distr=svd_distr, tol=0)
+            (A0, A1, qbond) = ptn.split_mps_tensor(Apair, qd0, qd1, qD, svd_distr=svd_distr, tol=0)
 
             self.assertTrue(ptn.is_qsparse(A0, [qd0, qD[0], -qbond]),
                             msg='sparsity pattern of A0 tensors must match quantum numbers')
@@ -98,7 +98,7 @@ class TestMPS(unittest.TestCase):
                             msg='sparsity pattern of A1 tensors must match quantum numbers')
 
             # merged tensor must agree with the original tensor
-            Amrg = ptn.merge_MPS_tensor_pair(A0, A1)
+            Amrg = ptn.merge_mps_tensor_pair(A0, A1)
             self.assertTrue(np.allclose(Amrg, Apair, rtol=1e-13),
                             msg='splitting and subsequent merging must give the same tensor')
 

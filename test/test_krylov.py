@@ -94,24 +94,27 @@ class TestKrylov(unittest.TestCase):
         # time step
         dt = 0.4 + 0.2j
 
-        for hermitian in [True, False]:
-            # random complex matrix
-            A = crandn((n, n)) / np.sqrt(n)
-            if hermitian:
-                # symmetrize
-                A = 0.5 * (A + A.conj().T)
+        # random complex matrix
+        A = crandn((n, n)) / np.sqrt(n)
 
-            # random complex vector
-            v = crandn(n) / np.sqrt(n)
+        # random complex vector
+        v = crandn(n) / np.sqrt(n)
 
-            # Krylov subspace approximation of expm(dt*A) @ v
-            vt = ptn.expm_krylov(lambda x: A @ x, v, dt, numiter, hermitian=hermitian)
+        # Krylov subspace approximation of expm(dt*A) @ v, general case
+        vt = ptn.expm_krylov(lambda x: A @ x, v, dt, numiter, hermitian=False)
+        # reference
+        vt_ref = expm(dt*A) @ v
+        self.assertTrue(np.allclose(vt, vt_ref, rtol=1e-11),
+                        msg='Krylov subspace approximation of expm(dt*A) @ v should match reference')
 
-            # reference
-            vt_ref = expm(dt*A) @ v
-
-            self.assertTrue(np.allclose(vt, vt_ref, rtol=1e-11),
-                            msg='Krylov subspace approximation of expm(dt*A) @ v should match reference')
+        # symmetrize
+        A = 0.5 * (A + A.conj().T)
+        # Krylov subspace approximation of expm(dt*A) @ v, Hermitian case
+        vt = ptn.expm_krylov(lambda x: A @ x, v, dt, numiter, hermitian=True)
+        # reference
+        vt_ref = expm(dt*A) @ v
+        self.assertTrue(np.allclose(vt, vt_ref, rtol=1e-11),
+                        msg='Krylov subspace approximation of expm(dt*A) @ v should match reference')
 
 
 def crandn(size):

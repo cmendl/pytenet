@@ -2,7 +2,8 @@ import numpy as np
 from .mps import MPS
 from .mpo import MPO
 
-__all__ = ['vdot', 'norm', 'operator_average', 'operator_density_average', 'compute_right_operator_blocks', 'apply_local_hamiltonian', 'apply_local_bond_contraction']
+__all__ = ['vdot', 'norm', 'operator_average', 'operator_density_average',
+           'compute_right_operator_blocks', 'apply_local_hamiltonian', 'apply_local_bond_contraction']
 
 
 def vdot(chi: MPS, psi: MPS):
@@ -36,7 +37,7 @@ def norm(psi: MPS):
 
 
 def contraction_step_right(A: np.ndarray, B: np.ndarray, R: np.ndarray):
-    """
+    r"""
     Contraction step from right to left, for example to compute the
     inner product of two matrix product states.
 
@@ -65,7 +66,7 @@ def contraction_step_right(A: np.ndarray, B: np.ndarray, R: np.ndarray):
 
 
 def contraction_step_left(A: np.ndarray, B: np.ndarray, L: np.ndarray):
-    """
+    r"""
     Contraction step from left to right, for example to compute the
     inner product of two matrix product states.
 
@@ -140,7 +141,7 @@ def operator_density_average(rho: MPO, op: MPO):
 
 
 def contraction_operator_step_right(A: np.ndarray, W: np.ndarray, R: np.ndarray):
-    """
+    r"""
     Contraction step from right to left, with a matrix product operator
     sandwiched in between.
 
@@ -178,7 +179,7 @@ def contraction_operator_step_right(A: np.ndarray, W: np.ndarray, R: np.ndarray)
 
 
 def contraction_operator_step_left(A: np.ndarray, W: np.ndarray, L: np.ndarray):
-    """
+    r"""
     Contraction step from left to right, with a matrix product operator
     sandwiched in between.
 
@@ -214,7 +215,7 @@ def contraction_operator_step_left(A: np.ndarray, W: np.ndarray, L: np.ndarray):
 
 
 def contraction_operator_density_step_right(A: np.ndarray, W: np.ndarray, R: np.ndarray):
-    """
+    r"""
     Contraction step between two matrix product operators
     (typically density matrix and Hamiltonian).
 
@@ -259,17 +260,18 @@ def compute_right_operator_blocks(psi: MPS, op: MPO):
 
 
 def apply_local_hamiltonian(L: np.ndarray, R: np.ndarray, W: np.ndarray, A: np.ndarray):
-    """
-    Apply site-local Hamiltonian operator.
+    r"""
+    Apply a local Hamiltonian operator.
 
-    To-be contracted tensor network::
+    To-be contracted tensor network (the indices at the open legs
+    show the ordering for the output tensor)::
 
      ______                           ______
            \                         /
-          2|---                   ---|2
+          2|---1                 2---|2
            |                         |
            |                         |
-           |                         |
+           |            0            |
            |          __|__          |
            |         /  0  \         |
       L   1|---   ---|2 W 3|---   ---|1   R
@@ -297,7 +299,7 @@ def apply_local_hamiltonian(L: np.ndarray, R: np.ndarray, W: np.ndarray, A: np.n
 
 
 def apply_local_bond_contraction(L, R, C):
-    """
+    r"""
     Apply "zero-site" bond contraction.
 
     To-be contracted tensor network::

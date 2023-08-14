@@ -1,13 +1,13 @@
-import numpy as np
 import copy
 from typing import Sequence
+import numpy as np
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
 from .bond_ops import qr
 
-__all__ = ['MPO', 'merge_MPO_tensor_pair']
+__all__ = ['MPO', 'merge_mpo_tensor_pair']
 
 
-class MPO(object):
+class MPO:
     """
     Matrix product operator (MPO) class.
 
@@ -38,7 +38,7 @@ class MPO(object):
         # create list of MPS tensors
         d = len(qd)
         D = [len(qDi) for qDi in qD]
-        if isinstance(fill, int) or isinstance(fill, float) or isinstance(fill, complex):
+        if isinstance(fill, (int, float, complex)):
             self.A = [np.full((d, d, D[i], D[i+1]), fill) for i in range(len(D)-1)]
         elif fill == 'random':
             # random complex entries
@@ -148,10 +148,9 @@ class MPO(object):
         """
         if len(self.A) == 0:
             return []
-        else:
-            D = [self.A[i].shape[2] for i in range(len(self.A))]
-            D.append(self.A[-1].shape[3])
-            return D
+        D = [self.A[i].shape[2] for i in range(len(self.A))]
+        D.append(self.A[-1].shape[3])
+        return D
 
     def zero_qnumbers(self):
         """
@@ -168,7 +167,7 @@ class MPO(object):
         Left- or right-orthonormalize the MPO (Frobenius norm) using QR decompositions.
         """
         if len(self.A) == 0:
-            return
+            return 1
         if mode == 'left':
             for i in range(len(self.A) - 1):
                 self.A[i], self.A[i+1], self.qD[i+1] = local_orthonormalize_left_qr(
@@ -183,7 +182,7 @@ class MPO(object):
                 self.A[-1] = -self.A[-1]
                 nrm = -nrm
             return nrm
-        elif mode == 'right':
+        if mode == 'right':
             for i in reversed(range(1, len(self.A))):
                 self.A[i], self.A[i-1], self.qD[i] = local_orthonormalize_right_qr(
                     self.A[i], self.A[i-1], self.qd, self.qD[i:i+2])
@@ -197,8 +196,7 @@ class MPO(object):
                 self.A[0] = -self.A[0]
                 nrm = -nrm
             return nrm
-        else:
-            raise ValueError(f'mode = {mode} invalid; must be "left" or "right".')
+        raise ValueError(f'mode = {mode} invalid; must be "left" or "right".')
 
     def as_matrix(self) -> np.ndarray:
         """
@@ -206,7 +204,7 @@ class MPO(object):
         """
         op = self.A[0]
         for i in range(1, len(self.A)):
-            op = merge_MPO_tensor_pair(op, self.A[i])
+            op = merge_mpo_tensor_pair(op, self.A[i])
         assert op.ndim == 4
         assert op.shape[2] == 1 and op.shape[3] == 1
         op = op.reshape((op.shape[0], op.shape[1]))
@@ -216,19 +214,19 @@ class MPO(object):
         """
         Add MPO to another.
         """
-        return add_MPOs(self, other)
+        return add_mpo(self, other)
 
     def __sub__(self, other):
         """
         Subtract another MPO.
         """
-        return add_MPOs(self, other, alpha=-1)
+        return add_mpo(self, other, alpha=-1)
 
     def __matmul__(self, other):
         """
         Multiply MPO with another (composition along physical dimension).
         """
-        return multiply_MPOs(self, other)
+        return multiply_mpo(self, other)
 
 
 def local_orthonormalize_left_qr(A: np.ndarray, Anext: np.ndarray, qd: Sequence[int], qD: Sequence[Sequence[int]]):
@@ -265,7 +263,7 @@ def local_orthonormalize_right_qr(A: np.ndarray, Aprev: np.ndarray, qd: Sequence
     return (A, Aprev, -qbond)
 
 
-def merge_MPO_tensor_pair(A0: np.ndarray, A1: np.ndarray) -> np.ndarray:
+def merge_mpo_tensor_pair(A0: np.ndarray, A1: np.ndarray) -> np.ndarray:
     """
     Merge two neighboring MPO tensors.
     """
@@ -276,7 +274,7 @@ def merge_MPO_tensor_pair(A0: np.ndarray, A1: np.ndarray) -> np.ndarray:
     return A
 
 
-def add_MPOs(op0: MPO, op1: MPO, alpha=1) -> MPO:
+def add_mpo(op0: MPO, op1: MPO, alpha=1) -> MPO:
     """
     Logical addition of two MPOs (effectively sum virtual bond dimensions)
     with the second MPO scaled by 'alpha'.
@@ -332,7 +330,7 @@ def add_MPOs(op0: MPO, op1: MPO, alpha=1) -> MPO:
     return op
 
 
-def multiply_MPOs(op0: MPO, op1: MPO) -> MPO:
+def multiply_mpo(op0: MPO, op1: MPO) -> MPO:
     """
     Multiply two MPOs (composition along physical dimension).
     """
