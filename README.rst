@@ -24,7 +24,7 @@ Example usage for TDVP time evolution:
 
     # construct matrix product operator representation of
     # Heisenberg XXZ Hamiltonian (arguments are L, J, \Delta, h)
-    mpoH = ptn.heisenberg_XXZ_MPO(L, 1.0, 0.8, -0.1)
+    mpoH = ptn.heisenberg_xxz_mpo(L, 1.0, 0.8, -0.1)
     mpoH.zero_qnumbers()
 
     # initial wavefunction as MPS with random entries
@@ -55,8 +55,8 @@ Features
 - convert arbitrary operator chains to MPOs
 - TDVP time evolution (single- and two-site, both real and imaginary time)
 - generate vector / matrix representations of matrix product states / operators
-- Krylov subspace methods for local operations
-- one-site local energy minimization using Lanczos iteration
+- Krylov subspace methods for local operations, like local energy minimization
+- single- and two-site DMRG algorithm
 - built-in support for additive quantum numbers
 
 

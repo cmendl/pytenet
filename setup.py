@@ -8,7 +8,7 @@ with open('README.rst', 'r') as f:
 
 setup(
     name='pytenet',
-    version='1.0.1',
+    version='1.1.0',
     description='Tensor network library for quantum simulations',
     long_description=long_desc,
     long_description_content_type='text/x-rst',
