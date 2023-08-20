@@ -146,7 +146,7 @@ def calculate_ground_state_local_twosite(H: MPO, psi: MPS, numsweeps: int, numit
             Am = merge_mps_tensor_pair(psi.A[i], psi.A[i+1])
             Hm = merge_mpo_tensor_pair(H.A[i], H.A[i+1])
             # minimize local energy
-            en, psi.A[i] = _minimize_local_energy(BL[i], BR[i+1], Hm, Am, numiter_lanczos)
+            en, Am = _minimize_local_energy(BL[i], BR[i+1], Hm, Am, numiter_lanczos)
             # split Am
             psi.A[i], psi.A[i+1], psi.qD[i+1] = split_mps_tensor(Am, psi.qd, psi.qd, [psi.qD[i], psi.qD[i+2]], 'left', tol=tol_split)
             # update the right blocks
