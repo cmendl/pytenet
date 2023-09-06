@@ -66,8 +66,8 @@ def main():
     Dmax = 40
     D = np.minimum(np.minimum(d**(2*np.arange(L + 1)), d**(2*(L - np.arange(L + 1)))), Dmax)
     print('D:', D)
-    np.random.seed(42)
-    op = ptn.MPO(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
+    rng = np.random.default_rng(42)
+    op = ptn.MPO(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random', rng=rng)
     # effectively clamp virtual bond dimension
     for i in range(L):
         op.A[i][:, :, 2:, :] = 0
@@ -165,7 +165,7 @@ def main():
     dtinv = numsteps / abs(t)
     plt.loglog(dtinv, err_op, '.-')
     # show quadratic scaling for comparison
-    plt.loglog(dtinv, 1.75e-2/dtinv**2, '--')
+    plt.loglog(dtinv, 1e-2/dtinv**2, '--')
     plt.xlabel('1/dt')
     plt.ylabel(r'$\Vert\mathcal{O}[A](t) - \mathcal{O}_\mathrm{ref}(t)\Vert_1$')
     plt.title(f'TDVP time evolution (applied to operator) rate of convergence for\nHeisenberg XXZ model (J={J:g}, D={DH:g}, h={h:g}), L={L}, t={-1j*t:g}')
@@ -174,7 +174,7 @@ def main():
 
     plt.loglog(dtinv, err_en, '.-')
     # show quadratic scaling for comparison
-    plt.loglog(dtinv, 1e-2/dtinv**2, '--')
+    plt.loglog(dtinv, 3e-2/dtinv**2, '--')
     plt.xlabel('1/dt')
     plt.ylabel(r'$\frac{\vert\epsilon(t) - \epsilon(0)\vert}{\vert\epsilon(0)\vert}, \quad \epsilon(t) = \mathrm{tr}[H \mathcal{O}[A](t)]$')
     plt.title(f'TDVP time evolution (applied to operator) relative energy error for\nHeisenberg XXZ model (J={J:g}, D={DH:g}, h={h:g}), L={L}, t={-1j*t:g}')

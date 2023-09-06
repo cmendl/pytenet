@@ -8,9 +8,9 @@ Reference:
     Phys. Rev. B 94, 165116 (2016) (arXiv:1408.5056)
 """
 
+import copy
 import numpy as np
 from scipy.linalg import expm
-import copy
 import matplotlib.pyplot as plt
 import pytenet as ptn
 
@@ -50,8 +50,8 @@ def main():
     Dmax = 20
     D = np.minimum(np.minimum(d**np.arange(L + 1), d**(L - np.arange(L + 1))), Dmax)
     print('D:', D)
-    np.random.seed(42)
-    psi = ptn.MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
+    rng = np.random.default_rng(42)
+    psi = ptn.MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random', rng=rng)
     # effectively clamp virtual bond dimension
     for i in range(L):
         psi.A[i][:, 3:, :] = 0
@@ -67,7 +67,7 @@ def main():
     sigma_0 = schmidt_coefficients(d, L, psi.as_vector())
     plt.semilogy(np.arange(len(sigma_0)) + 1, sigma_0, '.')
     plt.xlabel('i')
-    plt.ylabel('$\sigma_i$')
+    plt.ylabel(r'$\sigma_i$')
     plt.title('Schmidt coefficients of initial state')
     plt.savefig('evolution_schmidt_0.pdf')
     plt.show()
@@ -83,7 +83,7 @@ def main():
     sigma_t = schmidt_coefficients(d, L, psi_ref)
     plt.semilogy(np.arange(len(sigma_t)) + 1, sigma_t, '.')
     plt.xlabel('i')
-    plt.ylabel('$\sigma_i$')
+    plt.ylabel(r'$\sigma_i$')
     plt.title(f'Schmidt coefficients of time-evolved state (t = {t.imag:g})\n(based on exact time evolution)')
     plt.savefig('evolution_schmidt_t.pdf')
     plt.show()
@@ -113,7 +113,7 @@ def main():
     dtinv = numsteps / abs(t)
     plt.loglog(dtinv, err, '.-')
     # show quadratic scaling for comparison
-    plt.loglog(dtinv, 1.75e-4/dtinv**2, '--')
+    plt.loglog(dtinv, 4e-4/dtinv**2, '--')
     plt.xlabel('1/dt')
     plt.ylabel(r'$\Vert\psi[A](t) - \psi_\mathrm{ref}(t)\Vert$')
     plt.title(f'TDVP time evolution rate of convergence (t = {t.imag:g}) for\nHeisenberg XXZ model (J={J:g}, D={DH:g}, h={h:g})')

@@ -7,10 +7,12 @@ class TestMPS(unittest.TestCase):
 
     def test_orthonormalization(self):
 
+        rng = np.random.default_rng()
+
         # create random matrix product state
         d = 7
         D = [1, 4, 15, 13, 7, 1]
-        mps0 = ptn.MPS(np.random.randint(-2, 3, size=d), [np.random.randint(-2, 3, size=Di) for Di in D], fill='random')
+        mps0 = ptn.MPS(rng.integers(-2, 3, size=d), [rng.integers(-2, 3, size=Di) for Di in D], fill='random', rng=rng)
 
         self.assertEqual(mps0.bond_dims, D, msg='virtual bond dimensions')
 
@@ -73,17 +75,19 @@ class TestMPS(unittest.TestCase):
 
     def test_split_tensor(self):
 
+        rng = np.random.default_rng()
+
         # physical dimensions
         d0, d1 = 3, 5
         # outer virtual bond dimensions
         D0, D2 = 14, 17
 
-        Apair = crandn((d0*d1, D0, D2)) / np.sqrt(d0*d1*D0*D2)
+        Apair = ptn.crandn((d0*d1, D0, D2), rng) / np.sqrt(d0*d1*D0*D2)
 
         # fictitious quantum numbers
-        qd0 = np.random.randint(-2, 3, size=d0)
-        qd1 = np.random.randint(-2, 3, size=d1)
-        qD = [np.random.randint(-2, 3, size=D0), np.random.randint(-2, 3, size=D2)]
+        qd0 = rng.integers(-2, 3, size=d0)
+        qd1 = rng.integers(-2, 3, size=d1)
+        qD = [rng.integers(-2, 3, size=D0), rng.integers(-2, 3, size=D2)]
 
         # enforce block sparsity structure dictated by quantum numbers
         mask = ptn.qnumber_outer_sum([ptn.qnumber_flatten([qd0, qd1]), qD[0], -qD[1]])
@@ -105,12 +109,14 @@ class TestMPS(unittest.TestCase):
 
     def test_from_vector(self):
 
+        rng = np.random.default_rng()
+
         # physical local dimension
         d = 3
         # number of lattice sites
         nsites = 7
         # random vector
-        v = crandn(d**nsites)
+        v = ptn.crandn(d**nsites, rng)
         mps = ptn.MPS.from_vector(d, nsites, v)
         self.assertTrue(np.allclose(mps.as_vector(), v, rtol=1e-13),
                         msg='MPS constructed from a vector must match original vector')
@@ -118,17 +124,19 @@ class TestMPS(unittest.TestCase):
 
     def test_add(self):
 
+        rng = np.random.default_rng()
+
         # physical quantum numbers
-        qd = np.random.randint(-2, 3, size=5)
+        qd = rng.integers(-2, 3, size=5)
 
         # create random matrix product states
-        qD0 = [np.random.randint(-2, 3, size=Di) for Di in [1, 8, 15, 23, 18,  9, 1]]
-        qD1 = [np.random.randint(-2, 3, size=Di) for Di in [1, 7, 23, 11, 17, 13, 1]]
+        qD0 = [rng.integers(-2, 3, size=Di) for Di in [1, 8, 15, 23, 18,  9, 1]]
+        qD1 = [rng.integers(-2, 3, size=Di) for Di in [1, 7, 23, 11, 17, 13, 1]]
         # leading and trailing (dummy) virtual bond quantum numbers must agree
         qD1[ 0] = qD0[ 0].copy()
         qD1[-1] = qD0[-1].copy()
-        mps0 = ptn.MPS(qd, qD0, fill='random')
-        mps1 = ptn.MPS(qd, qD1, fill='random')
+        mps0 = ptn.MPS(qd, qD0, fill='random', rng=rng)
+        mps1 = ptn.MPS(qd, qD1, fill='random', rng=rng)
 
         # MPS addition
         mps = mps0 + mps1
@@ -145,14 +153,16 @@ class TestMPS(unittest.TestCase):
 
         # separate test for a single site since implementation is a special case
 
+        rng = np.random.default_rng()
+
         # physical quantum numbers
-        qd = np.random.randint(-2, 3, size=7)
+        qd = rng.integers(-2, 3, size=7)
 
         # create random matrix product states for a single site
         # leading and trailing (dummy) virtual bond quantum numbers
         qD = [np.array([-1]), np.array([-2])]
-        mps0 = ptn.MPS(qd, qD, fill='random')
-        mps1 = ptn.MPS(qd, qD, fill='random')
+        mps0 = ptn.MPS(qd, qD, fill='random', rng=rng)
+        mps1 = ptn.MPS(qd, qD, fill='random', rng=rng)
 
         # MPS addition
         mps = mps0 + mps1
@@ -167,17 +177,19 @@ class TestMPS(unittest.TestCase):
 
     def test_sub(self):
 
+        rng = np.random.default_rng()
+
         # physical quantum numbers
-        qd = np.random.randint(-2, 3, size=5)
+        qd = rng.integers(-2, 3, size=5)
 
         # create random matrix product states
-        qD0 = [np.random.randint(-2, 3, size=Di) for Di in [1, 8, 15, 23, 18,  9, 1]]
-        qD1 = [np.random.randint(-2, 3, size=Di) for Di in [1, 7, 23, 11, 17, 13, 1]]
+        qD0 = [rng.integers(-2, 3, size=Di) for Di in [1, 8, 15, 23, 18,  9, 1]]
+        qD1 = [rng.integers(-2, 3, size=Di) for Di in [1, 7, 23, 11, 17, 13, 1]]
         # leading and trailing (dummy) virtual bond quantum numbers must agree
         qD1[ 0] = qD0[ 0].copy()
         qD1[-1] = qD0[-1].copy()
-        mps0 = ptn.MPS(qd, qD0, fill='random')
-        mps1 = ptn.MPS(qd, qD1, fill='random')
+        mps0 = ptn.MPS(qd, qD0, fill='random', rng=rng)
+        mps1 = ptn.MPS(qd, qD1, fill='random', rng=rng)
 
         # MPS subtraction
         mps = mps0 - mps1
@@ -194,14 +206,16 @@ class TestMPS(unittest.TestCase):
 
         # separate test for a single site since implementation is a special case
 
+        rng = np.random.default_rng()
+
         # physical quantum numbers
-        qd = np.random.randint(-2, 3, size=7)
+        qd = rng.integers(-2, 3, size=7)
 
         # create random matrix product states for a single site
         # leading and trailing (dummy) virtual bond quantum numbers
         qD = [np.array([-1]), np.array([-2])]
-        mps0 = ptn.MPS(qd, qD, fill='random')
-        mps1 = ptn.MPS(qd, qD, fill='random')
+        mps0 = ptn.MPS(qd, qD, fill='random', rng=rng)
+        mps1 = ptn.MPS(qd, qD, fill='random', rng=rng)
 
         # MPS subtraction
         mps = mps0 - mps1
@@ -212,15 +226,6 @@ class TestMPS(unittest.TestCase):
         # compare
         self.assertTrue(np.allclose(mps.as_vector(), mps_ref, rtol=1e-12),
             msg='subtraction of two matrix product states must agree with vector representation')
-
-
-def crandn(size):
-    """
-    Draw random samples from the standard complex normal (Gaussian) distribution.
-    """
-    # 1/sqrt(2) is a normalization factor
-    return (np.random.standard_normal(size)
-       + 1j*np.random.standard_normal(size)) / np.sqrt(2)
 
 
 if __name__ == '__main__':

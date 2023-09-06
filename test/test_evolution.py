@@ -9,6 +9,8 @@ class TestEvolution(unittest.TestCase):
 
     def test_tdvp_approximation(self):
 
+        rng = np.random.default_rng()
+
         # number of lattice sites
         L = 10
 
@@ -35,7 +37,7 @@ class TestEvolution(unittest.TestCase):
         qD.append(np.array([2*spin_tot]))
 
         # initial wavefunction as MPS with random entries
-        psi = ptn.MPS(mpoH.qd, qD, fill='random')
+        psi = ptn.MPS(mpoH.qd, qD, fill='random', rng=rng)
         psi.orthonormalize(mode='left')
         psi.orthonormalize(mode='right')
         # effectively clamp virtual bond dimension of initial state
@@ -75,6 +77,8 @@ class TestEvolution(unittest.TestCase):
 
     def test_tdvp_symmetry(self):
 
+        rng = np.random.default_rng()
+
         # number of lattice sites
         L = 10
 
@@ -95,7 +99,7 @@ class TestEvolution(unittest.TestCase):
         qD.append(np.array([0]))
 
         # initial wavefunction as MPS with random entries
-        psi = ptn.MPS(mpoH.qd, qD, fill='random')
+        psi = ptn.MPS(mpoH.qd, qD, fill='random', rng=rng)
         psi.orthonormalize(mode='left')
 
         psi_ref = psi.as_vector()

@@ -7,6 +7,8 @@ class TestMinimization(unittest.TestCase):
 
     def test_single_site(self):
 
+        rng = np.random.default_rng()
+
         # number of lattice sites
         L = 10
 
@@ -25,7 +27,7 @@ class TestMinimization(unittest.TestCase):
 
         # initial wavefunction as MPS with random entries
         D = [1] + (L-1) * [28] + [1]
-        psi = ptn.MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
+        psi = ptn.MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random', rng=rng)
 
         en_min = ptn.calculate_ground_state_local_singlesite(mpoH, psi, numsweeps)
         # value after last iteration
@@ -52,7 +54,10 @@ class TestMinimization(unittest.TestCase):
         self.assertTrue(np.allclose(psi_vec, V_ref[:, 0], atol=1e-7),
             msg='ground state wavefunction obtained by single-site optimization must match reference')
 
+
     def test_two_site(self):
+
+        rng = np.random.default_rng()
 
         # number of lattice sites
         L = 10
@@ -72,7 +77,7 @@ class TestMinimization(unittest.TestCase):
 
         # initial wavefunction as MPS with random entries
         D = [1] + (L-1) * [28] + [1]
-        psi = ptn.MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random')
+        psi = ptn.MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random', rng=rng)
 
         en_min = ptn.calculate_ground_state_local_twosite(mpoH, psi, numsweeps)
         # value after last iteration

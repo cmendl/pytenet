@@ -7,9 +7,9 @@ Reference:
     Phys. Rev. B 94, 165116 (2016) (arXiv:1408.5056)
 """
 
+import copy
 import numpy as np
 import scipy
-import copy
 import pytenet as ptn
 
 
@@ -64,6 +64,8 @@ def tangent_space_projector(psi: ptn.MPS):
 
 def main():
 
+    rng = np.random.default_rng()
+
     # physical dimension
     d = 3
     # fictitious bond dimensions (should be bounded by d^i and d^(L-i))
@@ -73,7 +75,7 @@ def main():
     L = len(D) - 1
     print('L:', L)
 
-    psi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in D], fill='random')
+    psi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in D], fill='random', rng=rng)
 
     # construct MPS derivatives with respect to entries of the A tensors
     T = []
@@ -106,12 +108,12 @@ def main():
     # realization of random X matrices
     X = [np.identity(1, dtype=complex)]
     for i in range(L - 1):
-        X.append(np.random.normal(size=(D[i+1], D[i+1])) + 1j*np.random.normal(size=(D[i+1], D[i+1])))
+        X.append(ptn.crandn((D[i+1], D[i+1]), rng))
     X.append(np.identity(1, dtype=complex))
     N = []
     for i in range(L):
-        B = np.tensordot(X[i], psi.A[i], axes=(1, 1)).transpose((1, 0, 2)) - \
-            np.tensordot(psi.A[i], X[i+1], axes=(2, 0))
+        B = (np.tensordot(X[i], psi.A[i], axes=(1, 1)).transpose((1, 0, 2)) -
+             np.tensordot(psi.A[i], X[i+1], axes=(2, 0)))
         # backup original A[i] tensor
         Ai = psi.A[i]
         psi.A[i] = B
@@ -129,7 +131,7 @@ def main():
 
     # reference tangent space projector based on T
     # rank-revealing QR decomposition
-    Q, R, _ = scipy.linalg.qr(T.T, mode='economic', pivoting=True)
+    Q, _, _ = scipy.linalg.qr(T.T, mode='economic', pivoting=True)
     P_ref = Q[:, :rank] @ Q[:, :rank].conj().T
 
     # construct tangent space projector based on MPS formalism
@@ -144,7 +146,7 @@ def main():
     # define another state
     # fictitious bond dimensions (should be bounded by d^i and d^(L-i))
     D = [1, 4, 7, 5, 3, 1]
-    chi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in D], fill='random')
+    chi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in D], fill='random', rng=rng)
 
     # tangent space projector corresponding to the sum of two states
     Psum = tangent_space_projector(psi + chi)

@@ -8,15 +8,17 @@ class TestKrylov(unittest.TestCase):
 
     def test_lanczos_iteration(self):
 
+        rng = np.random.default_rng()
+
         n = 256
         numiter = 24
 
         # random Hermitian matrix
-        A = crandn((n, n)) / np.sqrt(n)
+        A = ptn.crandn((n, n), rng) / np.sqrt(n)
         A = 0.5 * (A + A.conj().T)
 
         # random complex starting vector
-        vstart = crandn(n) / np.sqrt(n)
+        vstart = ptn.crandn(n, rng) / np.sqrt(n)
 
         # simply use A as linear transformation
         alpha, beta, V = ptn.lanczos_iteration(lambda x: A @ x, vstart, numiter)
@@ -33,13 +35,15 @@ class TestKrylov(unittest.TestCase):
 
     def test_arnoldi_iteration(self):
 
+        rng = np.random.default_rng()
+
         n = 256
         numiter = 24
 
         # random matrix
-        A = crandn((n, n))
+        A = ptn.crandn((n, n), rng)
         # random complex starting vector
-        vstart = crandn(n) / np.sqrt(n)
+        vstart = ptn.crandn(n, rng) / np.sqrt(n)
 
         # simply use A as linear transformation
         H, V = ptn.arnoldi_iteration(lambda x: A @ x, vstart, numiter)
@@ -54,16 +58,18 @@ class TestKrylov(unittest.TestCase):
 
     def test_eigh_krylov(self):
 
+        rng = np.random.default_rng()
+
         n = 196
         numiter = 30
         numeig  = 2
 
         # random Hermitian matrix
-        A = crandn((n, n)) / np.sqrt(n)
+        A = ptn.crandn((n, n), rng) / np.sqrt(n)
         A = 0.5 * (A + A.conj().T)
 
         # random complex starting vector
-        vstart = crandn(n) / np.sqrt(n)
+        vstart = ptn.crandn(n, rng) / np.sqrt(n)
 
         # simply use A as linear transformation;
         w, u_ritz = ptn.eigh_krylov(lambda x: A @ x, vstart, numiter, numeig)
@@ -89,16 +95,18 @@ class TestKrylov(unittest.TestCase):
 
     def test_expm_krylov(self):
 
+        rng = np.random.default_rng()
+
         n = 320
         numiter = 12
         # time step
         dt = 0.4 + 0.2j
 
         # random complex matrix
-        A = crandn((n, n)) / np.sqrt(n)
+        A = ptn.crandn((n, n), rng) / np.sqrt(n)
 
         # random complex vector
-        v = crandn(n) / np.sqrt(n)
+        v = ptn.crandn(n, rng) / np.sqrt(n)
 
         # Krylov subspace approximation of expm(dt*A) @ v, general case
         vt = ptn.expm_krylov(lambda x: A @ x, v, dt, numiter, hermitian=False)
@@ -115,15 +123,6 @@ class TestKrylov(unittest.TestCase):
         vt_ref = expm(dt*A) @ v
         self.assertTrue(np.allclose(vt, vt_ref, rtol=1e-11),
                         msg='Krylov subspace approximation of expm(dt*A) @ v should match reference')
-
-
-def crandn(size):
-    """
-    Draw random samples from the standard complex normal (Gaussian) distribution.
-    """
-    # 1/sqrt(2) is a normalization factor
-    return (np.random.standard_normal(size)
-       + 1j*np.random.standard_normal(size)) / np.sqrt(2)
 
 
 if __name__ == '__main__':

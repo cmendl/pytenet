@@ -7,12 +7,14 @@ class TestOpChain(unittest.TestCase):
 
     def test_as_matrix(self):
 
+        rng = np.random.default_rng()
+
         # dimensions
         d = 3
         L = 6
 
         # create random operator chain
-        oplist = [np.random.normal(size=(d, d)) + 1j*np.random.normal(size=(d, d)) for _ in range(2)]
+        oplist = [ptn.crandn((d, d), rng) for _ in range(2)]
         opchain = ptn.OpChain(oplist=oplist, qD=[0], istart=3)
 
         # matrix representation on full Hilbert space

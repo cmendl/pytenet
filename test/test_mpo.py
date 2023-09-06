@@ -7,10 +7,12 @@ class TestMPO(unittest.TestCase):
 
     def test_orthonormalization(self):
 
+        rng = np.random.default_rng()
+
         # create random matrix product operator
         d = 4
         D = [1, 10, 13, 14, 7, 1]
-        mpo0 = ptn.MPO(np.random.randint(-2, 3, size=d), [np.random.randint(-2, 3, size=Di) for Di in D], fill='random')
+        mpo0 = ptn.MPO(rng.integers(-2, 3, size=d), [rng.integers(-2, 3, size=Di) for Di in D], fill='random', rng=rng)
 
         self.assertEqual(mpo0.bond_dims, D, msg='virtual bond dimensions')
 
@@ -73,12 +75,14 @@ class TestMPO(unittest.TestCase):
 
     def test_identity(self):
 
+        rng = np.random.default_rng()
+
         # dimensions
         d = 3
         L = 6
 
         # physical quantum numbers
-        qd = np.random.randint(-2, 3, size=d)
+        qd = rng.integers(-2, 3, size=d)
 
         # construct MPO representation of identity
         idop = ptn.MPO.identity(qd, L)
@@ -89,21 +93,23 @@ class TestMPO(unittest.TestCase):
 
     def test_from_opchains(self):
 
+        rng = np.random.default_rng()
+
         # dimensions
         d = 4
         L = 5
 
         # physical quantum numbers
-        qd = np.random.randint(-2, 3, size=d)
+        qd = rng.integers(-2, 3, size=d)
 
         # fictitious operator chains
         opchains = []
-        n = np.random.randint(20)
+        n = rng.integers(20)
         for _ in range(n):
-            istart = np.random.randint(L)
-            length = np.random.randint(1, L - istart + 1)
-            oplist = [crandn((d, d)) for _ in range(length)]
-            qD = np.random.randint(-2, 3, size=length-1)
+            istart = rng.integers(L)
+            length = rng.integers(1, L - istart + 1)
+            oplist = [ptn.crandn((d, d), rng) for _ in range(length)]
+            qD = rng.integers(-2, 3, size=length-1)
             # enforce sparsity structure dictated by quantum numbers
             qDpad = np.pad(qD, 1, mode='constant')
             for i in range(length):
@@ -128,17 +134,19 @@ class TestMPO(unittest.TestCase):
 
     def test_add(self):
 
+        rng = np.random.default_rng()
+
         # physical quantum numbers
-        qd = np.random.randint(-2, 3, size=3)
+        qd = rng.integers(-2, 3, size=3)
 
         # create random matrix product operators
-        qD0 = [np.random.randint(-2, 3, size=Di) for Di in [1, 11, 15, 23, 18, 9, 1]]
-        qD1 = [np.random.randint(-2, 3, size=Di) for Di in [1, 7, 23, 11, 17, 13, 1]]
+        qD0 = [rng.integers(-2, 3, size=Di) for Di in [1, 11, 15, 23, 18, 9, 1]]
+        qD1 = [rng.integers(-2, 3, size=Di) for Di in [1, 7, 23, 11, 17, 13, 1]]
         # leading and trailing (dummy) virtual bond quantum numbers must agree
         qD1[ 0] = qD0[ 0].copy()
         qD1[-1] = qD0[-1].copy()
-        op0 = ptn.MPO(qd, qD0, fill='random')
-        op1 = ptn.MPO(qd, qD1, fill='random')
+        op0 = ptn.MPO(qd, qD0, fill='random', rng=rng)
+        op1 = ptn.MPO(qd, qD1, fill='random', rng=rng)
 
         # MPO addition
         op = op0 + op1
@@ -155,14 +163,16 @@ class TestMPO(unittest.TestCase):
 
         # separate test for a single site since implementation is a special case
 
+        rng = np.random.default_rng()
+
         # physical quantum numbers
-        qd = np.random.randint(-2, 3, size=5)
+        qd = rng.integers(-2, 3, size=5)
 
         # create random matrix product operators acting on a single site
         # leading and trailing (dummy) virtual bond quantum numbers
         qD = [np.array([-1]), np.array([-2])]
-        op0 = ptn.MPO(qd, qD, fill='random')
-        op1 = ptn.MPO(qd, qD, fill='random')
+        op0 = ptn.MPO(qd, qD, fill='random', rng=rng)
+        op1 = ptn.MPO(qd, qD, fill='random', rng=rng)
 
         # MPO addition
         op = op0 + op1
@@ -177,17 +187,19 @@ class TestMPO(unittest.TestCase):
 
     def test_sub(self):
 
+        rng = np.random.default_rng()
+
         # physical quantum numbers
-        qd = np.random.randint(-2, 3, size=3)
+        qd = rng.integers(-2, 3, size=3)
 
         # create random matrix product operators
-        qD0 = [np.random.randint(-2, 3, size=Di) for Di in [1, 11, 15, 23, 18, 9, 1]]
-        qD1 = [np.random.randint(-2, 3, size=Di) for Di in [1, 7, 23, 11, 17, 13, 1]]
+        qD0 = [rng.integers(-2, 3, size=Di) for Di in [1, 11, 15, 23, 18, 9, 1]]
+        qD1 = [rng.integers(-2, 3, size=Di) for Di in [1, 7, 23, 11, 17, 13, 1]]
         # leading and trailing (dummy) virtual bond quantum numbers must agree
         qD1[ 0] = qD0[ 0].copy()
         qD1[-1] = qD0[-1].copy()
-        op0 = ptn.MPO(qd, qD0, fill='random')
-        op1 = ptn.MPO(qd, qD1, fill='random')
+        op0 = ptn.MPO(qd, qD0, fill='random', rng=rng)
+        op1 = ptn.MPO(qd, qD1, fill='random', rng=rng)
 
         # MPO subtraction
         op = op0 - op1
@@ -204,14 +216,16 @@ class TestMPO(unittest.TestCase):
 
         # separate test for a single site since implementation is a special case
 
+        rng = np.random.default_rng()
+
         # physical quantum numbers
-        qd = np.random.randint(-2, 3, size=5)
+        qd = rng.integers(-2, 3, size=5)
 
         # create random matrix product operators acting on a single site
         # leading and trailing (dummy) virtual bond quantum numbers
         qD = [np.array([-1]), np.array([-2])]
-        op0 = ptn.MPO(qd, qD, fill='random')
-        op1 = ptn.MPO(qd, qD, fill='random')
+        op0 = ptn.MPO(qd, qD, fill='random', rng=rng)
+        op1 = ptn.MPO(qd, qD, fill='random', rng=rng)
 
         # MPO subtraction
         op = op0 - op1
@@ -226,12 +240,14 @@ class TestMPO(unittest.TestCase):
 
     def test_multiply(self):
 
+        rng = np.random.default_rng()
+
         # physical quantum numbers
-        qd = np.random.randint(-2, 3, size=3)
+        qd = rng.integers(-2, 3, size=3)
 
         # create random matrix product operators
-        op0 = ptn.MPO(qd, [np.random.randint(-2, 3, size=Di) for Di in [1, 10, 13, 24, 17, 9, 1]], fill='random')
-        op1 = ptn.MPO(qd, [np.random.randint(-2, 3, size=Di) for Di in [1, 8, 17, 11, 23, 13, 1]], fill='random')
+        op0 = ptn.MPO(qd, [rng.integers(-2, 3, size=Di) for Di in [1, 10, 13, 24, 17, 9, 1]], fill='random', rng=rng)
+        op1 = ptn.MPO(qd, [rng.integers(-2, 3, size=Di) for Di in [1, 8, 17, 11, 23, 13, 1]], fill='random', rng=rng)
 
         # MPO multiplication (composition)
         op = op0 @ op1
@@ -242,15 +258,6 @@ class TestMPO(unittest.TestCase):
         # compare
         self.assertTrue(np.allclose(op.as_matrix(), op_ref, rtol=1e-12),
             msg='composition of two MPOs must agree with matrix representation')
-
-
-def crandn(size):
-    """
-    Draw random samples from the standard complex normal (Gaussian) distribution.
-    """
-    # 1/sqrt(2) is a normalization factor
-    return (np.random.standard_normal(size)
-       + 1j*np.random.standard_normal(size)) / np.sqrt(2)
 
 
 if __name__ == '__main__':

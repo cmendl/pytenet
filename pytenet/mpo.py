@@ -3,6 +3,7 @@ from typing import Sequence
 import numpy as np
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
 from .bond_ops import qr
+from .util import crandn
 
 __all__ = ['MPO', 'merge_mpo_tensor_pair']
 
@@ -22,7 +23,7 @@ class MPO:
     right virtual bond quantum number.
     """
 
-    def __init__(self, qd: Sequence[int], qD: Sequence[Sequence[int]], fill=0.0):
+    def __init__(self, qd: Sequence[int], qD: Sequence[Sequence[int]], fill=0.0, rng: np.random.Generator=None):
         """
         Create a matrix product operator.
 
@@ -31,6 +32,7 @@ class MPO:
             qD: virtual bond quantum numbers (list of quantum number lists)
             fill: explicit scalar number to fill MPO tensors with, or
                   'random' to initialize tensors with random complex entries
+            rng: (optional) random number generator for drawing entries
         """
         # require NumPy arrays
         self.qd = np.array(qd)
@@ -42,9 +44,9 @@ class MPO:
             self.A = [np.full((d, d, D[i], D[i+1]), fill) for i in range(len(D)-1)]
         elif fill == 'random':
             # random complex entries
-            self.A = [
-                    np.random.normal(size=(d, d, D[i], D[i+1]), scale=1./np.sqrt(d*D[i]*D[i+1])) +
-                 1j*np.random.normal(size=(d, d, D[i], D[i+1]), scale=1./np.sqrt(d*D[i]*D[i+1])) for i in range(len(D)-1)]
+            if rng is None:
+                rng = np.random.default_rng()
+            self.A = [crandn((d, d, D[i], D[i+1]), rng) / np.sqrt(d*D[i]*D[i+1]) for i in range(len(D)-1)]
         else:
             raise ValueError(f'fill = {fill} invalid; must be a number or "random".')
         # enforce block sparsity structure dictated by quantum numbers

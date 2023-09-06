@@ -14,29 +14,29 @@ import pytenet as ptn
 import matplotlib.pyplot as plt
 
 
-def random_bloch_basis():
+def random_bloch_basis(rng: np.random.Generator):
     """
     Generate a uniformly random orthonormal Bloch basis.
     """
-    theta = np.arccos(2*np.random.random_sample()-1)
-    phi   = 2*np.pi*np.random.random_sample()
+    theta = np.arccos(2*rng.uniform()-1)
+    phi   = 2*np.pi*rng.uniform()
     return np.array([[               np.cos(theta/2),               -np.sin(theta/2)],
                      [np.exp(1j*phi)*np.sin(theta/2), np.exp(1j*phi)*np.cos(theta/2)]])
 
 
-def collapse_random_cps(L: int, psi: np.ndarray):
+def collapse_random_cps(L: int, psi: np.ndarray, rng: np.random.Generator):
     """"
     Sequentially collapse wavefunction `psi` onto a classical product state (CPS)
     using a random local Bloch basis for each site.
     """
     cps = np.array([1.], dtype=complex)
     for i in range(L):
-        U = random_bloch_basis()
+        U = random_bloch_basis(rng)
         # project wavefunction onto normalized U states at leading site
         chi = U.conj().T @ np.reshape(psi, (2, -1))
         p = (np.linalg.norm(chi[0]), np.linalg.norm(chi[1]))
         # randomly choose one of the two states
-        if np.random.random_sample() < p[0]**2:
+        if rng.uniform() < p[0]**2:
             cps = np.kron(cps, U[:, 0])
             psi = chi[0] / p[0]
         else:
@@ -73,11 +73,11 @@ def main():
     # partition function
     Z = np.linalg.norm(rho_beta, 'fro')**2
 
-    np.random.seed(857)
+    rng = np.random.default_rng(857)
 
     # local operators
-    opA = site_operator(L, 2, np.random.standard_normal((2, 2)) + 1j*np.random.standard_normal((2, 2)))
-    opB = site_operator(L, 4, np.random.standard_normal((2, 2)) + 1j*np.random.standard_normal((2, 2)))
+    opA = site_operator(L, 2, ptn.crandn((2, 2), rng))
+    opB = site_operator(L, 4, ptn.crandn((2, 2), rng))
 
     tlist = np.linspace(0., 5., 41)
 
@@ -90,7 +90,7 @@ def main():
     # initial classical product state
     cps = np.array([1.], dtype=complex)
     for i in range(L):
-        cps = np.kron(cps, random_bloch_basis()[:, 0])
+        cps = np.kron(cps, random_bloch_basis(rng)[:, 0])
     nsamples = 10000
     nlist = []
     chi_n = []
@@ -107,7 +107,7 @@ def main():
             nlist.append(n)
             chi_n.append(s / n)
         # next classical product state
-        cps = collapse_random_cps(L, phi)
+        cps = collapse_random_cps(L, phi, rng)
 
     # numerically exact response function (reference calculation)
     chi_ref = np.zeros(len(tlist), dtype=complex)

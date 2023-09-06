@@ -7,11 +7,13 @@ class TestBondOps(unittest.TestCase):
 
     def test_qr(self):
 
-        A = crandn((23, 15))
+        rng = np.random.default_rng()
+
+        A = ptn.crandn((23, 15), rng)
 
         # fictitious quantum numbers
-        q0 = np.random.randint(-2, 3, size=A.shape[0])
-        q1 = np.random.randint(-2, 3, size=A.shape[1])
+        q0 = rng.integers(-2, 3, size=A.shape[0])
+        q1 = rng.integers(-2, 3, size=A.shape[1])
 
         # enforce block sparsity structure dictated by quantum numbers
         mask = ptn.qnumber_outer_sum([q0, -q1])
@@ -34,11 +36,13 @@ class TestBondOps(unittest.TestCase):
 
     def test_split_matrix_svd(self):
 
-        A = crandn((17, 26))
+        rng = np.random.default_rng()
+
+        A = ptn.crandn((17, 26), rng)
 
         # fictitious quantum numbers
-        q0 = np.random.randint(-2, 3, size=A.shape[0])
-        q1 = np.random.randint(-2, 3, size=A.shape[1])
+        q0 = rng.integers(-2, 3, size=A.shape[0])
+        q1 = rng.integers(-2, 3, size=A.shape[1])
 
         # enforce block sparsity structure dictated by quantum numbers
         mask = ptn.qnumber_outer_sum([q0, -q1])
@@ -73,15 +77,6 @@ class TestBondOps(unittest.TestCase):
                         msg='sparsity pattern of U matrix must match quantum numbers')
         self.assertTrue(ptn.is_qsparse(v, [qinterm, -q1]),
                         msg='sparsity pattern of V matrix must match quantum numbers')
-
-
-def crandn(size):
-    """
-    Draw random samples from the standard complex normal (Gaussian) distribution.
-    """
-    # 1/sqrt(2) is a normalization factor
-    return (np.random.standard_normal(size)
-       + 1j*np.random.standard_normal(size)) / np.sqrt(2)
 
 
 if __name__ == '__main__':
