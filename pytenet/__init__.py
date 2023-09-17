@@ -10,6 +10,7 @@ within the matrix product state framework.
 from .bond_ops     import *
 from .qnumber      import *
 from .opchain      import *
+from .opgraph      import *
 from .mps          import *
 from .mpo          import *
 from .hamiltonian  import *

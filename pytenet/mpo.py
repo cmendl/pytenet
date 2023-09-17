@@ -1,8 +1,9 @@
 import copy
-from typing import Sequence
+from typing import Sequence, Dict
 import numpy as np
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
 from .bond_ops import qr
+from .opgraph import OpGraph
 from .util import crandn
 
 __all__ = ['MPO', 'merge_mpo_tensor_pair']
@@ -31,7 +32,8 @@ class MPO:
             qd: physical quantum numbers at each site (same for all sites)
             qD: virtual bond quantum numbers (list of quantum number lists)
             fill: explicit scalar number to fill MPO tensors with, or
-                  'random' to initialize tensors with random complex entries
+                  'random' to initialize tensors with random complex entries, or
+                  'postpone' to leave MPO tensors unallocated
             rng: (optional) random number generator for drawing entries
         """
         # require NumPy arrays
@@ -47,12 +49,15 @@ class MPO:
             if rng is None:
                 rng = np.random.default_rng()
             self.A = [crandn((d, d, D[i], D[i+1]), rng) / np.sqrt(d*D[i]*D[i+1]) for i in range(len(D)-1)]
+        elif fill == 'postpone':
+            self.A = (len(D) - 1) * [None]
         else:
-            raise ValueError(f'fill = {fill} invalid; must be a number or "random".')
-        # enforce block sparsity structure dictated by quantum numbers
-        for i in range(len(self.A)):
-            mask = qnumber_outer_sum([self.qd, -self.qd, self.qD[i], -self.qD[i+1]])
-            self.A[i] = np.where(mask == 0, self.A[i], 0)
+            raise ValueError(f'fill = {fill} invalid; must be a number, "random" or "postpone".')
+        if fill != 'postpone':
+            # enforce block sparsity structure dictated by quantum numbers
+            for i in range(len(self.A)):
+                mask = qnumber_outer_sum([self.qd, -self.qd, self.qD[i], -self.qD[i+1]])
+                self.A[i] = np.where(mask == 0, self.A[i], 0)
 
     @classmethod
     def identity(cls, qd: Sequence[int], L: int, scale: float = 1, dtype=complex):
@@ -132,6 +137,60 @@ class MPO:
 
         # consistency check
         for i in range(L):
+            assert is_qsparse(op.A[i], [op.qd, -op.qd, op.qD[i], -op.qD[i+1]]), \
+                'sparsity pattern of MPO tensor does not match quantum numbers'
+        return op
+
+    @classmethod
+    def from_opgraph(cls, qd: Sequence[int], graph: OpGraph, opmap: Dict):
+        """
+        Construct a MPO from an operator graph.
+
+        Args:
+            qd: physical quantum numbers at each site (same for all sites)
+            graph: symbolic operator graph
+            opmap: local operators as dictionary, using operator IDs as keys
+
+        Returns:
+            MPO: MPO representation of the operator graph
+        """
+        d = len(qd)
+        if d == 0:
+            raise ValueError("require at least one physical quantum number")
+        Alist = []
+        qD = []
+        # node IDs at current bond site
+        nid_start = graph.start_node_id(0)
+        nids0 = [nid_start]
+        qD.append([graph.nodes[nid_start].qnum])
+        while True:
+            # node IDs at next bond site
+            nids1 = []
+            for nid in nids0:
+                node = graph.nodes[nid]
+                for eid in node.eids[1]:
+                    edge = graph.edges[eid]
+                    assert edge.nids[0] == nid
+                    if edge.nids[1] not in nids1:
+                        nids1.append(edge.nids[1])
+            if not nids1:   # reached final site
+                break
+            qD.append([graph.nodes[nid].qnum for nid in nids1])
+            A = np.zeros((d, d, len(nids0), len(nids1)), dtype=complex)
+            for i, nid in enumerate(nids0):
+                node = graph.nodes[nid]
+                for eid in node.eids[1]:
+                    edge = graph.edges[eid]
+                    j = nids1.index(edge.nids[1])
+                    # set local operator in MPO tensor
+                    A[:, :, i, j] = sum(opmap[opid] for opid in edge.oids)
+            Alist.append(A)
+            nids0 = nids1
+        assert len(Alist) + 1 == len(qD)
+        op = cls(qd, qD, fill='postpone')
+        op.A = Alist
+        # consistency check
+        for i in range(op.nsites):
             assert is_qsparse(op.A[i], [op.qd, -op.qd, op.qD[i], -op.qD[i+1]]), \
                 'sparsity pattern of MPO tensor does not match quantum numbers'
         return op

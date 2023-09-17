@@ -132,6 +132,71 @@ class TestMPO(unittest.TestCase):
             msg='full merging of MPO must be equal to matrix representation of operator chains')
 
 
+    def test_from_opgraph(self):
+
+        rng = np.random.default_rng()
+
+        # lattice size
+        L = 5
+
+        # physical quantum numbers
+        qd = np.array([-1, 0, 2, 0])
+
+        # generate a symbolic operator graph
+        graph = ptn.opgraph.OpGraph(
+            [ptn.opgraph.OpGraphNode( 0, [      ], [ 2,  5],  0),
+             ptn.opgraph.OpGraphNode( 1, [ 2    ], [ 1    ],  1),
+             ptn.opgraph.OpGraphNode( 2, [ 5    ], [ 4    ],  0),
+             ptn.opgraph.OpGraphNode( 3, [ 1,  4], [ 7,  0], -1),
+             ptn.opgraph.OpGraphNode( 4, [ 7    ], [ 3    ],  0),
+             ptn.opgraph.OpGraphNode( 5, [ 0    ], [ 6,  8],  1),
+             ptn.opgraph.OpGraphNode( 6, [ 3,  6], [10    ], -1),
+             ptn.opgraph.OpGraphNode( 7, [ 8    ], [ 9    ],  0),
+             ptn.opgraph.OpGraphNode( 8, [10,  9], [      ],  1)],
+            [ptn.opgraph.OpGraphEdge( 2, [ 0,  1], [ -2]),
+             ptn.opgraph.OpGraphEdge( 5, [ 0,  2], [ -5]),
+             ptn.opgraph.OpGraphEdge( 1, [ 1,  3], [ -1]),
+             ptn.opgraph.OpGraphEdge( 4, [ 2,  3], [ -4]),
+             ptn.opgraph.OpGraphEdge( 7, [ 3,  4], [ -7]),
+             ptn.opgraph.OpGraphEdge( 0, [ 3,  5], [  0]),
+             ptn.opgraph.OpGraphEdge( 3, [ 4,  6], [ -3]),
+             ptn.opgraph.OpGraphEdge( 6, [ 5,  6], [ -6]),
+             ptn.opgraph.OpGraphEdge( 8, [ 5,  7], [ -8]),
+             ptn.opgraph.OpGraphEdge(10, [ 6,  8], [-10]),
+             ptn.opgraph.OpGraphEdge( 9, [ 7,  8], [ -9])])
+        self.assertTrue(graph.is_consistent())
+
+        # random local operators
+        opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-10, 1) }
+        # enforce sparsity pattern according to quantum numbers
+        for edge in graph.edges.values():
+            qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
+            mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+            for opid in edge.oids:
+                opmap[opid] = np.where(mask == 0, opmap[opid], 0)
+
+        # convert graph to an MPO
+        mpo = ptn.MPO.from_opgraph(qd, graph, opmap)
+        self.assertEqual(mpo.bond_dims, [1, 2, 1, 2, 2, 1])
+
+        # reference operator representation
+        opstringids = [
+            [-2, -1, -7, -3, -10],
+            [-5, -4, -7, -3, -10],
+            [-2, -1,  0, -6, -10],
+            [-2, -1,  0, -8,  -9],
+            [-5, -4,  0, -6, -10],
+            [-5, -4,  0, -8,  -9]]
+        opref = np.zeros(2 * (len(qd)**L,), dtype=complex)
+        for opstringid in opstringids:
+            op = np.identity(1)
+            for opid in opstringid:
+                op = np.kron(op, opmap[opid])
+            opref += op
+        # compare
+        self.assertTrue(np.allclose(mpo.as_matrix(), opref))
+
+
     def test_add(self):
 
         rng = np.random.default_rng()
