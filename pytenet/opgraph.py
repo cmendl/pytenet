@@ -1,4 +1,5 @@
 from typing import Sequence
+from itertools import combinations
 
 # data structures in this file are intended for internal usage
 __all__ = []
@@ -104,6 +105,68 @@ class OpGraph:
         # explicit variable assignment to avoid "tuple item assignment" error
         node1_eids = node1.eids[1-direction]
         node1_eids += node2.eids[1-direction]
+
+    def simplify(self):
+        """
+        Simplify the graph in-place by merging edges representing the same operator.
+        """
+        changed = True
+        while changed:
+            changed = False
+            for direction in (0, 1):
+                while self._simplify_step(direction):
+                    changed = True
+        # enable chaining
+        return self
+
+    def _simplify_step(self, direction: int) -> bool:
+        """
+        Attempt an in-place graph simplification step by merging two edges in
+        the specified direction. Returns true if two edges were merged, and
+        false otherwise (in which case the graph was not changed).
+        """
+        # node IDs at current bond site
+        nids0 = [self.start_node_id(direction)]
+        while True:
+            for nid in nids0:
+                # search for edge pairs which can be merged
+                eids = self.nodes[nid].eids[1-direction]
+                for eid1, eid2 in combinations(eids, 2):
+                    edge1 = self.edges[eid1]
+                    edge2 = self.edges[eid2]
+                    if edge1.nids[1-direction] == edge2.nids[1-direction]:
+                        # edges have same upstream node
+                        self.merge_edges(eid1, eid2, direction)
+                        return True
+                    if edge1.oids != edge2.oids:
+                        continue
+                    node1 = self.nodes[edge1.nids[1-direction]]
+                    node2 = self.nodes[edge2.nids[1-direction]]
+                    # to-be merged upstream nodes can only have one input edge
+                    if len(node1.eids[direction]) != 1:
+                        continue
+                    if len(node2.eids[direction]) != 1:
+                        continue
+                    # can only merge nodes with same quantum numbers
+                    if node1.qnum != node2.qnum:
+                        continue
+                    # actually merge the edges
+                    self.merge_edges(eid1, eid2, direction)
+                    return True
+            # collect node IDs at next bond site
+            nids1 = []
+            for nid in nids0:
+                eids = self.nodes[nid].eids[1-direction]
+                for eid in eids:
+                    edge = self.edges[eid]
+                    assert edge.nids[direction] == nid
+                    if edge.nids[1-direction] not in nids1:
+                        nids1.append(edge.nids[1-direction])
+            if not nids1:   # reached final site
+                break
+            nids0 = nids1
+        # no edges merged
+        return False
 
     def is_consistent(self, verbose=False) -> bool:
         """
