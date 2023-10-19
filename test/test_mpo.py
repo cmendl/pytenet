@@ -163,7 +163,8 @@ class TestMPO(unittest.TestCase):
              ptn.opgraph.OpGraphEdge( 6, [ 5,  6], [ -6]),
              ptn.opgraph.OpGraphEdge( 8, [ 5,  7], [ -8]),
              ptn.opgraph.OpGraphEdge(10, [ 6,  8], [-10]),
-             ptn.opgraph.OpGraphEdge( 9, [ 7,  8], [ -9])])
+             ptn.opgraph.OpGraphEdge( 9, [ 7,  8], [ -9])],
+            [0, 8])
         self.assertTrue(graph.is_consistent())
 
         # random local operators
@@ -178,6 +179,9 @@ class TestMPO(unittest.TestCase):
         # convert graph to an MPO
         mpo = ptn.MPO.from_opgraph(qd, graph, opmap)
         self.assertEqual(mpo.bond_dims, [1, 2, 1, 2, 2, 1])
+
+        # compare matrix representations
+        self.assertTrue(np.allclose(mpo.as_matrix(), graph.as_matrix(opmap)))
 
         # reference operator representation
         opstringids = [

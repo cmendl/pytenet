@@ -156,13 +156,12 @@ class MPO:
         """
         d = len(qd)
         if d == 0:
-            raise ValueError("require at least one physical quantum number")
+            raise ValueError('require at least one physical quantum number')
         Alist = []
         qD = []
         # node IDs at current bond site
-        nid_start = graph.start_node_id(0)
-        nids0 = [nid_start]
-        qD.append([graph.nodes[nid_start].qnum])
+        nids0 = [graph.nid_terminal[0]]
+        qD.append([graph.nodes[graph.nid_terminal[0]].qnum])
         while True:
             # node IDs at next bond site
             nids1 = []
@@ -182,8 +181,8 @@ class MPO:
                 for eid in node.eids[1]:
                     edge = graph.edges[eid]
                     j = nids1.index(edge.nids[1])
-                    # set local operator in MPO tensor
-                    A[:, :, i, j] = sum(opmap[opid] for opid in edge.oids)
+                    # update local operator in MPO tensor (supporting multiple edges between same pair of nodes)
+                    A[:, :, i, j] += sum(opmap[opid] for opid in edge.oids)
             Alist.append(A)
             nids0 = nids1
         assert len(Alist) + 1 == len(qD)
