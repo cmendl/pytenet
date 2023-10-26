@@ -49,11 +49,40 @@ class OpTree:
         self.root = root
         self.istart = istart
 
+    @classmethod
+    def from_opchain(cls, oids: Sequence[int], qnums: Sequence[int], istart: int):
+        """
+        Construct a "tree" with a sequential layout representing an operator chain.
+        """
+        if len(oids) + 1 != len(qnums):
+            raise ValueError('incompatible lengths of operator and quantum number lists')
+        # start from leaf node
+        node = OpTreeNode([], qnums[-1])
+        for oid, qnum in zip(reversed(oids), reversed(qnums[:-1])):
+            edge = OpTreeEdge(oid, node)
+            node = OpTreeNode([edge], qnum)
+        return cls(node, istart)
+
+    def height(self) -> int:
+        """
+        Height of the tree.
+        """
+        return _subtree_height(self.root)
+
     def as_matrix(self, opmap: Dict) -> np.ndarray:
         """
         Represent the logical operation of the tree as a matrix.
         """
         return _subtree_as_matrix(self.root, opmap)
+
+
+def _subtree_height(node: OpTreeNode) -> int:
+    """
+    Compute the height of a subtree.
+    """
+    if node.is_leaf():
+        return 0
+    return 1 + max(_subtree_height(child.node) for child in node.children)
 
 
 def _subtree_as_matrix(node: OpTreeNode, opmap: Dict) -> np.ndarray:
