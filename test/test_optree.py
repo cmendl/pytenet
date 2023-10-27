@@ -5,30 +5,6 @@ import pytenet as ptn
 
 class TestOpTree(unittest.TestCase):
 
-    def test_from_opchain(self):
-
-        # physical quantum numbers
-        qd = np.array([0, -1, 1])
-
-        opids = [ 6,  3,  5,  4]
-        qnums = [ 0, -1,  0,  2,  0]
-        tree = ptn.OpTree.from_opchain(opids, qnums, 1)
-        self.assertEqual(tree.height(), len(opids))
-
-        # random local operators
-        rng = np.random.default_rng()
-        opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(3, 7) }
-        enforce_tree_operator_sparsity(tree.root, qd, opmap)
-
-        # reference matrix representation
-        mat_ref = np.identity(1)
-        for opid in opids:
-            mat_ref = np.kron(mat_ref, opmap[opid])
-
-        # compare
-        self.assertTrue(np.allclose(tree.as_matrix(opmap), mat_ref))
-
-
     def test_as_matrix(self):
 
         # physical quantum numbers

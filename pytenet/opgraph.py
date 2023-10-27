@@ -1,6 +1,7 @@
 from typing import Sequence, Dict
 from itertools import combinations
 import numpy as np
+from .opchain import OpChain
 from .optree import OpTreeEdge, OpTreeNode, OpTree
 
 __all__ = ['OpGraphNode', 'OpGraphEdge', 'OpGraph']
@@ -95,7 +96,7 @@ class OpGraph:
             depth += 1
         return depth
 
-    def insert_opchain(self, nid_start: int, nid_end: int, oids: Sequence[int], qnums: Sequence[int], direction: int):
+    def _insert_opchain(self, nid_start: int, nid_end: int, oids: Sequence[int], qnums: Sequence[int], direction: int):
         """
         Insert an operator chain between two nodes
         by generating an alternating sequence of edges and nodes.
@@ -124,6 +125,43 @@ class OpGraph:
         node.add_edge_id(eid_next, 1-direction)
 
     @classmethod
+    def from_opchains(cls, chains: Sequence[OpChain], size: int, oid_identity: int):
+        """
+        Construct an operator graph from a list of operator chains.
+
+        Args:
+            chains: list of operator chains
+            size: overall length of the operator graph
+            oid_identity: operator ID for identity map
+
+        Returns:
+            OpGraph: the constructed operator graph
+        """
+        # construct graph with two terminal nodes
+        graph = cls([OpGraphNode(0, [], [], 0),
+                     OpGraphNode(1, [], [], 0)], [], [0, 1])
+        for chain in chains:
+            if chain.istart + chain.length > size:
+                raise ValueError('extent of operator chain cannot be larger than overall size of operator graph')
+            if chain.qnums[0] != 0 or chain.qnums[-1] != 0:
+                raise ValueError('expecting quantum number zero at beginning and end of each chain')
+            oids  = chain.oids
+            qnums = chain.qnums
+            if chain.istart > 0:
+                # pad identities before the chain
+                oids  = chain.istart * [oid_identity] + oids
+                qnums = chain.istart * [qnums[0]] + qnums
+            if len(oids) < size:
+                # pad identities after the chain
+                n = size - len(oids)
+                oids  = oids  + n * [oid_identity]
+                qnums = qnums + n * [qnums[-1]]
+            assert len(oids) == size
+            graph._insert_opchain(0, 1, oids, qnums[1:-1], 1)
+        graph.simplify()
+        return graph
+
+    @classmethod
     def from_optrees(cls, trees: Sequence[OpTree], size: int, oid_identity: int):
         """
         Construct an operator graph from a list of operator trees.
@@ -144,10 +182,11 @@ class OpGraph:
                 # insert identities between start node and beginning of tree
                 nid_root = max(graph.nodes.keys()) + 1
                 graph.add_node(OpGraphNode(nid_root, [], [], tree.root.qnum))
-                graph.insert_opchain(nid_start, nid_root, tree.istart * [oid_identity], (tree.istart - 1) * [0], 1)
+                graph._insert_opchain(nid_start, nid_root, tree.istart * [oid_identity], (tree.istart - 1) * [0], 1)
             else:
                 nid_root = nid_start
             _graph_insert_subtree(graph, tree.root, nid_root, size - tree.istart, oid_identity)
+        graph.simplify()
         return graph
 
     def merge_edges(self, eid1: int, eid2: int, direction: int):
@@ -338,7 +377,7 @@ def _graph_insert_subtree(graph: OpGraph, tree_root: OpTreeNode, nid_root: int, 
         # arrived at leaf node
         if terminal_dist > 0:
             # insert identity string to end node of graph
-            graph.insert_opchain(nid_root, graph.nid_terminal[1], terminal_dist * [oid_identity], (terminal_dist - 1) * [0], 1)
+            graph._insert_opchain(nid_root, graph.nid_terminal[1], terminal_dist * [oid_identity], (terminal_dist - 1) * [0], 1)
         else:
             # 'terminal_dist' is zero -> have to be at terminal node
             assert nid_root == graph.nid_terminal[1]

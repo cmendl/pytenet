@@ -1,4 +1,3 @@
-import copy
 from typing import Sequence, Dict
 import numpy as np
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
@@ -69,77 +68,6 @@ class MPO:
         for i in range(L):
             mpo.A[i] = scale * np.identity(d, dtype=dtype).reshape((d, d, 1, 1))
         return mpo
-
-    @classmethod
-    def from_opchains(cls, qd: Sequence[int], L: int, opchains):
-        """
-        Construct a MPO representation of a sum of "operator chains".
-
-        Args:
-            qd: physical quantum numbers at each site (same for all sites)
-            L:  number of lattice sites
-            opchains: list of operator chains
-
-        Returns:
-            MPO: MPO representation of `opchains`
-        """
-
-        # filter out empty operator chains
-        opchains = [opc for opc in opchains if opc.length > 0]
-
-        if len(opchains) == 0:
-            # dummy zero tensors
-            return cls(qd, (L+1)*[[0]], fill=0j)
-
-        d = len(qd)
-
-        opchains = sorted(opchains, key=lambda o: o.iend*L + o.length)
-
-        # right-pad first operator chain with identity matrices
-        # (required for trailing identity operations in each chain)
-        opchains[0] = copy.deepcopy(opchains[0])
-        opchains[0].pad_identities_right(d, L)
-
-        # find operator chain with largest starting index
-        maxidxS = np.argmax([op.istart for op in opchains])
-        # left-pad this operator chain with identity matrices (for leading identity operations in each chain)
-        opchains[maxidxS] = copy.deepcopy(opchains[maxidxS])
-        opchains[maxidxS].pad_identities_left(d)
-
-        # allocate virtual bond slots between operators for each operator chain
-        slotidx = [0] * (L+1)
-        slotidx[ 0] = 1
-        slotidx[-1] = 1
-        opslots = [[]] * len(opchains)
-        for j, opc in enumerate(opchains):
-            opslots[j] = [0] * opc.length
-            for i in range(opc.length-1):
-                k = opc.istart + i + 1
-                opslots[j][i] = slotidx[k]
-                slotidx[k] += 1
-            # last slot is 0 (for trailing identity matrices)
-
-        # allocate and fill MPO tensors and corresponding quantum numbers
-        op = cls(qd, [np.zeros(slotidx[j], dtype=int) for j in range(L+1)], fill=0j)
-        for j, opc in enumerate(opchains):
-            for i in range(opc.length):
-                if i==0:
-                    if opc.istart == 0:
-                        k = 0
-                    else:
-                        k = opslots[maxidxS][opc.istart-1]
-                else:
-                    k = opslots[j][i-1]
-                # add to A (instead of simply assigning) to handle sum of single-site operators without dedicated bond slots
-                op.A[opc.istart + i][:, :, k, opslots[j][i]] += opc.oplist[i]
-                if opc.length > 1:
-                    op.qD[opc.istart + i + 1][opslots[j][i]] = (opc.qD[i] if i < opc.length-1 else 0)
-
-        # consistency check
-        for i in range(L):
-            assert is_qsparse(op.A[i], [op.qd, -op.qd, op.qD[i], -op.qD[i+1]]), \
-                'sparsity pattern of MPO tensor does not match quantum numbers'
-        return op
 
     @classmethod
     def from_opgraph(cls, qd: Sequence[int], graph: OpGraph, opmap: Dict):

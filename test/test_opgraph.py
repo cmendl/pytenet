@@ -147,7 +147,7 @@ class TestOpGraph(unittest.TestCase):
             mat0 = graph.as_matrix(opmap)
 
             # insert the operator chain
-            graph.insert_opchain(nid_start_chain, nid_end_chain, opids_chain, qnums_chain, direction)
+            graph._insert_opchain(nid_start_chain, nid_end_chain, opids_chain, qnums_chain, direction)
             self.assertTrue(graph.is_consistent())
 
             # logical operation of final graph as matrix
@@ -156,6 +156,56 @@ class TestOpGraph(unittest.TestCase):
             # compare matrix representations, taking upstream connections of terminal nodes into account
             self.assertTrue(np.allclose(mat1,
                                         mat0 + np.kron(opmap[-1], mat_chain)))
+
+
+    def test_from_opchains(self):
+
+        rng = np.random.default_rng()
+
+        # physical quantum numbers
+        qd = np.array([-1, 0, 2, 0])
+        # overall system size of operator graph
+        size = 5
+
+        # identity operator ID
+        oid_identity = 0
+
+        chains = []
+        for _ in range(6):
+            # construct randomized operator chain
+            istart = rng.integers(0, 3)
+            length = rng.integers(1, size - istart + 1)
+            oids  = rng.integers(1, 17, size=length)  # exclude identity ID to avoid incompatibility with sparsity pattern
+            qnums = [0] + list(rng.integers(-1, 2, size=length-1)) + [0]
+            chain = ptn.OpChain(oids, qnums, istart)
+            chains.append(chain)
+
+        graph = ptn.OpGraph.from_opchains(chains, size, oid_identity)
+        self.assertTrue(graph.is_consistent())
+
+        # random local operators
+        opmap = { opid: np.identity(len(qd)) if opid == oid_identity else ptn.crandn(2 * (len(qd),), rng)
+                 for opid in range(17) }
+        # enforce sparsity pattern according to quantum numbers
+        for chain in chains:
+            for i, opid in enumerate(chain.oids):
+                qDloc = chain.qnums[i:i+2]
+                mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+                opmap[opid] = np.where(mask == 0, opmap[opid], 0)
+
+        # reference matrix representation of operator chains
+        mat_ref = 0
+        for chain in chains:
+            # including leading and trailing identity maps
+            mat_ref = mat_ref + np.kron(np.kron(
+                np.identity(len(qd)**chain.istart),
+                chain.as_matrix(opmap)),
+                np.identity(len(qd)**(size - (chain.istart + chain.length))))
+
+        # compare matrix representations
+        self.assertTrue(np.allclose(graph.as_matrix(opmap), mat_ref))
+        mpo = ptn.MPO.from_opgraph(qd, graph, opmap)
+        self.assertTrue(np.allclose(mpo.as_matrix(), mat_ref))
 
 
     def generate_tree1(self):

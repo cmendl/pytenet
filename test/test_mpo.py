@@ -91,47 +91,6 @@ class TestMPO(unittest.TestCase):
             msg='MPO representation of identity')
 
 
-    def test_from_opchains(self):
-
-        rng = np.random.default_rng()
-
-        # dimensions
-        d = 4
-        L = 5
-
-        # physical quantum numbers
-        qd = rng.integers(-2, 3, size=d)
-
-        # fictitious operator chains
-        opchains = []
-        n = rng.integers(20)
-        for _ in range(n):
-            istart = rng.integers(L)
-            length = rng.integers(1, L - istart + 1)
-            oplist = [ptn.crandn((d, d), rng) for _ in range(length)]
-            qD = rng.integers(-2, 3, size=length-1)
-            # enforce sparsity structure dictated by quantum numbers
-            qDpad = np.pad(qD, 1, mode='constant')
-            for i in range(length):
-                mask = ptn.qnumber_outer_sum([qd + qDpad[i], -(qd + qDpad[i+1])])
-                oplist[i] = np.where(mask == 0, oplist[i], 0)
-            opchains.append(ptn.OpChain(oplist, qD, istart))
-
-        # construct MPO representation corresponding to operator chains
-        mpo0 = ptn.MPO.from_opchains(qd, L, opchains)
-
-        for i in range(mpo0.nsites):
-            self.assertTrue(ptn.is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]),
-                            msg='sparsity pattern of MPO tensors must match quantum numbers')
-
-        # construct full Hamiltonian from operator chains, as reference
-        Href = sum(opc.as_matrix(d, L) for opc in opchains)
-
-        # compare
-        self.assertTrue(np.allclose(mpo0.as_matrix(), Href, rtol=1e-10),
-            msg='full merging of MPO must be equal to matrix representation of operator chains')
-
-
     def test_from_opgraph(self):
 
         rng = np.random.default_rng()

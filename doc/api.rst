@@ -19,5 +19,9 @@ API documentation
     pytenet.mps.MPS
     pytenet.opchain
     pytenet.opchain.OpChain
+    pytenet.optree
+    pytenet.optree.OpTree
+    pytenet.opgraph
+    pytenet.opgraph.OpGraph
     pytenet.operation
     pytenet.qnumber

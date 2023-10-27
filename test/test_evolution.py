@@ -52,11 +52,13 @@ class TestEvolution(unittest.TestCase):
             msg='trailing bond quantum number must not change during orthonormalization')
 
         # total spin operator as MPO
-        Sztot = ptn.local_opchains_to_mpo(mpoH.qd, L, [ptn.OpChain([np.diag([0.5, -0.5])], [])])
+        Szgraph = ptn.OpGraph.from_opchains(
+            [ptn.OpChain([1], [0, 0], istart) for istart in range(L)], L, 0)
+        Sztot = ptn.MPO.from_opgraph(mpoH.qd, Szgraph, { 0: np.identity(2), 1: np.diag([0.5, -0.5]) })
 
         # explicitly compute average spin
         spin_avr = ptn.operator_average(psi, Sztot)
-        self.assertAlmostEqual(abs(spin_avr - spin_tot), 0, delta=1e-14,
+        self.assertAlmostEqual(spin_avr, spin_tot, delta=1e-14,
             msg='average spin must be equal to prescribed value')
 
         # reference time evolution
