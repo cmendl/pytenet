@@ -1,4 +1,4 @@
-from typing import Sequence
+from collections.abc import Sequence
 import numpy as np
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
 from .bond_ops import qr, retained_bond_indices, split_matrix_svd

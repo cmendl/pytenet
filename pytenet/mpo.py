@@ -1,4 +1,4 @@
-from typing import Sequence, Dict
+from collections.abc import Sequence, Mapping
 import numpy as np
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
 from .bond_ops import qr
@@ -70,7 +70,7 @@ class MPO:
         return mpo
 
     @classmethod
-    def from_opgraph(cls, qd: Sequence[int], graph: OpGraph, opmap: Dict):
+    def from_opgraph(cls, qd: Sequence[int], graph: OpGraph, opmap: Mapping):
         """
         Construct a MPO from an operator graph.
 

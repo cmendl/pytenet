@@ -1,4 +1,4 @@
-from typing import Sequence, Dict
+from collections.abc import Sequence, Mapping
 import numpy as np
 
 __all__ = ['OpChain']
@@ -36,7 +36,7 @@ class OpChain:
         """
         return len(self.oids)
 
-    def as_matrix(self, opmap: Dict) -> np.ndarray:
+    def as_matrix(self, opmap: Mapping) -> np.ndarray:
         """
         Represent the logical operation of the operator chain as a matrix.
         """

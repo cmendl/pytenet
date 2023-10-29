@@ -1,4 +1,4 @@
-from typing import Sequence, Dict
+from collections.abc import Sequence, Mapping
 from itertools import combinations
 import numpy as np
 from .opchain import OpChain
@@ -283,7 +283,7 @@ class OpGraph:
         # no edges merged
         return False
 
-    def as_matrix(self, opmap: Dict, direction=1) -> np.ndarray:
+    def as_matrix(self, opmap: Mapping, direction=1) -> np.ndarray:
         """
         Represent the logical operation of the operator graph as a matrix.
         """
@@ -400,7 +400,7 @@ def _graph_insert_subtree(graph: OpGraph, tree_root: OpTreeNode, nid_root: int, 
         _graph_insert_subtree(graph, edge.node, nid_next, terminal_dist - 1, oid_identity)
 
 
-def _subgraph_as_matrix(graph: OpGraph, nid: int, opmap: Dict, direction: int) -> np.ndarray:
+def _subgraph_as_matrix(graph: OpGraph, nid: int, opmap: Mapping, direction: int) -> np.ndarray:
     """
     Contract the (sub-)graph in the specified direction to obtain its matrix representation.
     """

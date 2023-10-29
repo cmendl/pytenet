@@ -1,4 +1,4 @@
-from typing import Sequence, Dict
+from collections.abc import Sequence, Mapping
 import numpy as np
 
 __all__ = ['OpTreeEdge', 'OpTreeNode', 'OpTree']
@@ -55,7 +55,7 @@ class OpTree:
         """
         return _subtree_height(self.root)
 
-    def as_matrix(self, opmap: Dict) -> np.ndarray:
+    def as_matrix(self, opmap: Mapping) -> np.ndarray:
         """
         Represent the logical operation of the tree as a matrix.
         """
@@ -71,7 +71,7 @@ def _subtree_height(node: OpTreeNode) -> int:
     return 1 + max(_subtree_height(child.node) for child in node.children)
 
 
-def _subtree_as_matrix(node: OpTreeNode, opmap: Dict) -> np.ndarray:
+def _subtree_as_matrix(node: OpTreeNode, opmap: Mapping) -> np.ndarray:
     """
     Contract the (sub-)tree to obtain its matrix representation.
     """
