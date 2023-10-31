@@ -40,6 +40,13 @@ class OpGraphNode:
         self.remove_edge_id(eid_cur, direction)
         self.add_edge_id(eid_new, direction)
 
+    def flip(self):
+        """
+        Flip logical input <-> output direction.
+        """
+        self.eids = tuple(reversed(self.eids))
+        return self
+
 
 class OpGraphEdge:
     """
@@ -52,6 +59,13 @@ class OpGraphEdge:
         self.eid  = eid
         self.nids = list(nids)
         self.oids = sorted(list(oids))  # logical sum
+
+    def flip(self):
+        """
+        Flip logical direction.
+        """
+        self.nids.reverse()
+        return self
 
 
 class OpGraph:
@@ -116,6 +130,13 @@ class OpGraph:
             depth += 1
         return depth
 
+    @property
+    def length(self) -> int:
+        """
+        Length of the graph (distance between terminal nodes).
+        """
+        return self.node_depth(self.nid_terminal[0], 1)
+
     def _insert_opchain(self, nid_start: int, nid_end: int, oids: Sequence[int], qnums: Sequence[int], direction: int):
         """
         Insert an operator chain between two nodes
@@ -145,13 +166,13 @@ class OpGraph:
         node.add_edge_id(eid_next, 1-direction)
 
     @classmethod
-    def from_opchains(cls, chains: Sequence[OpChain], size: int, oid_identity: int):
+    def from_opchains(cls, chains: Sequence[OpChain], length: int, oid_identity: int):
         """
         Construct an operator graph from a list of operator chains.
 
         Args:
             chains: list of operator chains
-            size: overall length of the operator graph
+            length: overall length of the operator graph
             oid_identity: operator ID for identity map
 
         Returns:
@@ -161,8 +182,8 @@ class OpGraph:
         graph = cls([OpGraphNode(0, [], [], 0),
                      OpGraphNode(1, [], [], 0)], [], [0, 1])
         for chain in chains:
-            if chain.istart + chain.length > size:
-                raise ValueError('extent of operator chain cannot be larger than overall size of operator graph')
+            if chain.istart + chain.length > length:
+                raise ValueError('extent of operator chain cannot be larger than overall length of operator graph')
             if chain.qnums[0] != 0 or chain.qnums[-1] != 0:
                 raise ValueError('expecting quantum number zero at beginning and end of each chain')
             oids  = chain.oids
@@ -171,24 +192,65 @@ class OpGraph:
                 # pad identities before the chain
                 oids  = chain.istart * [oid_identity] + oids
                 qnums = chain.istart * [qnums[0]] + qnums
-            if len(oids) < size:
+            if len(oids) < length:
                 # pad identities after the chain
-                n = size - len(oids)
+                n = length - len(oids)
                 oids  = oids  + n * [oid_identity]
                 qnums = qnums + n * [qnums[-1]]
-            assert len(oids) == size
+            assert len(oids) == length
             graph._insert_opchain(0, 1, oids, qnums[1:-1], 1)
         graph.simplify()
         return graph
 
+    def _insert_subtree(self, tree_root: OpTreeNode, nid_root: int, terminal_dist: int, oid_identity: int):
+        """
+        Insert a subtree into the graph, connecting the leaves with the terminal node of the graph.
+        """
+        if not isinstance(tree_root, OpTreeNode):
+            raise ValueError("'tree_root' must be of type 'OpTreeNode'")
+        if terminal_dist < 0:
+            raise ValueError("'terminal_dist' cannot be negative")
+        # operator graph node
+        node = self.nodes[nid_root]
+        if node.qnum != tree_root.qnum:
+            raise RuntimeError(f'quantum number of operator graph node ({node.qnum}) '
+                               f'does not match quantum number of tree node ({tree_root.qnum})')
+        if not tree_root.children:
+            # arrived at leaf node
+            if terminal_dist > 0:
+                # insert identity string to end node of graph
+                self._insert_opchain(nid_root, self.nid_terminal[1],
+                                     terminal_dist * [oid_identity],
+                                     (terminal_dist - 1) * [0], 1)
+            else:
+                # 'terminal_dist' is zero -> have to be at terminal node
+                assert nid_root == self.nid_terminal[1]
+            return
+        # recursively insert sub-trees
+        for edge in tree_root.children:
+            assert isinstance(edge, OpTreeEdge)
+            # next available node and edge ID
+            if terminal_dist > 1:
+                nid_next = max(self.nodes.keys()) + 1
+            else:
+                nid_next = self.nid_terminal[1]
+            eid_next = max(self.edges.keys(), default=0) + 1
+            node.add_edge_id(eid_next, 1)
+            self.add_edge(OpGraphEdge(eid_next, [node.nid, nid_next], [edge.oid]))
+            if terminal_dist > 1:
+                self.add_node(OpGraphNode(nid_next, [eid_next], [], edge.node.qnum))
+            else:
+                self.nodes[nid_next].add_edge_id(eid_next, 0)
+            self._insert_subtree(edge.node, nid_next, terminal_dist - 1, oid_identity)
+
     @classmethod
-    def from_optrees(cls, trees: Sequence[OpTree], size: int, oid_identity: int):
+    def from_optrees(cls, trees: Sequence[OpTree], length: int, oid_identity: int):
         """
         Construct an operator graph from a list of operator trees.
 
         Args:
             trees: list of operator trees
-            size: overall system size (distance between terminal nodes of graph)
+            length: overall length of the operator graph
             oid_identity: operator ID of the identity operation, required for
                           padding identity operations to the terminal nodes of the graph
 
@@ -205,7 +267,7 @@ class OpGraph:
                 graph._insert_opchain(nid_start, nid_root, tree.istart * [oid_identity], (tree.istart - 1) * [0], 1)
             else:
                 nid_root = nid_start
-            _graph_insert_subtree(graph, tree.root, nid_root, size - tree.istart, oid_identity)
+            graph._insert_subtree(tree.root, nid_root, length - tree.istart, oid_identity)
         graph.simplify()
         return graph
 
@@ -303,6 +365,16 @@ class OpGraph:
         # no edges merged
         return False
 
+    def flip(self):
+        """
+        Flip logical direction of the graph.
+        """
+        for node in self.nodes.values():
+            node.flip()
+        for edge in self.edges.values():
+            edge.flip()
+        self.nid_terminal.reverse()
+
     def rename_node_id(self, nid_cur: int, nid_new: int):
         """
         Rename node ID `nid_cur` -> `nid_new`.
@@ -381,13 +453,13 @@ class OpGraph:
         # enable chaining
         return self
 
-    def as_matrix(self, opmap: Mapping, direction=1) -> np.ndarray:
+    def as_matrix(self, opmap: Mapping, direction: int = 1) -> np.ndarray:
         """
         Represent the logical operation of the operator graph as a matrix.
         """
         return _subgraph_as_matrix(self, self.nid_terminal[1-direction], opmap, direction)
 
-    def is_consistent(self, verbose=False) -> bool:
+    def is_consistent(self, verbose: bool = False) -> bool:
         """
         Perform an internal consistency check.
         """
@@ -401,13 +473,15 @@ class OpGraph:
                     # edge with ID 'eid' must exist
                     if eid not in self.edges:
                         if verbose:
-                            print(f'Consistency check failed: edge with ID {eid} referenced by node {k} does not exist.')
+                            print(f'Consistency check failed: edge with ID {eid} '
+                                  f'referenced by node {k} does not exist.')
                         return False
                     # edge must refer back to node
                     edge = self.edges[eid]
                     if edge.nids[1-direction] != node.nid:
                         if verbose:
-                            print(f'Consistency check failed: edge with ID {eid} does not refer to node {node.nid}.')
+                            print(f'Consistency check failed: edge with ID {eid} '
+                                  f'does not refer to node {node.nid}.')
                         return False
         for k, edge in self.edges.items():
             if k != edge.eid:
@@ -417,7 +491,8 @@ class OpGraph:
             for direction in (0, 1):
                 if edge.nids[direction] not in self.nodes:
                     if verbose:
-                        print(f'Consistency check failed: node with ID {edge.nids[direction]} referenced by edge {k} does not exist.')
+                        print(f'Consistency check failed: node with ID {edge.nids[direction]} '
+                              f'referenced by edge {k} does not exist.')
                     return False
                 node = self.nodes[edge.nids[direction]]
                 if edge.eid not in node.eids[1-direction]:
@@ -436,7 +511,8 @@ class OpGraph:
             node = self.nodes[self.nid_terminal[direction]]
             if node.eids[direction]:
                 if verbose:
-                    print(f'Consistency check failed: terminal node in direction {direction} cannot have edges in that direction.')
+                    print(f'Consistency check failed: terminal node in direction {direction} '
+                          f'cannot have edges in that direction.')
                 return False
         for direction in (0, 1):
             # node levels (distance from start and end node)
@@ -457,45 +533,6 @@ class OpGraph:
                 for eid in node.eids[1-direction]:
                     nid_queue.append((self.edges[eid].nids[1-direction], level + 1))
         return True
-
-
-def _graph_insert_subtree(graph: OpGraph, tree_root: OpTreeNode, nid_root: int, terminal_dist: int, oid_identity: int):
-    """
-    Insert a subtree into the graph, connecting the leaves with the terminal node of the graph.
-    """
-    if not isinstance(tree_root, OpTreeNode):
-        raise ValueError("'tree_root' must be of type 'OpTreeNode'")
-    if terminal_dist < 0:
-        raise ValueError("'terminal_dist' cannot be negative")
-    # operator graph node
-    node = graph.nodes[nid_root]
-    if node.qnum != tree_root.qnum:
-        raise RuntimeError(f'quantum number of operator graph node ({node.qnum}) does not match quantum number of tree node ({tree_root.qnum})')
-    if not tree_root.children:
-        # arrived at leaf node
-        if terminal_dist > 0:
-            # insert identity string to end node of graph
-            graph._insert_opchain(nid_root, graph.nid_terminal[1], terminal_dist * [oid_identity], (terminal_dist - 1) * [0], 1)
-        else:
-            # 'terminal_dist' is zero -> have to be at terminal node
-            assert nid_root == graph.nid_terminal[1]
-        return
-    # recursively insert sub-trees
-    for edge in tree_root.children:
-        assert isinstance(edge, OpTreeEdge)
-        # next available node and edge ID
-        if terminal_dist > 1:
-            nid_next = max(graph.nodes.keys()) + 1
-        else:
-            nid_next = graph.nid_terminal[1]
-        eid_next = max(graph.edges.keys(), default=0) + 1
-        node.add_edge_id(eid_next, 1)
-        graph.add_edge(OpGraphEdge(eid_next, [node.nid, nid_next], [edge.oid]))
-        if terminal_dist > 1:
-            graph.add_node(OpGraphNode(nid_next, [eid_next], [], edge.node.qnum))
-        else:
-            graph.nodes[nid_next].add_edge_id(eid_next, 0)
-        _graph_insert_subtree(graph, edge.node, nid_next, terminal_dist - 1, oid_identity)
 
 
 def _subgraph_as_matrix(graph: OpGraph, nid: int, opmap: Mapping, direction: int) -> np.ndarray:

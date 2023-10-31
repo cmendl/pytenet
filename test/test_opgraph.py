@@ -53,6 +53,7 @@ class TestOpGraph(unittest.TestCase):
 
         graph = self.generate_graph()
         self.assertTrue(graph.is_consistent())
+        self.assertEqual(graph.length, 3)
         self.assertEqual(graph.nid_terminal[0], 8)
         self.assertEqual(graph.nid_terminal[1], 3)
 
@@ -115,6 +116,7 @@ class TestOpGraph(unittest.TestCase):
 
             graph = self.generate_graph()
             self.assertTrue(graph.is_consistent())
+            self.assertEqual(graph.length, 3)
 
             opids_chain = [1, 2]
             qnums_chain = [1]
@@ -182,6 +184,7 @@ class TestOpGraph(unittest.TestCase):
 
         graph = ptn.OpGraph.from_opchains(chains, size, oid_identity)
         self.assertTrue(graph.is_consistent())
+        self.assertEqual(graph.length, size)
 
         # random local operators
         opmap = { opid: np.identity(len(qd)) if opid == oid_identity else ptn.crandn(2 * (len(qd),), rng)
@@ -252,8 +255,11 @@ class TestOpGraph(unittest.TestCase):
         tree1 = self.generate_tree1()
         tree2 = self.generate_tree2()
 
-        graph = ptn.OpGraph.from_optrees([tree1, tree2], 4, 0)
+        length = 4
+
+        graph = ptn.OpGraph.from_optrees([tree1, tree2], length, 0)
         self.assertTrue(graph.is_consistent())
+        self.assertEqual(graph.length, length)
 
         # random local operators
         rng = np.random.default_rng()
@@ -310,6 +316,37 @@ class TestOpGraph(unittest.TestCase):
 
         # compare matrix representations
         self.assertTrue(np.allclose(mat1, mat0))
+
+
+    def test_flip(self):
+
+        # physical quantum numbers
+        qd = np.array([-1, 0, 2, 0])
+
+        graph = self.generate_graph()
+        self.assertTrue(graph.is_consistent())
+
+        # random local operators
+        rng = np.random.default_rng()
+        opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-8, 1) }
+        # enforce sparsity pattern according to quantum numbers
+        for edge in graph.edges.values():
+            qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
+            mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+            for opid in edge.oids:
+                opmap[opid] = np.where(mask == 0, opmap[opid], 0)
+
+        # logical operation of graph as matrix
+        mat = graph.as_matrix(opmap)
+
+        # flip the graph
+        graph.flip()
+        self.assertTrue(graph.is_consistent())
+
+        mat_flip = graph.as_matrix(opmap)
+
+        # compare matrix representations
+        self.assertTrue(np.allclose(mat_flip, permute_operation(len(qd), mat, reversed(range(graph.length)))))
 
 
     def test_rename(self):
@@ -424,6 +461,20 @@ def enforce_tree_operator_sparsity(root: ptn.OpTreeNode, qd, opmap):
         mask = ptn.qnumber_outer_sum([qd, -qd, [root.qnum], [-edge.node.qnum]])[:, :, 0, 0]
         opmap[edge.oid] = np.where(mask == 0, opmap[edge.oid], 0)
         enforce_tree_operator_sparsity(edge.node, qd, opmap)
+
+
+def permute_operation(d: int, U, perm):
+    """
+    Find the representation of a matrix after permuting lattice sites.
+    """
+    perm = list(perm)
+    nsites = len(perm)
+    U = np.asarray(U)
+    assert U.shape == (d**nsites, d**nsites)
+    U = np.reshape(U, (2*nsites) * (d,))
+    U = np.transpose(U, perm + [nsites + p for p in perm])
+    U = np.reshape(U, (d**nsites, d**nsites))
+    return U
 
 
 if __name__ == '__main__':
