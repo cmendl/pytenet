@@ -1,5 +1,6 @@
 from collections.abc import Sequence, Mapping
 from itertools import combinations
+import copy
 import numpy as np
 from .opchain import OpChain
 from .optree import OpTreeEdge, OpTreeNode, OpTree
@@ -31,6 +32,13 @@ class OpGraphNode:
         Remove an edge identified by ID 'eid' in the specified direction.
         """
         self.eids[direction].remove(eid)
+
+    def rename_edge_id(self, eid_cur: int, eid_new: int, direction: int):
+        """
+        Rename the ID an edge.
+        """
+        self.remove_edge_id(eid_cur, direction)
+        self.add_edge_id(eid_new, direction)
 
 
 class OpGraphEdge:
@@ -74,6 +82,12 @@ class OpGraph:
             raise ValueError(f'node with ID {node.nid} already exists')
         self.nodes[node.nid] = node
 
+    def remove_node(self, nid: int) -> OpGraphNode:
+        """
+        Remove a node from the graph, and return the removed node.
+        """
+        return self.nodes.pop(nid)
+
     def add_edge(self, edge: OpGraphEdge):
         """
         Add an edge to the graph.
@@ -81,6 +95,12 @@ class OpGraph:
         if edge.eid in self.edges:
             raise ValueError(f'edge with ID {edge.eid} already exists')
         self.edges[edge.eid] = edge
+
+    def remove_edge(self, eid: int) -> OpGraphEdge:
+        """
+        Remove an edge from the graph, and return the removed edge.
+        """
+        return self.edges.pop(eid)
 
     def node_depth(self, nid: int, direction: int) -> int:
         """
@@ -282,6 +302,84 @@ class OpGraph:
             nids0 = nids1
         # no edges merged
         return False
+
+    def rename_node_id(self, nid_cur: int, nid_new: int):
+        """
+        Rename node ID `nid_cur` -> `nid_new`.
+        """
+        if nid_cur not in self.nodes:
+            raise ValueError(f"node with ID {nid_cur} does not exist")
+        if nid_new in self.nodes:
+            raise ValueError(f"node with ID {nid_new} already exists")
+        node = self.remove_node(nid_cur)
+        assert node.nid == nid_cur
+        for direction in (0, 1):
+            # update reference to node by edges
+            for eid in node.eids[direction]:
+                edge = self.edges[eid]
+                assert edge.nids[1-direction] == nid_cur
+                edge.nids[1-direction] = nid_new
+            # update terminal node IDs
+            if self.nid_terminal[direction] == nid_cur:
+                self.nid_terminal[direction] = nid_new
+        node.nid = nid_new
+        self.add_node(node)
+
+    def rename_edge_id(self, eid_cur: int, eid_new: int):
+        """
+        Rename edge ID `eid_cur` -> `eid_new`.
+        """
+        if eid_cur not in self.edges:
+            raise ValueError(f"edge with ID {eid_cur} does not exist")
+        if eid_new in self.edges:
+            raise ValueError(f"edge with ID {eid_new} already exists")
+        edge = self.remove_edge(eid_cur)
+        assert edge.eid == eid_cur
+        for direction in (0, 1):
+            # update reference to edge by nodes
+            node = self.nodes[edge.nids[direction]]
+            node.rename_edge_id(eid_cur, eid_new, 1-direction)
+        edge.eid = eid_new
+        self.add_edge(edge)
+
+    def update(self, other):
+        """
+        Update the graph by merging another operator graph into it.
+        Assuming that the operator IDs are shared between the graphs.
+        """
+        if not isinstance(other, OpGraph):
+            raise ValueError('can only update an operator graph by another operator graph')
+        # require a deep copy since the IDs in the 'other' graph might change
+        other = copy.deepcopy(other)
+        # ensure that node IDs in the two graphs are disjoint
+        shared_nids = self.nodes.keys() & other.nodes.keys()
+        next_nid = max(max(self.nodes.keys()), max(other.nodes.keys())) + 1
+        for nid in shared_nids:
+            other.rename_node_id(nid, next_nid)
+            next_nid += 1
+        # ensure that edge IDs in the two graphs are disjoint
+        shared_eids = self.edges.keys() & other.edges.keys()
+        next_eid = max(max(self.edges.keys(), default=0), max(other.edges.keys(), default=0)) + 1
+        for eid in shared_eids:
+            other.rename_edge_id(eid, next_eid)
+            next_eid += 1
+        # use same identifiers for terminal nodes
+        for direction in (0, 1):
+            other.rename_node_id(other.nid_terminal[direction], self.nid_terminal[direction])
+        # integrate terminal nodes from 'other' graph
+        for direction in (0, 1):
+            tnode = other.remove_node(other.nid_terminal[direction])
+            assert not tnode.eids[direction]
+            eids = self.nodes[self.nid_terminal[direction]].eids[1-direction]
+            eids += tnode.eids[1-direction]
+        # include remaining nodes from other graph
+        self.nodes.update(other.nodes)
+        # include edges from other graph
+        self.edges.update(other.edges)
+        # simplify updated graph
+        self.simplify()
+        # enable chaining
+        return self
 
     def as_matrix(self, opmap: Mapping, direction=1) -> np.ndarray:
         """

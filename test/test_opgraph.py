@@ -58,7 +58,7 @@ class TestOpGraph(unittest.TestCase):
 
         # random local operators
         rng = np.random.default_rng()
-        opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in list(range(-8, 1)) }
+        opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-8, 1) }
         # enforce sparsity pattern according to quantum numbers
         for edge in graph.edges.values():
             qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
@@ -124,7 +124,7 @@ class TestOpGraph(unittest.TestCase):
 
             # random local operators
             rng = np.random.default_rng()
-            opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in list(range(-8, 3)) }
+            opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-8, 3) }
             # enforce sparsity pattern according to quantum numbers
             for edge in graph.edges.values():
                 qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
@@ -281,7 +281,7 @@ class TestOpGraph(unittest.TestCase):
 
         # random local operators
         rng = np.random.default_rng()
-        opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in list(range(-8, 1)) }
+        opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-8, 1) }
         # enforce sparsity pattern according to quantum numbers
         for edge in graph.edges.values():
             qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
@@ -310,6 +310,110 @@ class TestOpGraph(unittest.TestCase):
 
         # compare matrix representations
         self.assertTrue(np.allclose(mat1, mat0))
+
+
+    def test_rename(self):
+
+        # physical quantum numbers
+        qd = np.array([-1, 0, 2, 0])
+
+        graph = self.generate_graph()
+        self.assertTrue(graph.is_consistent())
+
+        # random local operators
+        rng = np.random.default_rng()
+        opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-8, 1) }
+        # enforce sparsity pattern according to quantum numbers
+        for edge in graph.edges.values():
+            qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
+            mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+            for opid in edge.oids:
+                opmap[opid] = np.where(mask == 0, opmap[opid], 0)
+
+        # logical operation of initial graph as matrix
+        mat0 = graph.as_matrix(opmap)
+
+        # convert initial graph to an MPO
+        mpo0 = ptn.MPO.from_opgraph(qd, graph, opmap)
+        self.assertTrue(np.allclose(mat0, mpo0.as_matrix()))
+
+        # interleaved node and edge renaming
+        graph.rename_node_id( 8, -8)
+        graph.rename_edge_id(20,  3)
+        graph.rename_edge_id(12,  7)
+        graph.rename_node_id( 2, 17)
+        graph.rename_edge_id(14, -1)
+        self.assertTrue(graph.is_consistent())
+
+        self.assertEqual(graph.nid_terminal[0], -8)
+        self.assertEqual(graph.nid_terminal[1], 3)
+
+        # logical operation of final graph as matrix
+        mat1 = graph.as_matrix(opmap)
+
+        # convert final graph to an MPO
+        mpo1 = ptn.MPO.from_opgraph(qd, graph, opmap)
+        self.assertTrue(np.allclose(mat1, mpo1.as_matrix()))
+
+        # compare matrix representations
+        self.assertTrue(np.allclose(mat1, mat0))
+
+
+    def generate_another_graph(self):
+
+        # generate a symbolic operator graph
+        return ptn.opgraph.OpGraph(
+            [ptn.opgraph.OpGraphNode( 5, [          ], [18, 30, 14],  0),
+             ptn.opgraph.OpGraphNode( 8, [30,       ], [10        ],  0),
+             ptn.opgraph.OpGraphNode( 1, [14        ], [11, 21    ],  1),
+             ptn.opgraph.OpGraphNode( 3, [15, 10, 11], [13        ],  1),
+             ptn.opgraph.OpGraphNode( 4, [18        ], [15, 27    ],  1),
+             ptn.opgraph.OpGraphNode( 2, [27, 21    ], [16        ], -1),
+             ptn.opgraph.OpGraphNode( 9, [13, 16    ], [          ],  0)],
+            [ptn.opgraph.OpGraphEdge(18, [ 5,  4], [-11    ]),
+             ptn.opgraph.OpGraphEdge(30, [ 5,  8], [ -6    ]),
+             ptn.opgraph.OpGraphEdge(14, [ 5,  1], [  0    ]),
+             ptn.opgraph.OpGraphEdge(15, [ 4,  3], [ -7    ]),
+             ptn.opgraph.OpGraphEdge(10, [ 8,  3], [  0    ]),
+             ptn.opgraph.OpGraphEdge(27, [ 4,  2], [-10, -2]),
+             ptn.opgraph.OpGraphEdge(11, [ 1,  3], [ -9    ]),
+             ptn.opgraph.OpGraphEdge(21, [ 1,  2], [-10    ]),
+             ptn.opgraph.OpGraphEdge(13, [ 3,  9], [ -5    ]),
+             ptn.opgraph.OpGraphEdge(16, [ 2,  9], [-13    ])],
+            [5, 9])
+
+
+    def test_update(self):
+
+        # physical quantum numbers
+        qd = np.array([-1, 0, 2, 0])
+
+        graph = self.generate_graph()
+        graph_add = self.generate_another_graph()
+        self.assertTrue(graph.is_consistent())
+        self.assertTrue(graph_add.is_consistent())
+
+        # random local operators
+        rng = np.random.default_rng()
+        opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-13, 1) }
+        # enforce sparsity pattern according to quantum numbers
+        for graph in (graph, graph_add):
+            for edge in graph.edges.values():
+                qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
+                mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+                for opid in edge.oids:
+                    opmap[opid] = np.where(mask == 0, opmap[opid], 0)
+
+        # logical operation of graph as matrix
+        mat_a = graph.as_matrix(opmap)
+        mat_b = graph_add.as_matrix(opmap)
+
+        graph.update(graph_add)
+        self.assertTrue(graph.is_consistent())
+        self.assertTrue(graph_add.is_consistent())
+
+        # compare matrix representations
+        self.assertTrue(np.allclose(graph.as_matrix(opmap), mat_a + mat_b))
 
 
 def enforce_tree_operator_sparsity(root: ptn.OpTreeNode, qd, opmap):
