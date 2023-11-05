@@ -8,11 +8,12 @@ class OpTreeEdge:
     """
     Operator tree edge, representing a local operation.
     """
-    def __init__(self, oid: int, node):
+    def __init__(self, oid: int, coeff: float, node):
         if not isinstance(node, OpTreeNode):
             raise ValueError("'node' argument must be of type 'OpTreeNode'")
-        self.oid = oid      # operator ID
-        self.node = node    # child node
+        self.oid   = oid    # operator ID
+        self.coeff = coeff  # coefficient
+        self.node  = node   # child node
 
 
 class OpTreeNode:
@@ -81,7 +82,7 @@ def _subtree_as_matrix(node: OpTreeNode, opmap: Mapping) -> np.ndarray:
             op_subtree = np.identity(1)
         else:
             op_subtree = _subtree_as_matrix(edge.node, opmap)
-        op = np.kron(opmap[edge.oid], op_subtree)
+        op = np.kron(edge.coeff * opmap[edge.oid], op_subtree)
         # subtrees can have different heights
         if op_sum.shape[0] < op.shape[0]:
             assert op.shape[0] % op_sum.shape[0] == 0

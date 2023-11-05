@@ -53,7 +53,7 @@ class TestEvolution(unittest.TestCase):
 
         # total spin operator as MPO
         Szgraph = ptn.OpGraph.from_opchains(
-            [ptn.OpChain([1], [0, 0], istart) for istart in range(L)], L, 0)
+            [ptn.OpChain([1], [0, 0], 1.0, istart) for istart in range(L)], L, 0)
         Sztot = ptn.MPO.from_opgraph(mpoH.qd, Szgraph, { 0: np.identity(2), 1: np.diag([0.5, -0.5]) })
 
         # explicitly compute average spin

@@ -50,15 +50,29 @@ class OpGraphNode:
 
 class OpGraphEdge:
     """
-    Operator graph edge, representing a sum of local operators
+    Operator graph edge, representing a weighted sum of local operators
     which are indexed by their IDs.
     """
-    def __init__(self, eid: int, nids: Sequence[int], oids: Sequence[int]):
+    def __init__(self, eid: int, nids: Sequence[int], opics: Sequence[tuple[int, float]]):
         if len(nids) != 2:
             raise ValueError(f'expecting exactly two node IDs per edge, received {len(nids)}')
-        self.eid  = eid
-        self.nids = list(nids)
-        self.oids = sorted(list(oids))  # logical sum
+        self.eid   = eid
+        self.nids  = list(nids)
+        self.opics = []
+        for i, c in opics:
+            # ensure that each index is unique
+            for k in range(len(self.opics)):
+                if self.opics[k][0] == i:
+                    j, d = self.opics.pop(k)
+                    assert i == j
+                    # re-insert tuple with added coefficients
+                    self.opics.append((i, c + d))
+                    break
+            else:
+                # index 'i' not found so far
+                self.opics.append((i, c))
+        # sort by index
+        self.opics = sorted(self.opics)
 
     def flip(self):
         """
@@ -66,6 +80,25 @@ class OpGraphEdge:
         """
         self.nids.reverse()
         return self
+
+    def add(self, other):
+        """
+        Logical addition of the operation represented by another edge.
+        """
+        assert self.nids == other.nids
+        for i, c in other.opics:
+            for k in range(len(self.opics)):
+                if self.opics[k][0] == i:
+                    j, d = self.opics.pop(k)
+                    assert i == j
+                    # re-insert tuple with added coefficients
+                    self.opics.append((i, c + d))
+                    break
+            else:
+                # index 'i' not found so far
+                self.opics.append((i, c))
+        # sort by index
+        self.opics = sorted(self.opics)
 
 
 class OpGraph:
@@ -137,21 +170,22 @@ class OpGraph:
         """
         return self.node_depth(self.nid_terminal[0], 1)
 
-    def _insert_opchain(self, nid_start: int, nid_end: int, oids: Sequence[int], qnums: Sequence[int], direction: int):
+    def _insert_opchain(self, nid_start: int, nid_end: int, oids: Sequence[int], coeffs: Sequence[float], qnums: Sequence[int], direction: int):
         """
         Insert an operator chain between two nodes
         by generating an alternating sequence of edges and nodes.
         """
         assert nid_start in self.nodes
         assert nid_end in self.nodes
+        assert len(oids) == len(coeffs)
         assert len(oids) == len(qnums) + 1
         # next available node and edge ID
         nid_next = max(self.nodes.keys()) + 1
         eid_next = max(self.edges.keys(), default=0) + 1
         node = self.nodes[nid_start]
-        for oid, qnum in zip(oids[:-1], qnums):
+        for oid, coeff, qnum in zip(oids[:-1], coeffs[:-1], qnums):
             node.add_edge_id(eid_next, direction)
-            self.add_edge(OpGraphEdge(eid_next, [nid_next, node.nid] if direction == 0 else [node.nid, nid_next], [oid]))
+            self.add_edge(OpGraphEdge(eid_next, [nid_next, node.nid] if direction == 0 else [node.nid, nid_next], [(oid, coeff)]))
             node = OpGraphNode(nid_next,
                                [] if direction == 0 else [eid_next],
                                [eid_next] if direction == 0 else [],
@@ -161,7 +195,7 @@ class OpGraph:
             eid_next += 1
         # last step
         node.add_edge_id(eid_next, direction)
-        self.add_edge(OpGraphEdge(eid_next, [nid_end, node.nid] if direction == 0 else [node.nid, nid_end], [oids[-1]]))
+        self.add_edge(OpGraphEdge(eid_next, [nid_end, node.nid] if direction == 0 else [node.nid, nid_end], [(oids[-1], coeffs[-1])]))
         node = self.nodes[nid_end]
         node.add_edge_id(eid_next, 1-direction)
 
@@ -184,21 +218,28 @@ class OpGraph:
         for chain in chains:
             if chain.istart + chain.length > length:
                 raise ValueError('extent of operator chain cannot be larger than overall length of operator graph')
+            if chain.length == 0:
+                continue
             if chain.qnums[0] != 0 or chain.qnums[-1] != 0:
                 raise ValueError('expecting quantum number zero at beginning and end of each chain')
-            oids  = chain.oids
+            oids = chain.oids
+            # include coefficient (arbitrarily) with first operator of the chain
+            coeffs = len(chain.oids) * [1.0]
+            coeffs[0] = chain.coeff
             qnums = chain.qnums
             if chain.istart > 0:
                 # pad identities before the chain
-                oids  = chain.istart * [oid_identity] + oids
-                qnums = chain.istart * [qnums[0]] + qnums
+                oids   = chain.istart * [oid_identity] + oids
+                coeffs = chain.istart * [1.0] + coeffs
+                qnums  = chain.istart * [qnums[0]] + qnums
             if len(oids) < length:
                 # pad identities after the chain
                 n = length - len(oids)
-                oids  = oids  + n * [oid_identity]
-                qnums = qnums + n * [qnums[-1]]
+                oids   = oids   + n * [oid_identity]
+                coeffs = coeffs + n * [1.0]
+                qnums  = qnums  + n * [qnums[-1]]
             assert len(oids) == length
-            graph._insert_opchain(0, 1, oids, qnums[1:-1], 1)
+            graph._insert_opchain(0, 1, oids, coeffs, qnums[1:-1], 1)
         graph.simplify()
         return graph
 
@@ -221,6 +262,7 @@ class OpGraph:
                 # insert identity string to end node of graph
                 self._insert_opchain(nid_root, self.nid_terminal[1],
                                      terminal_dist * [oid_identity],
+                                     terminal_dist * [1.0],
                                      (terminal_dist - 1) * [0], 1)
             else:
                 # 'terminal_dist' is zero -> have to be at terminal node
@@ -236,7 +278,7 @@ class OpGraph:
                 nid_next = self.nid_terminal[1]
             eid_next = max(self.edges.keys(), default=0) + 1
             node.add_edge_id(eid_next, 1)
-            self.add_edge(OpGraphEdge(eid_next, [node.nid, nid_next], [edge.oid]))
+            self.add_edge(OpGraphEdge(eid_next, [node.nid, nid_next], [(edge.oid, edge.coeff)]))
             if terminal_dist > 1:
                 self.add_node(OpGraphNode(nid_next, [eid_next], [], edge.node.qnum))
             else:
@@ -264,7 +306,9 @@ class OpGraph:
                 # insert identities between start node and beginning of tree
                 nid_root = max(graph.nodes.keys()) + 1
                 graph.add_node(OpGraphNode(nid_root, [], [], tree.root.qnum))
-                graph._insert_opchain(nid_start, nid_root, tree.istart * [oid_identity], (tree.istart - 1) * [0], 1)
+                graph._insert_opchain(nid_start, nid_root,
+                                      tree.istart * [oid_identity],
+                                      tree.istart * [1.0], (tree.istart - 1) * [0], 1)
             else:
                 nid_root = nid_start
             graph._insert_subtree(tree.root, nid_root, length - tree.istart, oid_identity)
@@ -285,11 +329,11 @@ class OpGraph:
         self.nodes[edge2.nids[direction]].remove_edge_id(edge2.eid, 1-direction)
         if edge1.nids[1-direction] == edge2.nids[1-direction]:
             # edges have same upstream node -> add operators
-            edge1.oids = sorted(edge1.oids + edge2.oids)
+            edge1.add(edge2)
             # remove reference to edge2 from upstream node
             self.nodes[edge2.nids[1-direction]].remove_edge_id(edge2.eid, direction)
             return
-        assert edge1.oids == edge2.oids, 'can only merge edges with same logical operators'
+        assert edge1.opics == edge2.opics, 'can only merge edges with same logical operators'
         # merge upstream nodes
         node1 = self.nodes[edge1.nids[1-direction]]
         node2 = self.nodes.pop(edge2.nids[1-direction])
@@ -335,7 +379,7 @@ class OpGraph:
                         # edges have same upstream node
                         self.merge_edges(eid1, eid2, direction)
                         return True
-                    if edge1.oids != edge2.oids:
+                    if edge1.opics != edge2.opics:
                         continue
                     node1 = self.nodes[edge1.nids[1-direction]]
                     node2 = self.nodes[edge2.nids[1-direction]]
@@ -414,9 +458,9 @@ class OpGraph:
         edge.eid = eid_new
         self.add_edge(edge)
 
-    def update(self, other):
+    def add(self, other):
         """
-        Update the graph by merging another operator graph into it.
+        Add another graph by merging it into the current one.
         Assuming that the operator IDs are shared between the graphs.
         """
         if not isinstance(other, OpGraph):
@@ -499,7 +543,7 @@ class OpGraph:
                     if verbose:
                         print(f'Consistency check failed: node {node.nid} does not refer to edge {edge.eid}.')
                     return False
-            if edge.oids != sorted(edge.oids):
+            if edge.opics != sorted(edge.opics):
                 if verbose:
                     print(f'Consistency check failed: list of operator IDs of edge {edge.eid} is not sorted.')
                 return False
@@ -547,7 +591,7 @@ def _subgraph_as_matrix(graph: OpGraph, nid: int, opmap: Mapping, direction: int
     for eid in node.eids[direction]:
         edge = graph.edges[eid]
         op_sub = _subgraph_as_matrix(graph, edge.nids[direction], opmap, direction)
-        op_loc = sum(opmap[oid] for oid in edge.oids)
+        op_loc = sum(c * opmap[i] for i, c in edge.opics)
         if direction == 0:
             op = np.kron(op_sub, op_loc)
         else:

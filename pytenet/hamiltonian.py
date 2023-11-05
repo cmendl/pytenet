@@ -1,6 +1,6 @@
+import copy
 from collections.abc import Sequence, Mapping
 import numpy as np
-import copy
 from .mpo import MPO
 from .opchain import OpChain
 from .opgraph import OpGraph
@@ -30,12 +30,11 @@ def ising_mpo(L: int, J: float, h: float, g: float) -> MPO:
     # operator map
     opmap = {
         0: np.identity(2),
-        1: J*sigma_z,
-        2: sigma_z,
-        3: h*sigma_z + g*sigma_x }
+        1: sigma_z,
+        2: h*sigma_z + g*sigma_x }
     # local two-site and single-site terms
-    lopchains = [OpChain([1, 2], [0, 0, 0], 0),
-                 OpChain([3], [0, 0], 0)]
+    lopchains = [OpChain([1, 1], [0, 0, 0], J,   0),
+                 OpChain([2   ], [0, 0   ], 1.0, 0)]
     # convert to MPO
     return _local_opchains_to_mpo(qd, lopchains, L, opmap, 0)
 
@@ -63,16 +62,14 @@ def heisenberg_xxz_mpo(L: int, J: float, D: float, h: float) -> MPO:
     # operator map
     opmap = {
         0: np.identity(2),
-        1: 0.5*J*Sup,
+        1: Sup,
         2: Sdn,
-        3: D*Sz,
-        4: Sz,
-        5: -h*Sz }
+        3: Sz }
     # local two-site and single-site terms
-    lopchains = [OpChain([1, 2], [0,  2, 0], 0),
-                 OpChain([2, 1], [0, -2, 0], 0),
-                 OpChain([3, 4], [0,  0, 0], 0),
-                 OpChain([5], [0, 0], 0)]
+    lopchains = [OpChain([1, 2], [0,  2, 0], 0.5*J, 0),
+                 OpChain([2, 1], [0, -2, 0], 0.5*J, 0),
+                 OpChain([3, 3], [0,  0, 0],   D,   0),
+                 OpChain([3   ], [0,  0   ],  -h,   0)]
     # convert to MPO
     return _local_opchains_to_mpo(qd, lopchains, L, opmap, 0)
 
@@ -101,16 +98,14 @@ def heisenberg_xxz_spin1_mpo(L: int, J: float, D: float, h: float) -> MPO:
     # operator map
     opmap = {
         0: np.identity(3),
-        1: 0.5*J*Sup,
+        1: Sup,
         2: Sdn,
-        3: D*Sz,
-        4: Sz,
-        5: -h*Sz }
+        3: Sz }
     # local two-site and single-site terms
-    lopchains = [OpChain([1, 2], [0,  1, 0], 0),
-                 OpChain([2, 1], [0, -1, 0], 0),
-                 OpChain([3, 4], [0,  0, 0], 0),
-                 OpChain([5], [0, 0], 0)]
+    lopchains = [OpChain([1, 2], [0,  1, 0], 0.5*J, 0),
+                 OpChain([2, 1], [0, -1, 0], 0.5*J, 0),
+                 OpChain([3, 3], [0,  0, 0],   D,   0),
+                 OpChain([3   ], [0,  0   ],  -h,   0)]
     # convert to MPO
     return _local_opchains_to_mpo(qd, lopchains, L, opmap, 0)
 
@@ -141,13 +136,13 @@ def bose_hubbard_mpo(d: int, L: int, t: float, U: float, mu: float) -> MPO:
     # operator map
     opmap = {
         0: np.identity(d),
-        1: -t*b_dag,
+        1: b_dag,
         2: b_ann,
         3: 0.5*U*(numop @ (numop - np.identity(d))) - mu*numop }
     # local two-site and single-site terms
-    lopchains = [OpChain([1, 2], [0,  1, 0], 0),
-                 OpChain([2, 1], [0, -1, 0], 0),
-                 OpChain([3], [0, 0], 0)]
+    lopchains = [OpChain([1, 2], [0,  1, 0], -t,  0),
+                 OpChain([2, 1], [0, -1, 0], -t,  0),
+                 OpChain([3   ], [0, 0    ], 1.0, 0)]
     # convert to MPO
     return _local_opchains_to_mpo(qd, lopchains, L, opmap, 0)
 
@@ -183,25 +178,25 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
     # operator map
     opmap = {
         0: np.identity(4),
-        1: -t*np.kron(a_dag, F),
-        2: -t*np.kron(a_ann, F),
-        3:    np.kron(a_ann, id2),
-        4:    np.kron(a_dag, id2),
-        5:    np.kron(id2, a_dag),
-        6:    np.kron(id2, a_ann),
-        7: -t*np.kron(F,   a_ann),
-        8: -t*np.kron(F,   a_dag),
+        1: np.kron(a_dag, F),
+        2: np.kron(a_ann, F),
+        3: np.kron(a_ann, id2),
+        4: np.kron(a_dag, id2),
+        5: np.kron(id2, a_dag),
+        6: np.kron(id2, a_ann),
+        7: np.kron(F,   a_ann),
+        8: np.kron(F,   a_dag),
         9: U*np.diag([0.25, -0.25, -0.25, 0.25]) - mu*(np.kron(numop, id2) + np.kron(id2, numop)) }
     # local two-site and single-site terms
     lopchains = [
         # spin-up kinetic hopping
-        OpChain([1, 3], [0, ( 1 << 16) + 1, 0], 0),
-        OpChain([2, 4], [0, (-1 << 16) - 1, 0], 0),
+        OpChain([1, 3], [0, ( 1 << 16) + 1, 0], -t,  0),
+        OpChain([2, 4], [0, (-1 << 16) - 1, 0], -t,  0),
         # spin-down kinetic hopping
-        OpChain([5, 7], [0, ( 1 << 16) - 1, 0], 0),
-        OpChain([6, 8], [0, (-1 << 16) + 1, 0], 0),
+        OpChain([5, 7], [0, ( 1 << 16) - 1, 0], -t,  0),
+        OpChain([6, 8], [0, (-1 << 16) + 1, 0], -t,  0),
         # interaction U (n_up-1/2) (n_dn-1/2) and number operator - mu (n_up + n_dn)
-        OpChain([9], [0, 0], 0)]
+        OpChain([9   ], [0, 0                ], 1.0, 0)]
     # convert to MPO
     return _local_opchains_to_mpo(qd, lopchains, L, opmap, 0)
 

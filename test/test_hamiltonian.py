@@ -250,9 +250,10 @@ def construct_fermi_hubbard_hamiltonian(L: int, t: float, U: float, mu: float):
     # kinetic hopping terms
     for j in range(2*L - 2):
         H -= t * (clist[j] @ alist[j+2] + clist[j+2] @ alist[j])
+    # interaction U (n_up-1/2) (n_dn-1/2) and number operator - mu (n_up + n_dn)
     for j in range(0, 2*L, 2):
-        # interaction U (n_up-1/2) (n_dn-1/2) and number operator - mu (n_up + n_dn)
-        H += U * (nlist[j] - 0.5*sparse.identity(4**L)) @ (nlist[j+1] - 0.5*sparse.identity(4**L)) - mu * (nlist[j] + nlist[j+1])
+        H += (U * (nlist[j] - 0.5*sparse.identity(4**L)) @ (nlist[j+1] - 0.5*sparse.identity(4**L))
+              - mu * (nlist[j] + nlist[j+1]))
     H.eliminate_zeros()
     return H
 

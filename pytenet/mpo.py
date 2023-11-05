@@ -110,7 +110,7 @@ class MPO:
                     edge = graph.edges[eid]
                     j = nids1.index(edge.nids[1])
                     # update local operator in MPO tensor (supporting multiple edges between same pair of nodes)
-                    A[:, :, i, j] += sum(opmap[opid] for opid in edge.oids)
+                    A[:, :, i, j] += sum(c * opmap[i] for i, c in edge.opics)
             Alist.append(A)
             nids0 = nids1
         assert len(Alist) + 1 == len(qD)
