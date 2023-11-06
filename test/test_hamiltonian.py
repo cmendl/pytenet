@@ -118,6 +118,28 @@ class TestHamiltonian(unittest.TestCase):
             msg='matrix representation of MPO and reference Hamiltonian must match')
 
 
+    def test_molecular_hamiltonian(self):
+
+        rng = np.random.default_rng()
+
+        # number of fermionic modes
+        L = 5
+        # Hamiltonian parameters
+        tkin = ptn.crandn(2 * (L,), rng)
+        vint = ptn.crandn(4 * (L,), rng)
+
+        mpoH = ptn.molecular_hamiltonian_mpo(tkin, vint)
+        # matrix representation, for comparison with reference
+        H = mpoH.as_matrix()
+
+        # reference Hamiltonian
+        Href = construct_molecular_hamiltonian(tkin, vint)
+
+        # compare
+        self.assertTrue(np.allclose(H, Href.todense()),
+            msg='matrix representation of MPO and reference Hamiltonian must match')
+
+
 def construct_ising_hamiltonian(L: int, J: float, h: float, g: float):
     """
     Construct Ising Hamiltonian `sum J sz sz + h sz + g sx`
@@ -254,6 +276,31 @@ def construct_fermi_hubbard_hamiltonian(L: int, t: float, U: float, mu: float):
     for j in range(0, 2*L, 2):
         H += (U * (nlist[j] - 0.5*sparse.identity(4**L)) @ (nlist[j+1] - 0.5*sparse.identity(4**L))
               - mu * (nlist[j] + nlist[j+1]))
+    H.eliminate_zeros()
+    return H
+
+
+def construct_molecular_hamiltonian(tkin, vint):
+    """
+    Construct a molecular Hamiltonian as sparse matrix.
+    """
+    L = tkin.shape[0]
+
+    complex_hamiltonian = np.iscomplexobj(tkin) or np.iscomplexobj(vint)
+    H = sparse.csr_matrix((2**L, 2**L), dtype=(complex if complex_hamiltonian else float))
+
+    clist, alist = generate_fermi_operators(L)
+
+    # kinetic hopping terms
+    for i in range(L):
+        for j in range(L):
+            H += tkin[i, j] * (clist[i] @ alist[j])
+    # interaction terms
+    for i in range(L):
+        for j in range(L):
+            for k in range(L):
+                for l in range(L):
+                    H += 0.5*vint[i, j, k, l] * (clist[i] @ clist[j] @ alist[l] @ alist[k])
     H.eliminate_zeros()
     return H
 
