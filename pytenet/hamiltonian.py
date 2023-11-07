@@ -169,8 +169,8 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
     qd = [(qn[0] << 16) + qn[1] for qn in zip(qN, qS)]
     id2 = np.identity(2)
     # creation and annihilation operators for a single spin and lattice site
-    a_ann = np.array([[0., 1.], [0., 0.]])
     a_dag = np.array([[0., 0.], [1., 0.]])
+    a_ann = np.array([[0., 1.], [0., 0.]])
     # number operator
     numop = np.array([[0., 0.], [0., 1.]])
     # Pauli-Z matrix required for Jordan-Wigner transformation
@@ -242,7 +242,7 @@ def molecular_hamiltonian_mpo(tkin, vint) -> MPO:
             else:
                 (a, p), (b, q) = sorted([(i, 1), (j, -1)])
                 opchains.append(OpChain([p] + (b - a - 1)*[3] + [q],
-                                        [0] + (b - a)*[q - p] + [0], tkin[i, j], a))
+                                        [0] + (b - a)*[p] + [0], tkin[i, j], a))
     # interaction terms v_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k:
     # can anti-commute fermionic operators such that i < j and l < k;
     # global minus sign from Jordan-Wigner transformation
@@ -261,23 +261,23 @@ def molecular_hamiltonian_mpo(tkin, vint) -> MPO:
                         else:
                             # number operator at the beginning
                             oids  = [2] + (c - b - 1)*[0] + [r] + (d - c - 1)*[3] + [s]
-                            qnums = (c - b + 1)*[0] + (d - c)*[s - r] + [0]
+                            qnums = (c - b + 1)*[0] + (d - c)*[r] + [0]
                     elif b == c:
                         # number operator in the middle
                         oids  = [p] + (b - a - 1)*[3] + [2] + (d - c - 1)*[3] + [s]
-                        qnums = [0] + (d - a)*[s - p] + [0]
+                        qnums = [0] + (d - a)*[p] + [0]
                     elif c == d:
                         # number operator at the end
                         oids  = [p] + (b - a - 1)*[3] + [q] + (c - b - 1)*[0] + [2]
-                        qnums = [0] + (b - a)*[q - p] + (c - b + 1)*[0]
+                        qnums = [0] + (b - a)*[p] + (c - b + 1)*[0]
                     else:
                         # generic case: i, j, k, l pairwise different
                         oids  = [p] + (b - a - 1)*[3] + [q] + (c - b - 1)*[0] + [r] + (d - c - 1)*[3] + [s]
-                        qnums = [0] + (b - a)*[-2*p] + (c - b)*[2*(s + r)] + (d - c)*[2*s] + [0]
+                        qnums = [0] + (b - a)*[p] + (c - b)*[p + q] + (d - c)*[-s] + [0]
                     opchains.append(OpChain(oids, qnums, gint[i, j, k, l], a))
     opgraph = OpGraph.from_opchains(opchains, L, 0)
     # convert to MPO
-    H = MPO.from_opgraph([1, -1], opgraph, opmap)
+    H = MPO.from_opgraph([0, 1], opgraph, opmap)
     return H
 
 
