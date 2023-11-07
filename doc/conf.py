@@ -16,17 +16,22 @@
 
 import pytenet
 
+import os
+import sys
+import inspect
+import pkg_resources
+
 
 # -- Project information -----------------------------------------------------
 
 project = 'pytenet'
-copyright = '2018, Christian B. Mendl'
+copyright = '2018 - 2023, Christian B. Mendl'
 author = 'Christian B. Mendl'
 
 # The short X.Y version
-version = '1.0'
+version = '1.1'
 # The full version, including alpha/beta/rc tags
-release = '1.0.1'
+release = '1.1.0'
 
 
 # -- General configuration ---------------------------------------------------
@@ -84,16 +89,44 @@ exclude_patterns = ['_build', '**.ipynb_checkpoints', 'Thumbs.db', '.DS_Store']
 pygments_style = None
 
 
+
 def linkcode_resolve(domain, info):
     """
     Code link resolve function for sphinx.ext.linkcode extension.
     """
-    if domain != "py":
+    # adapted from https://gist.github.com/nlgranger/55ff2e7ff10c280731348a16d569cb73
+
+    if domain != "py" or not info["module"]:
         return None
-    if not info["module"]:
+
+    modname = info["module"]
+    topmodulename = modname.split('.')[0]
+    modpath = pkg_resources.require(topmodulename)[0].location
+
+    module = sys.modules.get(modname)
+    if module is None:
         return None
-    filename = info["module"].replace(".", "/")
-    return f"https://github.com/cmendl/pytenet/blob/master/{filename}.py"
+
+    obj = module
+    fullname = info["fullname"]
+    for part in fullname.split('.'):
+        obj = getattr(obj, part)
+
+    try:
+        filepath = os.path.relpath(inspect.getsourcefile(obj), modpath)
+        if filepath is None:
+            return None
+    except Exception:
+       return None
+
+    try:
+        source, linenum = inspect.getsourcelines(obj)
+    except OSError:
+        return None
+    else:
+        linestart, linestop = linenum, linenum + len(source) - 1
+
+    return f"https://github.com/cmendl/pytenet/tree/master/{filepath}#L{linestart}-L{linestop}"
 
 
 # -- Options for HTML output -------------------------------------------------
