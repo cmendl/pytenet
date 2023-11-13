@@ -11,6 +11,8 @@ API documentation
     pytenet.bond_ops
     pytenet.evolution
     pytenet.hamiltonian
+    pytenet.hopcroft_karp
+    pytenet.hopcroft_karp.HopcroftKarp
     pytenet.krylov
     pytenet.minimization
     pytenet.mpo
