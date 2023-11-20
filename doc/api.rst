@@ -11,8 +11,9 @@ API documentation
     pytenet.bond_ops
     pytenet.evolution
     pytenet.hamiltonian
-    pytenet.hopcroft_karp
-    pytenet.hopcroft_karp.HopcroftKarp
+    pytenet.bipartite_graph
+    pytenet.bipartite_graph.BipartiteGraph
+    pytenet.bipartite_graph.HopcroftKarp
     pytenet.krylov
     pytenet.minimization
     pytenet.mpo

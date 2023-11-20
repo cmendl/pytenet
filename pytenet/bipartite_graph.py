@@ -6,7 +6,7 @@ https://en.wikipedia.org/wiki/Hopcroft%E2%80%93Karp_algorithm
 from queue import Queue
 from collections.abc import Sequence
 
-__all__ = ['BipartiteGraph', 'HopcroftKarp']
+__all__ = ['BipartiteGraph', 'HopcroftKarp', 'minimum_vertex_cover']
 
 
 class BipartiteGraph:
@@ -109,3 +109,51 @@ class HopcroftKarp:
             if self.matched_pairs_u[u] != -1:
                 matching.append((u, self.matched_pairs_u[u]))
         return matching
+
+
+def minimum_vertex_cover(graph: BipartiteGraph):
+    """
+    Find a minimum vertex cover based on Kőnig's theorem.
+    """
+    # maximum matching
+    hk = HopcroftKarp(graph)
+    matching = hk()
+    # unmatched vertices in 'U'
+    alist = set(range(graph.num_u))
+    for (u, _) in matching:
+        alist.discard(u)
+    # cover vertices
+    u_cover = set(range(graph.num_u))
+    v_cover = set()
+    # vertices which are either in 'alist' or are connected to 'alist' by alternating paths
+    for u in alist:
+        u_visited = []
+        v_visited = []
+        _explore_alternating_paths(u, graph, matching, u_visited, v_visited)
+        # remove 'u_visited' from cover set
+        u_cover.difference_update(u_visited)
+        v_cover.update(v_visited)
+    # number of vertices in minimum vertex cover must agree with
+    # maximum-cardinality matching according to Kőnig's theorem
+    assert len(u_cover) + len(v_cover) == len(matching)
+    return sorted(list(u_cover)), sorted(list(v_cover))
+
+
+def _explore_alternating_paths(u_start: int, graph: BipartiteGraph, matching: Sequence[tuple[int, int]],
+                               u_visited: Sequence[int], v_visited: Sequence[int]):
+    """
+    Explore alternating paths originating from 'u_start' by a depth-first search.
+    """
+    if u_start in u_visited:
+        return
+    u_visited.append(u_start)
+    for v in graph.adj_u[u_start]:
+        # traverse only unmatched edges
+        if (u_start, v) not in matching:
+            if v in v_visited:
+                continue
+            v_visited.append(v)
+            for u in graph.adj_v[v]:
+                # traverse only matched edges
+                if (u, v) in matching:
+                    _explore_alternating_paths(u, graph, matching, u_visited, v_visited)

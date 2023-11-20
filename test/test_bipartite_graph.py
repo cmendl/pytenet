@@ -3,15 +3,15 @@ import numpy as np
 import pytenet as ptn
 
 
-class TestHopcroftKarp(unittest.TestCase):
+class TestBipartiteGraph(unittest.TestCase):
 
-    def test(self):
+    def test_hopcroft_karp(self):
 
         rng = np.random.default_rng()
 
         # generate a random bipartite graph
-        num_u = rng.integers(1, 15)
-        num_v = rng.integers(1, 15)
+        num_u = rng.integers(1, 101)
+        num_v = rng.integers(1, 101)
         edges = []
         for u in range(num_u):
             for v in range(num_v):
@@ -41,6 +41,40 @@ class TestHopcroftKarp(unittest.TestCase):
             sms = stochastic_matching_search(graph, rng)
             max_sms_len = max(len(sms), max_sms_len)
         self.assertLessEqual(max_sms_len, len(matching))
+
+
+    def test_minimum_vertex_cover(self):
+
+        rng = np.random.default_rng()
+
+        # generate a random bipartite graph
+        num_u = rng.integers(1, 101)
+        num_v = rng.integers(1, 101)
+        edges = []
+        for u in range(num_u):
+            for v in range(num_v):
+                if rng.uniform() < 0.2:
+                    edges.append((u, v))
+        graph = ptn.BipartiteGraph(num_u, num_v, edges)
+
+        # obtain a minimum vertex cover
+        u_cover, v_cover = ptn.minimum_vertex_cover(graph)
+
+        # range checks
+        for u in u_cover:
+            self.assertTrue(0 <= u < num_u)
+        for v in v_cover:
+            self.assertTrue(0 <= v < num_v)
+
+        # verify that vertices form indeed a vertex cover
+        for (u, v) in edges:
+            self.assertTrue(u in u_cover or v in v_cover)
+
+        # number of vertices in minimum vertex cover must agree with
+        # maximum-cardinality matching according to Kőnig's theorem
+        hopcroft_karp = ptn.HopcroftKarp(graph)
+        matching = hopcroft_karp()
+        self.assertEqual(len(u_cover) + len(v_cover), len(matching))
 
 
 def stochastic_matching_search(graph: ptn.BipartiteGraph, rng: np.random.Generator):
