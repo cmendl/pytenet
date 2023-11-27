@@ -1,8 +1,9 @@
-from collections.abc import Sequence, Mapping
 from itertools import combinations
+from collections.abc import Sequence, Mapping
 import copy
 import numpy as np
 from .opchain import OpChain
+from .bipartite_graph import BipartiteGraph, minimum_vertex_cover
 from .optree import OpTreeEdge, OpTreeNode, OpTree
 
 __all__ = ['OpGraphNode', 'OpGraphEdge', 'OpGraph']
@@ -170,6 +171,110 @@ class OpGraph:
         """
         return self.node_depth(self.nid_terminal[0], 1)
 
+    @classmethod
+    def from_opchains(cls, chains: Sequence[OpChain], length: int, oid_identity: int):
+        """
+        Construct an operator graph from a list of operator chains,
+        implementing the algorithm in:
+            Jiajun Ren, Weitang Li, Tong Jiang, Zhigang Shuai
+            A general automatic method for optimal construction of matrix product operators using bipartite graph theory
+            J. Chem. Phys. 153, 084118 (2020)
+
+        Args:
+            chains: list of operator chains
+            length: overall length of the operator graph
+            oid_identity: operator ID for identity map
+
+        Returns:
+            OpGraph: the constructed operator graph
+        """
+        if not chains:
+            raise ValueError('list of operator chains cannot be empty')
+
+        # construct graph with start node and dummy end node
+        node_start = OpGraphNode(0, [], [], 0)
+        graph = cls([node_start, OpGraphNode(-1, [], [], 0)],
+                    [], [0, -1])
+        nid_next = 1
+        eid_next = 0
+
+        # pad identities and filter out chains with zero coefficients
+        chains = [chain.padded(length, oid_identity) for chain in chains if chain.coeff != 0]
+
+        # convert to half-chains and add a dummy identity operator
+        vlist_next  = [OpHalfchain(chain.oids + [oid_identity], chain.qnums + [0], node_start.nid) for chain in chains]
+        coeffs_next = [chain.coeff for chain in chains]
+
+        # sweep from left to right
+        for _ in range(length):
+
+            ulist, vlist, edges, gamma = _site_partition_halfchains(vlist_next, coeffs_next)
+
+            bigraph = BipartiteGraph(len(ulist), len(vlist), edges)
+            u_cover, v_cover = minimum_vertex_cover(bigraph)
+
+            vlist_next  = []
+            coeffs_next = []
+
+            for i in u_cover:
+                u = ulist[i]
+                # add a new operator edge
+                graph.add_edge(OpGraphEdge(eid_next, [u.nidl, nid_next], [(u.oid, 1.0)]))
+                # connect edge to previous node
+                node_prev = graph.nodes[u.nidl]
+                node_prev.add_edge_id(eid_next, 1)
+                assert node_prev.qnum == u.qnum0
+                # add a new node
+                node = OpGraphNode(nid_next, [eid_next], [], u.qnum1)
+                graph.add_node(node)
+                nid_next += 1
+                eid_next += 1
+                # assemble operator half-chains for next iteration
+                for j in bigraph.adj_u[i]:
+                    vlist_next.append(OpHalfchain(vlist[j].oids, vlist[j].qnums, node.nid))
+                    # pass gamma coefficient
+                    coeffs_next.append(gamma[(i, j)])
+                    # avoid double-counting
+                    edges.remove((i, j))
+
+            for j in v_cover:
+                # add a new node
+                node = OpGraphNode(nid_next, [], [], vlist[j].qnums[0])
+                graph.add_node(node)
+                nid_next += 1
+                # add operator half-chain for next iteration with reference to node
+                vlist_next.append(OpHalfchain(vlist[j].oids, vlist[j].qnums, node.nid))
+                coeffs_next.append(1.0)
+                # create a "complementary operator"
+                for i in bigraph.adj_v[j]:
+                    if (i, j) not in edges:
+                        continue
+                    u = ulist[i]
+                    graph.add_edge(OpGraphEdge(eid_next, [u.nidl, node.nid], [(u.oid, gamma[(i, j)])]))
+                    assert u.qnum1 == node.qnum
+                    # keep track of handled edges
+                    edges.remove((i, j))
+                    # connect edge to previous node
+                    node_prev = graph.nodes[u.nidl]
+                    node_prev.add_edge_id(eid_next, 1)
+                    assert node_prev.qnum == u.qnum0
+                    # connect edge to new node
+                    node.add_edge_id(eid_next, 0)
+                    eid_next += 1
+
+            assert not edges
+
+        # dummy trailing half-chain
+        assert len(vlist_next) == 1
+        assert coeffs_next[0] == 1.0
+
+        # make left node the new end node of the graph
+        graph.nid_terminal[1] = vlist_next[0].nidl
+        graph.remove_node(-1)
+
+        assert graph.is_consistent()
+        return graph
+
     def _insert_opchain(self, nid_start: int, nid_end: int, oids: Sequence[int], coeffs: Sequence[float], qnums: Sequence[int], direction: int):
         """
         Insert an operator chain between two nodes
@@ -198,50 +303,6 @@ class OpGraph:
         self.add_edge(OpGraphEdge(eid_next, [nid_end, node.nid] if direction == 0 else [node.nid, nid_end], [(oids[-1], coeffs[-1])]))
         node = self.nodes[nid_end]
         node.add_edge_id(eid_next, 1-direction)
-
-    @classmethod
-    def from_opchains(cls, chains: Sequence[OpChain], length: int, oid_identity: int):
-        """
-        Construct an operator graph from a list of operator chains.
-
-        Args:
-            chains: list of operator chains
-            length: overall length of the operator graph
-            oid_identity: operator ID for identity map
-
-        Returns:
-            OpGraph: the constructed operator graph
-        """
-        # construct graph with two terminal nodes
-        graph = cls([OpGraphNode(0, [], [], 0),
-                     OpGraphNode(1, [], [], 0)], [], [0, 1])
-        for chain in chains:
-            if chain.istart + chain.length > length:
-                raise ValueError('extent of operator chain cannot be larger than overall length of operator graph')
-            if chain.length == 0:
-                continue
-            if chain.qnums[0] != 0 or chain.qnums[-1] != 0:
-                raise ValueError('expecting quantum number zero at beginning and end of each chain')
-            oids = chain.oids
-            # include coefficient (arbitrarily) with first operator of the chain
-            coeffs = len(chain.oids) * [1.0]
-            coeffs[0] = chain.coeff
-            qnums = chain.qnums
-            if chain.istart > 0:
-                # pad identities before the chain
-                oids   = chain.istart * [oid_identity] + oids
-                coeffs = chain.istart * [1.0] + coeffs
-                qnums  = chain.istart * [qnums[0]] + qnums
-            if len(oids) < length:
-                # pad identities after the chain
-                n = length - len(oids)
-                oids   = oids   + n * [oid_identity]
-                coeffs = coeffs + n * [1.0]
-                qnums  = qnums  + n * [qnums[-1]]
-            assert len(oids) == length
-            graph._insert_opchain(0, 1, oids, coeffs, qnums[1:-1], 1)
-        graph.simplify()
-        return graph
 
     def _insert_subtree(self, tree_root: OpTreeNode, nid_root: int, terminal_dist: int, oid_identity: int):
         """
@@ -599,3 +660,82 @@ def _subgraph_as_matrix(graph: OpGraph, nid: int, opmap: Mapping, direction: int
         # not using += here to allow for "up-casting" to complex entries
         op_sum = op_sum + op
     return op_sum
+
+
+class OpHalfchain:
+    """
+    Operator half-chain, temporary data structure for building
+    an operator graph from a list of operator chains.
+    """
+    def __init__(self, oids: Sequence[int], qnums: Sequence[int], nidl: int):
+        """
+        Create an operator half-chain.
+
+        Args:
+            nidl: ID of left-connected node
+            oids: list of local op_i operator IDs
+            qnums: interleaved bond quantum numbers, including a leading and trailing quantum number
+        """
+        if len(oids) + 1 != len(qnums):
+            raise ValueError('incompatible lengths of operator and quantum number lists')
+        self.oids  = list(oids)
+        self.qnums = list(qnums)
+        self.nidl  = nidl
+
+    def __eq__(self, other) -> bool:
+        """
+        Equality test.
+        """
+        if isinstance(other, OpHalfchain):
+            if self.oids == other.oids and self.qnums == other.qnums and self.nidl == other.nidl:
+                return True
+        return False
+
+
+class UNode:
+    """
+    Store the information of a 'U' node, temporary data structure for building
+    an operator graph from a list of operator chains.
+    """
+    def __init__(self, oid: int, qnum0: int, qnum1: int, nidl: int):
+        self.oid   = oid
+        self.qnum0 = qnum0
+        self.qnum1 = qnum1
+        self.nidl  = nidl
+
+    def __eq__(self, other) -> bool:
+        """
+        Equality test.
+        """
+        if isinstance(other, UNode):
+            return (self.oid, self.qnum0, self.qnum1, self.nidl) == (other.oid, other.qnum0, other.qnum1, other.nidl)
+        return False
+
+
+def _site_partition_halfchains(chains: Sequence[OpHalfchain], coeffs: Sequence[float]):
+    """
+    Repartition half-chains after splitting off the local operators acting on the leftmost site.
+    """
+    ulist = []
+    vlist = []
+    edges = []
+    gamma = {}
+    for chain, coeff in zip(chains, coeffs):
+        # U_i node
+        u = UNode(chain.oids[0], chain.qnums[0], chain.qnums[1], chain.nidl)
+        if u not in ulist:
+            ulist.append(u)
+        i = ulist.index(u)
+        # V_j node
+        v = OpHalfchain(chain.oids[1:], chain.qnums[1:], -1)
+        if v not in vlist:
+            vlist.append(v)
+        j = vlist.index(v)
+        # corresponding edge and gamma coefficient
+        edge = (i, j)
+        if edge in edges:
+            gamma[edge] += coeff
+        else:
+            edges.append(edge)
+            gamma[edge] = coeff
+    return ulist, vlist, edges, gamma

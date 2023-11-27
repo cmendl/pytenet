@@ -38,6 +38,26 @@ class OpChain:
         """
         return len(self.oids)
 
+    def padded(self, length: int, oid_identity: int):
+        """
+        Construct a new OpChain with identities padded on the left and right.
+        """
+        npad_right = length - self.length - self.istart
+        assert npad_right >= 0
+        return OpChain(self.istart*[oid_identity] + self.oids  + npad_right*[oid_identity],
+                       self.istart*[0]            + self.qnums + npad_right*[0],
+                       self.coeff, 0)
+
+    def __eq__(self, other) -> bool:
+        """
+        Equality test.
+        """
+        if isinstance(other, OpChain):
+            if (self.oids  == other.oids  and self.qnums  == other.qnums and
+                self.coeff == other.coeff and self.istart == other.istart):
+                return True
+        return False
+
     def as_matrix(self, opmap: Mapping) -> np.ndarray:
         """
         Represent the logical operation of the operator chain as a matrix.

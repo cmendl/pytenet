@@ -123,12 +123,23 @@ class TestHamiltonian(unittest.TestCase):
         rng = np.random.default_rng()
 
         # number of fermionic modes
-        L = 5
+        L = 7
         # Hamiltonian parameters
         tkin = ptn.crandn(2 * (L,), rng)
         vint = ptn.crandn(4 * (L,), rng)
 
         mpoH = ptn.molecular_hamiltonian_mpo(tkin, vint)
+        # theoretically predicted virtual bond dimension
+        D_theo = []
+        for i in range(L + 1):
+            nl = i
+            nr = L - i
+            n = min(nl, nr)
+            D1 = 2 if 1 < i < L - 1 else 1
+            D2 = n**2 + 2 * n * (n - 1) // 2
+            D3 = 2 * min(nl**2 * (nl - 1) // 2, nr) + 2 * min(nl, nr**2 * (nr - 1) // 2)
+            D_theo.append(D1 + D2 + D3)
+        self.assertEqual(mpoH.bond_dims, D_theo)
         # matrix representation, for comparison with reference
         H = mpoH.as_matrix()
 
