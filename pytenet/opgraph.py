@@ -672,14 +672,14 @@ class OpHalfchain:
         Create an operator half-chain.
 
         Args:
-            nidl: ID of left-connected node
             oids: list of local op_i operator IDs
             qnums: interleaved bond quantum numbers, including a leading and trailing quantum number
+            nidl: ID of left-connected node
         """
         if len(oids) + 1 != len(qnums):
             raise ValueError('incompatible lengths of operator and quantum number lists')
-        self.oids  = list(oids)
-        self.qnums = list(qnums)
+        self.oids  = tuple(oids)
+        self.qnums = tuple(qnums)
         self.nidl  = nidl
 
     def __eq__(self, other) -> bool:
@@ -691,6 +691,12 @@ class OpHalfchain:
                 return True
         return False
 
+    def __hash__(self):
+        """
+        Generate a hash value of the operator half-chain.
+        """
+        return hash((self.oids, self.qnums, self.nidl))
+
 
 class UNode:
     """
@@ -698,6 +704,15 @@ class UNode:
     an operator graph from a list of operator chains.
     """
     def __init__(self, oid: int, qnum0: int, qnum1: int, nidl: int):
+        """
+        Create a 'U' node.
+
+        Args:
+            oid: local operator ID
+            qnum0: left quantum number
+            qnum1: right quantum number
+            nidl: ID of left-connected node
+        """
         self.oid   = oid
         self.qnum0 = qnum0
         self.qnum1 = qnum1
@@ -718,6 +733,7 @@ def _site_partition_halfchains(chains: Sequence[OpHalfchain], coeffs: Sequence[f
     """
     ulist = []
     vlist = []
+    v_set = set() # entries of 'vlist' stored in a set for faster lookup
     edges = []
     gamma = {}
     for chain, coeff in zip(chains, coeffs):
@@ -725,12 +741,17 @@ def _site_partition_halfchains(chains: Sequence[OpHalfchain], coeffs: Sequence[f
         u = UNode(chain.oids[0], chain.qnums[0], chain.qnums[1], chain.nidl)
         if u not in ulist:
             ulist.append(u)
-        i = ulist.index(u)
+            i = len(ulist) - 1
+        else:
+            i = ulist.index(u)
         # V_j node
         v = OpHalfchain(chain.oids[1:], chain.qnums[1:], -1)
-        if v not in vlist:
+        if v not in v_set:
+            v_set.add(v)
             vlist.append(v)
-        j = vlist.index(v)
+            j = len(vlist) - 1
+        else:
+            j = vlist.index(v)
         # corresponding edge and gamma coefficient
         edge = (i, j)
         if edge in edges:
