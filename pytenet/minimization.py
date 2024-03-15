@@ -63,7 +63,7 @@ def calculate_ground_state_local_singlesite(H: MPO, psi: MPS, numsweeps: int, nu
             psi.A[i], psi.A[i+1], psi.qD[i+1] = local_orthonormalize_left_qr(
                                         psi.A[i], psi.A[i+1], psi.qd, psi.qD[i:i+2])
             # update the left blocks
-            BL[i+1] = contraction_operator_step_left(psi.A[i], H.A[i], BL[i])
+            BL[i+1] = contraction_operator_step_left(psi.A[i], psi.A[i], H.A[i], BL[i])
 
         # sweep from right to left
         for i in reversed(range(1, L)):
@@ -72,7 +72,7 @@ def calculate_ground_state_local_singlesite(H: MPO, psi: MPS, numsweeps: int, nu
             psi.A[i], psi.A[i-1], psi.qD[i] = local_orthonormalize_right_qr(
                                         psi.A[i], psi.A[i-1], psi.qd, psi.qD[i:i+2])
             # update the right blocks
-            BR[i-1] = contraction_operator_step_right(psi.A[i], H.A[i], BR[i])
+            BR[i-1] = contraction_operator_step_right(psi.A[i], psi.A[i], H.A[i], BR[i])
 
         # right-normalize leftmost tensor to ensure that 'psi' is normalized
         psi.A[0], _, psi.qD[0] = local_orthonormalize_right_qr(
@@ -138,7 +138,7 @@ def calculate_ground_state_local_twosite(H: MPO, psi: MPS, numsweeps: int, numit
             # split Am
             psi.A[i], psi.A[i+1], psi.qD[i+1] = split_mps_tensor(Am, psi.qd, psi.qd, [psi.qD[i], psi.qD[i+2]], 'right', tol=tol_split)
             # update the left blocks
-            BL[i+1] = contraction_operator_step_left(psi.A[i], H.A[i], BL[i])
+            BL[i+1] = contraction_operator_step_left(psi.A[i], psi.A[i], H.A[i], BL[i])
 
         # sweep from right to left
         for i in reversed(range(L - 1)):
@@ -150,7 +150,7 @@ def calculate_ground_state_local_twosite(H: MPO, psi: MPS, numsweeps: int, numit
             # split Am
             psi.A[i], psi.A[i+1], psi.qD[i+1] = split_mps_tensor(Am, psi.qd, psi.qd, [psi.qD[i], psi.qD[i+2]], 'left', tol=tol_split)
             # update the right blocks
-            BR[i] = contraction_operator_step_right(psi.A[i+1], H.A[i+1], BR[i+1])
+            BR[i] = contraction_operator_step_right(psi.A[i+1], psi.A[i+1], H.A[i+1], BR[i+1])
 
         # right-normalize leftmost tensor to ensure that 'psi' is normalized
         psi.A[0], _, psi.qD[0] = local_orthonormalize_right_qr(

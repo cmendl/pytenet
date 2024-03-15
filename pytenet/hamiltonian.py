@@ -290,7 +290,8 @@ def _local_opchains_to_mpo(qd: Sequence[int], lopchains: Sequence[OpChain], size
         qd: physical quantum numbers at each site
         lopchains: local operator chains
         size: system size, i.e., number of lattice sites
-        opmap:
+        opmap: local operators as dictionary, using operator IDs as keys
+        oid_identity: operator ID for identity map
 
     Returns:
         MPO: Hamiltonian as MPO

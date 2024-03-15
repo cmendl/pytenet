@@ -83,7 +83,7 @@ class TestOperation(unittest.TestCase):
         self.assertAlmostEqual(err, 0., delta=1e-12, msg='operator average must match reference value')
 
         # represent a density matrix as random matrix product operator
-        # (Hermition property not relevant here)
+        # (Hermitian property not relevant here)
         D = [1, 3, 7, 6, 11, 5, 1]
         # set bond quantum numbers to zero since otherwise,
         # sparsity pattern often leads to <psi | op | psi> = 0
