@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytenet"
-version = "1.1.0"
+version = "1.2.0"
 description = "Tensor network library for quantum simulations"
 readme = "README.rst"
 authors = [{ name = "Christian B. Mendl", email = "christian.b.mendl@gmail.com" }]
