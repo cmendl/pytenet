@@ -1,7 +1,8 @@
 from itertools import combinations
-from collections.abc import Sequence, Mapping
+from collections.abc import Sequence, Mapping, Callable
 import copy
 import numpy as np
+from .autop import AutOp
 from .opchain import OpChain
 from .bipartite_graph import BipartiteGraph, minimum_vertex_cover
 from .optree import OpTreeEdge, OpTreeNode, OpTree
@@ -105,6 +106,9 @@ class OpGraphEdge:
 class OpGraph:
     """
     Operator graph: internal data structure for generating MPO representations.
+
+    The layout consists of alternating layers of nodes (corresponding to virtual bonds)
+    and edges (corresponding to local operators in the MPO tensors).
     """
     def __init__(self, nodes: Sequence[OpGraphNode], edges: Sequence[OpGraphEdge], nid_terminal: Sequence[int]):
         # dictionary of nodes
@@ -144,6 +148,16 @@ class OpGraph:
             raise ValueError(f'edge with ID {edge.eid} already exists')
         self.edges[edge.eid] = edge
 
+    def add_connect_edge(self, edge: OpGraphEdge):
+        """
+        Add an edge to the graph, and connect nodes referenced by the edge to it.
+        """
+        self.add_edge(edge)
+        # connect nodes back to edge
+        for direction in (0, 1):
+            if edge.nids[direction] in self.nodes:
+                self.nodes[edge.nids[direction]].add_edge_id(edge.eid, 1-direction)
+
     def remove_edge(self, eid: int) -> OpGraphEdge:
         """
         Remove an edge from the graph, and return the removed edge.
@@ -170,6 +184,75 @@ class OpGraph:
         Length of the graph (distance between terminal nodes).
         """
         return self.node_depth(self.nid_terminal[0], 1)
+
+    @classmethod
+    def from_automaton(cls, autop: AutOp, length: int):
+        """
+        Construct an operator graph from a state automaton.
+        """
+        if length < 1:
+            raise ValueError('length must at least be 1')
+        # determine active nodes at each layer
+        nids_active_dir = []
+        for direction in (0, 1):
+            nids_active_d = [set([autop.nid_terminal[1 - direction]])]
+            for i in (range(length) if direction == 1 else reversed(range(length))):
+                # follow edges in current direction
+                nids_prev = nids_active_d[-1 if direction == 1 else 0]
+                nids_curr = set()
+                for nid in nids_prev:
+                    for eid in autop.nodes[nid].eids[direction]:
+                        edge = autop.edges[eid]
+                        edge_active = edge.active(i) if isinstance(edge.active, Callable) else edge.active
+                        if edge_active:
+                            nids_curr.add(edge.nids[direction])
+                if direction == 1:
+                    nids_active_d.append(nids_curr)
+                else:
+                    nids_active_d = [nids_curr] + nids_active_d
+            nids_active_dir.append(nids_active_d)
+        # a node is marked as active if it is connected to both terminal nodes
+        nids_active = [sorted(list(s0 & s1)) for s0, s1 in zip(nids_active_dir[0], nids_active_dir[1])]
+        assert len(nids_active) == length + 1
+        assert nids_active[ 0] == [autop.nid_terminal[0]]
+        assert nids_active[-1] == [autop.nid_terminal[1]]
+        # construct graph with start node and dummy end node
+        node_start = OpGraphNode(0, [], [], autop.nodes[autop.nid_terminal[0]].qnum)
+        graph = cls([node_start, OpGraphNode(-1, [], [], 0)],
+                    [], [0, -1])
+        nid_next = 1
+        eid_next = 0
+        # map active node IDs form automaton to node IDs of graph, arranged by node layers and index
+        nids_map = []
+        nids_map.append([node_start.nid])
+        # sweep from left to right and add nodes and edges
+        for i in range(length):
+            nids_map_layer = []
+            for node_autop in [autop.nodes[nid_autop] for nid_autop in nids_active[i + 1]]:
+                node = OpGraphNode(nid_next, [], [], node_autop.qnum)
+                graph.add_node(node)
+                nids_map_layer.append(node.nid)
+                nid_next += 1
+                # insert edges connected to the node on the left
+                for edge_autop in [autop.edges[eid] for eid in node_autop.eids[0]]:
+                    edge_active = edge_autop.active(i) if isinstance(edge_autop.active, Callable) else edge_autop.active
+                    if not edge_active:
+                        continue
+                    if edge_autop.nids[0] not in nids_active[i]:
+                        continue
+                    idx = nids_active[i].index(edge_autop.nids[0])
+                    nid_prev = nids_map[i][idx]
+                    # add a new edge
+                    opics = edge_autop.opics(i) if isinstance(edge_autop.opics, Callable) else edge_autop.opics
+                    edge = OpGraphEdge(eid_next, [nid_prev, node.nid], opics)
+                    graph.add_connect_edge(edge)
+                    eid_next += 1
+            nids_map.append(nids_map_layer)
+        # make last node the new end node of the graph
+        graph.nid_terminal[1] = max(graph.nodes.keys())
+        graph.remove_node(-1)
+        assert graph.is_consistent()
+        return graph
 
     @classmethod
     def from_opchains(cls, chains: Sequence[OpChain], length: int, oid_identity: int):
@@ -289,20 +372,14 @@ class OpGraph:
         eid_next = max(self.edges.keys(), default=0) + 1
         node = self.nodes[nid_start]
         for oid, coeff, qnum in zip(oids[:-1], coeffs[:-1], qnums):
-            node.add_edge_id(eid_next, direction)
-            self.add_edge(OpGraphEdge(eid_next, [nid_next, node.nid] if direction == 0 else [node.nid, nid_next], [(oid, coeff)]))
-            node = OpGraphNode(nid_next,
-                               [] if direction == 0 else [eid_next],
-                               [eid_next] if direction == 0 else [],
-                               qnum)
+            edge = OpGraphEdge(eid_next, [nid_next, node.nid] if direction == 0 else [node.nid, nid_next], [(oid, coeff)])
+            node = OpGraphNode(nid_next, [], [], qnum)
             self.add_node(node)
+            self.add_connect_edge(edge)
             nid_next += 1
             eid_next += 1
         # last step
-        node.add_edge_id(eid_next, direction)
-        self.add_edge(OpGraphEdge(eid_next, [nid_end, node.nid] if direction == 0 else [node.nid, nid_end], [(oids[-1], coeffs[-1])]))
-        node = self.nodes[nid_end]
-        node.add_edge_id(eid_next, 1-direction)
+        self.add_connect_edge(OpGraphEdge(eid_next, [nid_end, node.nid] if direction == 0 else [node.nid, nid_end], [(oids[-1], coeffs[-1])]))
 
     def _insert_subtree(self, tree_root: OpTreeNode, nid_root: int, terminal_dist: int, oid_identity: int):
         """

@@ -3,6 +3,7 @@ from collections.abc import Sequence, Mapping
 import numpy as np
 from .mpo import MPO
 from .opchain import OpChain
+from .autop import AutOpNode, AutOpEdge, AutOp
 from .opgraph import OpGraph
 
 __all__ = ['ising_mpo', 'heisenberg_xxz_mpo', 'heisenberg_xxz_spin1_mpo', 'bose_hubbard_mpo', 'fermi_hubbard_mpo', 'molecular_hamiltonian_mpo']
@@ -32,11 +33,30 @@ def ising_mpo(L: int, J: float, h: float, g: float) -> MPO:
         0: np.identity(2),
         1: sigma_z,
         2: h*sigma_z + g*sigma_x }
-    # local two-site and single-site terms
-    lopchains = [OpChain([1, 1], [0, 0, 0], J,   0),
-                 OpChain([2   ], [0, 0   ], 1.0, 0)]
-    # convert to MPO
-    return _local_opchains_to_mpo(qd, lopchains, L, opmap, 0)
+    # operator state automaton:
+    #
+    #     ___   __Z__o__Z__   ___
+    #    / > \ /  >     >  \ / > \
+    #  I|     o             o     |I
+    #    \_<_/ \_____>_____/ \_<_/
+    #            h Z + g X
+    #
+    node_term0 = AutOpNode(0, [], [], 0)
+    node_term1 = AutOpNode(1, [], [], 0)
+    node_z     = AutOpNode(2, [], [], 0)
+    autop = AutOp([node_term0, node_term1, node_z], [], [node_term0.nid, node_term1.nid])
+    # identities looping around terminal nodes
+    autop.add_connect_edge(AutOpEdge(0, [node_term0.nid, node_term0.nid], [(0, 1.)]))
+    autop.add_connect_edge(AutOpEdge(1, [node_term1.nid, node_term1.nid], [(0, 1.)]))
+    # Z Z terms
+    autop.add_connect_edge(AutOpEdge(2, [node_term0.nid,     node_z.nid], [(1, J )]))
+    autop.add_connect_edge(AutOpEdge(3, [node_z.nid,     node_term1.nid], [(1, 1.)]))
+    # h Z + g X terms
+    autop.add_connect_edge(AutOpEdge(4, [node_term0.nid, node_term1.nid], [(2, 1.)]))
+    assert autop.is_consistent()
+    # convert to a graph and then to an MPO
+    graph = OpGraph.from_automaton(autop, L)
+    return MPO.from_opgraph(qd, graph, opmap)
 
 
 def heisenberg_xxz_mpo(L: int, J: float, D: float, h: float) -> MPO:
