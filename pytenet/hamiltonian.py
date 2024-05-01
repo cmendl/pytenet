@@ -4,7 +4,7 @@ import numpy as np
 from .mpo import MPO
 from .opchain import OpChain
 from .autop import AutOpNode, AutOpEdge, AutOp
-from .opgraph import OpGraph
+from .opgraph import OpGraphNode, OpGraphEdge, OpGraph
 
 __all__ = ['ising_mpo', 'heisenberg_xxz_mpo', 'heisenberg_xxz_spin1_mpo', 'bose_hubbard_mpo', 'fermi_hubbard_mpo', 'molecular_hamiltonian_mpo']
 
@@ -228,13 +228,14 @@ def molecular_hamiltonian_mpo(tkin, vint) -> MPO:
 
     .. math::
 
-        H = c + \sum_{i,j} t_{i,j} a^{\dagger}_i a_j + \\frac{1}{2} \sum_{i,j,k,\ell} v_{i,j,k,\ell} a^{\dagger}_i a^{\dagger}_j a_{\ell} a_k
+        H = \sum_{i,j} t_{i,j} a^{\dagger}_i a_j + \\frac{1}{2} \sum_{i,j,k,\ell} v_{i,j,k,\ell} a^{\dagger}_i a^{\dagger}_j a_{\ell} a_k
     """
     tkin = np.asarray(tkin)
     vint = np.asarray(vint)
     L = tkin.shape[0]
     assert tkin.shape == (L, L)
     assert vint.shape == (L, L, L, L)
+    assert L >= 4
 
     # local operators
     # creation and annihilation operators for a single spin and lattice site
@@ -252,53 +253,406 @@ def molecular_hamiltonian_mpo(tkin, vint) -> MPO:
          2: numop,
          3: Z }
 
-    opchains = []
-    # kinetic hopping terms t_{i,j} a^{\dagger}_i a_j
-    for i in range(L):
-        for j in range(L):
-            if i == j:
-                # diagonal hopping term
-                opchains.append(OpChain([2], [0, 0], tkin[i, i], i))
-            else:
-                (a, p), (b, q) = sorted([(i, 1), (j, -1)])
-                opchains.append(OpChain([p] + (b - a - 1)*[3] + [q],
-                                        [0] + (b - a)*[p] + [0], tkin[i, j], a))
-    # interaction terms v_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k:
+    # interaction terms 1/2 \sum_{i,j,k,l} v_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k:
     # can anti-commute fermionic operators such that i < j and l < k;
-    # global minus sign from Jordan-Wigner transformation
+    # global minus sign from Jordan-Wigner transformation, since a Z = -a
     gint = -0.5 * (vint - np.transpose(vint, (1, 0, 2, 3)) - np.transpose(vint, (0, 1, 3, 2)) + np.transpose(vint, (1, 0, 3, 2)))
-    for i in range(L):
-        for j in range(i + 1, L):   # i < j
-            for k in range(L):
-                for l in range(k):  # l < k
-                    (a, p), (b, q), (c, r), (d, s) = sorted([(i, 1), (j, 1), (l, -1), (k, -1)])
-                    if a == b:
-                        assert b < c
-                        if c == d:
-                            # two number operators
-                            oids  = [2] + (c - b - 1)*[0] + [2]
-                            qnums = (c - b + 2)*[0]
-                        else:
-                            # number operator at the beginning
-                            oids  = [2] + (c - b - 1)*[0] + [r] + (d - c - 1)*[3] + [s]
-                            qnums = (c - b + 1)*[0] + (d - c)*[r] + [0]
-                    elif b == c:
-                        # number operator in the middle
-                        oids  = [p] + (b - a - 1)*[3] + [2] + (d - c - 1)*[3] + [s]
-                        qnums = [0] + (d - a)*[p] + [0]
-                    elif c == d:
-                        # number operator at the end
-                        oids  = [p] + (b - a - 1)*[3] + [q] + (c - b - 1)*[0] + [2]
-                        qnums = [0] + (b - a)*[p] + (c - b + 1)*[0]
-                    else:
-                        # generic case: i, j, k, l pairwise different
-                        oids  = [p] + (b - a - 1)*[3] + [q] + (c - b - 1)*[0] + [r] + (d - c - 1)*[3] + [s]
-                        qnums = [0] + (b - a)*[p] + (c - b)*[p + q] + (d - c)*[-s] + [0]
-                    opchains.append(OpChain(oids, qnums, gint[i, j, k, l], a))
-    opgraph = OpGraph.from_opchains(opchains, L, 0)
-    # convert to MPO
-    H = MPO.from_opgraph([0, 1], opgraph, opmap)
-    return H
+
+    # nodes
+    nid_next = 0
+    # identity chains from the left and right
+    nodes_identity_l = {}
+    nodes_identity_r = {}
+    for i in range(L - 1):
+        nodes_identity_l[i] = OpGraphNode(nid_next, [], [], 0)
+        nid_next += 1
+    for i in range(2, L + 1):
+        nodes_identity_r[i] = OpGraphNode(nid_next, [], [], 0)
+        nid_next += 1
+    # a^{\dagger}_i operators connected to left terminal
+    nodes_a_dag_l = {}
+    for i in range(L - 2):
+        nodes_a_dag_l[i] = {}
+        for j in range(i + 1, L - 1):
+            nodes_a_dag_l[i][j] = OpGraphNode(nid_next, [], [], 1)
+            nid_next += 1
+    # a_i operators connected to left terminal
+    nodes_a_ann_l = {}
+    for i in range(L - 2):
+        nodes_a_ann_l[i] = {}
+        for j in range(i + 1, L - 1):
+            nodes_a_ann_l[i][j] = OpGraphNode(nid_next, [], [], -1)
+            nid_next += 1
+    # a^{\dagger}_i a^{\dagger}_j operators connected to left terminal
+    nodes_a_dag_a_dag_l = {}
+    for i in range(L//2 - 1):
+        for j in range(i + 1, L//2):
+            nodes_a_dag_a_dag_l[i, j] = {}
+            for k in range(j + 1, L//2 + 1):
+                nodes_a_dag_a_dag_l[i, j][k] = OpGraphNode(nid_next, [], [], 2)
+                nid_next += 1
+    # a_i a_j operators connected to left terminal
+    nodes_a_ann_a_ann_l = {}
+    for i in range(L//2 - 1):
+        for j in range(i + 1, L//2):
+            nodes_a_ann_a_ann_l[i, j] = {}
+            for k in range(j + 1, L//2 + 1):
+                nodes_a_ann_a_ann_l[i, j][k] = OpGraphNode(nid_next, [], [], -2)
+                nid_next += 1
+    # a^{\dagger}_i a_j operators connected to left terminal
+    nodes_a_dag_a_ann_l = {}
+    for i in range(L//2):
+        for j in range(L//2):
+            nodes_a_dag_a_ann_l[i, j] = {}
+            for k in range(max(i, j) + 1, L//2 + 1):
+                nodes_a_dag_a_ann_l[i, j][k] = OpGraphNode(nid_next, [], [], 0)
+                nid_next += 1
+    # a^{\dagger}_i operators connected to right terminal
+    nodes_a_dag_r = {}
+    for i in range(2, L):
+        nodes_a_dag_r[i] = {}
+        for j in range(2, i + 1):
+            nodes_a_dag_r[i][j] = OpGraphNode(nid_next, [], [], -1)
+            nid_next += 1
+    # a_i operators connected to right terminal
+    nodes_a_ann_r = {}
+    for i in range(2, L):
+        nodes_a_ann_r[i] = {}
+        for j in range(2, i + 1):
+            nodes_a_ann_r[i][j] = OpGraphNode(nid_next, [], [], 1)
+            nid_next += 1
+    # a^{\dagger}_i a^{\dagger}_j operators connected to right terminal
+    nodes_a_dag_a_dag_r = {}
+    for i in range(L//2 + 1, L - 1):
+        for j in range(i + 1, L):
+            nodes_a_dag_a_dag_r[i, j] = {}
+            for k in range(L//2 + 1, i + 1):
+                nodes_a_dag_a_dag_r[i, j][k] = OpGraphNode(nid_next, [], [], -2)
+                nid_next += 1
+    # a_i a_j operators connected to right terminal
+    nodes_a_ann_a_ann_r = {}
+    for i in range(L//2 + 1, L - 1):
+        for j in range(i + 1, L):
+            nodes_a_ann_a_ann_r[i, j] = {}
+            for k in range(L//2 + 1, i + 1):
+                nodes_a_ann_a_ann_r[i, j][k] = OpGraphNode(nid_next, [], [], 2)
+                nid_next += 1
+    # a^{\dagger}_i a_j operators connected to right terminal
+    nodes_a_dag_a_ann_r = {}
+    for i in range(L//2 + 1, L):
+        for j in range(L//2 + 1, L):
+            nodes_a_dag_a_ann_r[i, j] = {}
+            for k in range(L//2 + 1, min(i, j) + 1):
+                nodes_a_dag_a_ann_r[i, j][k] = OpGraphNode(nid_next, [], [], 0)
+                nid_next += 1
+
+    # initialize graph with nodes
+    graph = OpGraph(list(nodes_identity_l.values()) +
+                    list(nodes_identity_r.values()) +
+                    [node for nodes in nodes_a_dag_l.values() for node in nodes.values()] +
+                    [node for nodes in nodes_a_ann_l.values() for node in nodes.values()] +
+                    [node for nodes in nodes_a_dag_r.values() for node in nodes.values()] +
+                    [node for nodes in nodes_a_ann_r.values() for node in nodes.values()] +
+                    [node for nodes in nodes_a_dag_a_dag_l.values() for node in nodes.values()] +
+                    [node for nodes in nodes_a_ann_a_ann_l.values() for node in nodes.values()] +
+                    [node for nodes in nodes_a_dag_a_ann_l.values() for node in nodes.values()] +
+                    [node for nodes in nodes_a_dag_a_dag_r.values() for node in nodes.values()] +
+                    [node for nodes in nodes_a_ann_a_ann_r.values() for node in nodes.values()] +
+                    [node for nodes in nodes_a_dag_a_ann_r.values() for node in nodes.values()],
+                    [], [nodes_identity_l[0].nid, nodes_identity_r[L].nid])
+
+    # edges
+    eid_next = 0
+    # identities connected to left and right terminals
+    for i in range(L - 2):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [nodes_identity_l[i].nid, nodes_identity_l[i + 1].nid], [(0, 1.)]))
+        eid_next += 1
+    for i in range(2, L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [nodes_identity_r[i].nid, nodes_identity_r[i + 1].nid], [(0, 1.)]))
+        eid_next += 1
+    # a^{\dagger}_i operators connected to left terminal
+    for i in range(L - 2):
+        j = i + 1
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [nodes_identity_l[j - 1].nid, nodes_a_dag_l[i][j].nid], [(1, 1.)]))
+        eid_next += 1
+        # Z operator from Jordan-Wigner transformation
+        for j in range(i + 2, L - 1):
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_a_dag_l[i][j - 1].nid, nodes_a_dag_l[i][j].nid], [(3, 1.)]))
+            eid_next += 1
+    # a_i operators connected to left terminal
+    for i in range(L - 2):
+        j = i + 1
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [nodes_identity_l[j - 1].nid, nodes_a_ann_l[i][j].nid], [(-1, 1.)]))
+        eid_next += 1
+        # Z operator from Jordan-Wigner transformation
+        for j in range(i + 2, L - 1):
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_a_ann_l[i][j - 1].nid, nodes_a_ann_l[i][j].nid], [(3, 1.)]))
+            eid_next += 1
+    # a^{\dagger}_i a^{\dagger}_j operators connected to left terminal
+    for i in range(L//2 - 1):
+        for j in range(i + 1, L//2):
+            k = j + 1
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_a_dag_l[i][k - 1].nid, nodes_a_dag_a_dag_l[i, j][k].nid], [(1, 1.)]))
+            eid_next += 1
+            # identities for transition to next site
+            for k in range(j + 2, L//2 + 1):
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_dag_a_dag_l[i, j][k - 1].nid, nodes_a_dag_a_dag_l[i, j][k].nid], [(0, 1.)]))
+                eid_next += 1
+    # a_i a_j operators connected to left terminal
+    for i in range(L//2 - 1):
+        for j in range(i + 1, L//2):
+            k = j + 1
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_a_ann_l[i][k - 1].nid, nodes_a_ann_a_ann_l[i, j][k].nid], [(-1, 1.)]))
+            eid_next += 1
+            # identities for transition to next site
+            for k in range(j + 2, L//2 + 1):
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_ann_a_ann_l[i, j][k - 1].nid, nodes_a_ann_a_ann_l[i, j][k].nid], [(0, 1.)]))
+                eid_next += 1
+    # a^{\dagger}_i a_j operators connected to left terminal
+    for i in range(L//2):
+        for j in range(L//2):
+            if i < j:
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_dag_l[i][j].nid, nodes_a_dag_a_ann_l[i, j][j + 1].nid], [(-1, 1.)]))
+                eid_next += 1
+            elif i == j:
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_identity_l[i].nid, nodes_a_dag_a_ann_l[i, j][i + 1].nid], [(2, 1.)]))
+                eid_next += 1
+            else:  # i > j
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_ann_l[j][i].nid, nodes_a_dag_a_ann_l[i, j][i + 1].nid], [(1, 1.)]))
+                eid_next += 1
+            # identities for transition to next site
+            for k in range(max(i, j) + 2, L//2 + 1):
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, j][k - 1].nid, nodes_a_dag_a_ann_l[i, j][k].nid], [(0, 1.)]))
+                eid_next += 1
+    # a^{\dagger}_i operators connected to right terminal
+    for i in range(2, L):
+        # Z operator from Jordan-Wigner transformation
+        for j in range(2, i):
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_a_dag_r[i][j].nid, nodes_a_dag_r[i][j + 1].nid], [(3, 1.)]))
+            eid_next += 1
+        j = i
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [nodes_a_dag_r[i][j].nid, nodes_identity_r[j + 1].nid], [(1, 1.)]))
+        eid_next += 1
+    # a_i operators connected to right terminal
+    for i in range(2, L):
+        # Z operator from Jordan-Wigner transformation
+        for j in range(2, i):
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_a_ann_r[i][j].nid, nodes_a_ann_r[i][j + 1].nid], [(3, 1.)]))
+            eid_next += 1
+        j = i
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [nodes_a_ann_r[i][j].nid, nodes_identity_r[j + 1].nid], [(-1, 1.)]))
+        eid_next += 1
+    # a^{\dagger}_i a^{\dagger}_j operators connected to right terminal
+    for i in range(L//2 + 1, L - 1):
+        for j in range(i + 1, L):
+            # identities for transition to next site
+            for k in range(L//2 + 1, i):
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_dag_a_dag_r[i, j][k].nid, nodes_a_dag_a_dag_r[i, j][k + 1].nid], [(0, 1.)]))
+                eid_next += 1
+            k = i
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_a_dag_a_dag_r[i, j][k].nid, nodes_a_dag_r[j][k + 1].nid], [(1, 1.)]))
+            eid_next += 1
+    # a_i a_j operators connected to right terminal
+    for i in range(L//2 + 1, L - 1):
+        for j in range(i + 1, L):
+            # identities for transition to next site
+            for k in range(L//2 + 1, i):
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_ann_a_ann_r[i, j][k].nid, nodes_a_ann_a_ann_r[i, j][k + 1].nid], [(0, 1.)]))
+                eid_next += 1
+            k = i
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_a_ann_a_ann_r[i, j][k].nid, nodes_a_ann_r[j][k + 1].nid], [(-1, 1.)]))
+            eid_next += 1
+    # a^{\dagger}_i a_j operators connected to right terminal
+    for i in range(L//2 + 1, L):
+        for j in range(L//2 + 1, L):
+            # identities for transition to next site
+            for k in range(L//2 + 1, min(i, j)):
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_dag_a_ann_r[i, j][k].nid, nodes_a_dag_a_ann_r[i, j][k + 1].nid], [(0, 1.)]))
+                eid_next += 1
+            if i < j:
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_dag_a_ann_r[i, j][i].nid, nodes_a_ann_r[j][i + 1].nid], [(1, 1.)]))
+                eid_next += 1
+            elif i == j:
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_dag_a_ann_r[i, j][i].nid, nodes_identity_r[i + 1].nid], [(2, 1.)]))
+                eid_next += 1
+            else:  # i > j
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_dag_a_ann_r[i, j][j].nid, nodes_a_dag_r[i][j + 1].nid], [(-1, 1.)]))
+                eid_next += 1
+    # diagonal kinetic terms t_{i,i} n_i
+    for i in range(L//2):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, i][i + 1].nid, nodes_identity_r[i + 2].nid], [(0, tkin[i, i])]))
+        eid_next += 1
+    for i in range(L//2 + 1, L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [nodes_identity_l[i - 1].nid, nodes_a_dag_a_ann_r[i, i][i].nid], [(0, tkin[i, i])]))
+        eid_next += 1
+    graph.add_connect_edge(
+        OpGraphEdge(eid_next, [nodes_identity_l[L//2].nid, nodes_identity_r[L//2 + 1].nid], [(2, tkin[L//2, L//2])]))
+    eid_next += 1
+    # t_{i,j} a^{\dagger}_i a_j terms, for i < j
+    for i in range(L//2):
+        for j in range(i + 1, L//2 + 1):
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_a_dag_l[i][j].nid, nodes_identity_r[j + 1].nid], [(-1, tkin[i, j])]))
+            eid_next += 1
+    for j in range(L//2 + 1, L):
+        for i in range(L//2, j):
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_identity_l[i].nid, nodes_a_ann_r[j][i + 1].nid], [(1, tkin[i, j])]))
+            eid_next += 1
+    for i in range(L//2):
+        for j in range(L//2 + 1, L):
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_a_dag_l[i][L//2].nid, nodes_a_ann_r[j][L//2 + 1].nid], [(3, tkin[i, j])]))
+            eid_next += 1
+    # t_{i,j} a^{\dagger}_i a_j terms, for i > j
+    for j in range(L//2):
+        for i in range(j + 1, L//2 + 1):
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_a_ann_l[j][i].nid, nodes_identity_r[i + 1].nid], [(1, tkin[i, j])]))
+            eid_next += 1
+    for i in range(L//2 + 1, L):
+        for j in range(L//2, i):
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_identity_l[j].nid, nodes_a_dag_r[i][j + 1].nid], [(-1, tkin[i, j])]))
+            eid_next += 1
+    for j in range(L//2):
+        for i in range(L//2 + 1, L):
+            graph.add_connect_edge(
+                OpGraphEdge(eid_next, [nodes_a_ann_l[j][L//2].nid, nodes_a_dag_r[i][L//2 + 1].nid], [(3, tkin[i, j])]))
+            eid_next += 1
+    # g_{i,j,k,j} a^{\dagger}_i n_j a_k terms, for i < j < k
+    for i in range(L - 2):
+        for j in range(i + 1, L - 1):
+            for k in range(j + 1, L):
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_dag_l[i][j].nid, nodes_a_ann_r[k][j + 1].nid], [(2, gint[i, j, k, j])]))
+                eid_next += 1
+    # g_{i,j,i,l} a_l n_i a^{\dagger}_j terms, for l < i < j
+    for l in range(L - 2):
+        for i in range(l + 1, L - 1):
+            for j in range(i + 1, L):
+                graph.add_connect_edge(
+                    OpGraphEdge(eid_next, [nodes_a_ann_l[l][i].nid, nodes_a_dag_r[j][i + 1].nid], [(2, gint[i, j, i, l])]))
+                eid_next += 1
+    # g_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k terms, for i < j < l < k
+    for i in range(L//2 - 1):
+        for j in range(i + 1, L//2):
+            for l in range(j + 1, L//2 + 1):
+                for k in range(l + 1, L):
+                    graph.add_connect_edge(
+                        OpGraphEdge(eid_next, [nodes_a_dag_a_dag_l[i, j][l].nid, nodes_a_ann_r[k][l + 1].nid], [(-1, gint[i, j, k, l])]))
+                    eid_next += 1
+    for l in range(L//2 + 1, L - 1):
+        for k in range(l + 1, L):
+            for j in range(L//2, l):
+                for i in range(j):
+                    graph.add_connect_edge(
+                        OpGraphEdge(eid_next, [nodes_a_dag_l[i][j].nid, nodes_a_ann_a_ann_r[l, k][j + 1].nid], [(1, gint[i, j, k, l])]))
+                    eid_next += 1
+    for i in range(L//2 - 1):
+        for j in range(i + 1, L//2):
+            for l in range(L//2 + 1, L - 1):
+                for k in range(l + 1, L):
+                    graph.add_connect_edge(
+                        OpGraphEdge(eid_next, [nodes_a_dag_a_dag_l[i, j][L//2].nid, nodes_a_ann_a_ann_r[l, k][L//2 + 1].nid], [(0, gint[i, j, k, l])]))
+                    eid_next += 1
+    # g_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k terms, for l < k < i < j
+    for l in range(L//2 - 1):
+        for k in range(l + 1, L//2):
+            for i in range(k + 1, L//2 + 1):
+                for j in range(i + 1, L):
+                    graph.add_connect_edge(
+                        OpGraphEdge(eid_next, [nodes_a_ann_a_ann_l[l, k][i].nid, nodes_a_dag_r[j][i + 1].nid], [(1, gint[i, j, k, l])]))
+                    eid_next += 1
+    for i in range(L//2 + 1, L - 1):
+        for j in range(i + 1, L):
+            for k in range(L//2, i):
+                for l in range(k):
+                    graph.add_connect_edge(
+                        OpGraphEdge(eid_next, [nodes_a_ann_l[l][k].nid, nodes_a_dag_a_dag_r[i, j][k + 1].nid], [(-1, gint[i, j, k, l])]))
+                    eid_next += 1
+    for l in range(L//2 - 1):
+        for k in range(l + 1, L//2):
+            for i in range(L//2 + 1, L - 1):
+                for j in range(i + 1, L):
+                    graph.add_connect_edge(
+                        OpGraphEdge(eid_next, [nodes_a_ann_a_ann_l[l, k][L//2].nid, nodes_a_dag_a_dag_r[i, j][L//2 + 1].nid], [(0, gint[i, j, k, l])]))
+                    eid_next += 1
+    # g_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k terms, for i, l < j, k
+    for i in range(L//2):
+        for l in range(L//2):
+            for j in range(max(i, l) + 1, L):
+                for k in range(max(i, l) + 1, L):
+                    if min(j, k) > L//2:
+                        continue
+                    if j < k:
+                        graph.add_connect_edge(
+                            OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, l][j].nid, nodes_a_ann_r[k][j + 1].nid], [(1, gint[i, j, k, l])]))
+                        eid_next += 1
+                    elif j == k:
+                        graph.add_connect_edge(
+                            OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, l][j].nid, nodes_identity_r[j + 1].nid], [(2, gint[i, j, k, l])]))
+                        eid_next += 1
+                    else:  # j > k
+                        graph.add_connect_edge(
+                            OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, l][k].nid, nodes_a_dag_r[j][k + 1].nid], [(-1, gint[i, j, k, l])]))
+                        eid_next += 1
+    for j in range(L//2 + 1, L):
+        for k in range(L//2 + 1, L):
+            for i in range(min(j, k)):
+                for l in range(min(j, k)):
+                    if max(i, l) < L//2:
+                        continue
+                    if i < l:
+                        graph.add_connect_edge(
+                            OpGraphEdge(eid_next, [nodes_a_dag_l[i][l].nid, nodes_a_dag_a_ann_r[j, k][l + 1].nid], [(-1, gint[i, j, k, l])]))
+                        eid_next += 1
+                    elif i == l:
+                        graph.add_connect_edge(
+                            OpGraphEdge(eid_next, [nodes_identity_l[i].nid, nodes_a_dag_a_ann_r[j, k][i + 1].nid], [(2, gint[i, j, k, l])]))
+                        eid_next += 1
+                    else:  # i > l
+                        graph.add_connect_edge(
+                            OpGraphEdge(eid_next, [nodes_a_ann_l[l][i].nid, nodes_a_dag_a_ann_r[j, k][i + 1].nid], [(1, gint[i, j, k, l])]))
+                        eid_next += 1
+    for i in range(L//2):
+        for l in range(L//2):
+            for j in range(L//2 + 1, L):
+                for k in range(L//2 + 1, L):
+                    graph.add_connect_edge(
+                        OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, l][L//2].nid, nodes_a_dag_a_ann_r[j, k][L//2 + 1].nid], [(0, gint[i, j, k, l])]))
+                    eid_next += 1
+
+    assert graph.is_consistent()
+    return MPO.from_opgraph([0, 1], graph, opmap)
 
 
 def _local_opchains_to_mpo(qd: Sequence[int], lopchains: Sequence[OpChain], size: int, opmap: Mapping, oid_identity: int) -> MPO:
