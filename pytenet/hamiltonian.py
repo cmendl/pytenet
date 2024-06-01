@@ -374,49 +374,45 @@ def molecular_hamiltonian_mpo(tkin, vint) -> MPO:
         eid_next += 1
     # a^{\dagger}_i operators connected to left terminal
     for i in range(L - 2):
-        j = i + 1
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [nodes_identity_l[j - 1].nid, nodes_a_dag_l[i][j].nid], [(1, 1.)]))
+            OpGraphEdge(eid_next, [nodes_identity_l[i].nid, nodes_a_dag_l[i][i + 1].nid], [(1, 1.)]))
         eid_next += 1
         # Z operator from Jordan-Wigner transformation
-        for j in range(i + 2, L - 1):
+        for j in range(i + 1, L - 2):
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_a_dag_l[i][j - 1].nid, nodes_a_dag_l[i][j].nid], [(3, 1.)]))
+                OpGraphEdge(eid_next, [nodes_a_dag_l[i][j].nid, nodes_a_dag_l[i][j + 1].nid], [(3, 1.)]))
             eid_next += 1
     # a_i operators connected to left terminal
     for i in range(L - 2):
-        j = i + 1
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [nodes_identity_l[j - 1].nid, nodes_a_ann_l[i][j].nid], [(-1, 1.)]))
+            OpGraphEdge(eid_next, [nodes_identity_l[i].nid, nodes_a_ann_l[i][i + 1].nid], [(-1, 1.)]))
         eid_next += 1
         # Z operator from Jordan-Wigner transformation
-        for j in range(i + 2, L - 1):
+        for j in range(i + 1, L - 2):
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_a_ann_l[i][j - 1].nid, nodes_a_ann_l[i][j].nid], [(3, 1.)]))
+                OpGraphEdge(eid_next, [nodes_a_ann_l[i][j].nid, nodes_a_ann_l[i][j + 1].nid], [(3, 1.)]))
             eid_next += 1
     # a^{\dagger}_i a^{\dagger}_j operators connected to left terminal
     for i in range(L//2 - 1):
         for j in range(i + 1, L//2):
-            k = j + 1
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_a_dag_l[i][k - 1].nid, nodes_a_dag_a_dag_l[i, j][k].nid], [(1, 1.)]))
+                OpGraphEdge(eid_next, [nodes_a_dag_l[i][j].nid, nodes_a_dag_a_dag_l[i, j][j + 1].nid], [(1, 1.)]))
             eid_next += 1
             # identities for transition to next site
-            for k in range(j + 2, L//2 + 1):
+            for k in range(j + 1, L//2):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_a_dag_a_dag_l[i, j][k - 1].nid, nodes_a_dag_a_dag_l[i, j][k].nid], [(0, 1.)]))
+                    OpGraphEdge(eid_next, [nodes_a_dag_a_dag_l[i, j][k].nid, nodes_a_dag_a_dag_l[i, j][k + 1].nid], [(0, 1.)]))
                 eid_next += 1
     # a_i a_j operators connected to left terminal
     for i in range(L//2 - 1):
         for j in range(i + 1, L//2):
-            k = j + 1
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_a_ann_l[i][k - 1].nid, nodes_a_ann_a_ann_l[i, j][k].nid], [(-1, 1.)]))
+                OpGraphEdge(eid_next, [nodes_a_ann_l[i][j].nid, nodes_a_ann_a_ann_l[i, j][j + 1].nid], [(-1, 1.)]))
             eid_next += 1
             # identities for transition to next site
-            for k in range(j + 2, L//2 + 1):
+            for k in range(j + 1, L//2):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_a_ann_a_ann_l[i, j][k - 1].nid, nodes_a_ann_a_ann_l[i, j][k].nid], [(0, 1.)]))
+                    OpGraphEdge(eid_next, [nodes_a_ann_a_ann_l[i, j][k].nid, nodes_a_ann_a_ann_l[i, j][k + 1].nid], [(0, 1.)]))
                 eid_next += 1
     # a^{\dagger}_i a_j operators connected to left terminal
     for i in range(L//2):
@@ -434,9 +430,9 @@ def molecular_hamiltonian_mpo(tkin, vint) -> MPO:
                     OpGraphEdge(eid_next, [nodes_a_ann_l[j][i].nid, nodes_a_dag_a_ann_l[i, j][i + 1].nid], [(1, 1.)]))
                 eid_next += 1
             # identities for transition to next site
-            for k in range(max(i, j) + 2, L//2 + 1):
+            for k in range(max(i, j) + 1, L//2):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, j][k - 1].nid, nodes_a_dag_a_ann_l[i, j][k].nid], [(0, 1.)]))
+                    OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, j][k].nid, nodes_a_dag_a_ann_l[i, j][k + 1].nid], [(0, 1.)]))
                 eid_next += 1
     # a^{\dagger}_i operators connected to right terminal
     for i in range(2, L):
@@ -445,9 +441,8 @@ def molecular_hamiltonian_mpo(tkin, vint) -> MPO:
             graph.add_connect_edge(
                 OpGraphEdge(eid_next, [nodes_a_dag_r[i][j].nid, nodes_a_dag_r[i][j + 1].nid], [(3, 1.)]))
             eid_next += 1
-        j = i
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [nodes_a_dag_r[i][j].nid, nodes_identity_r[j + 1].nid], [(1, 1.)]))
+            OpGraphEdge(eid_next, [nodes_a_dag_r[i][i].nid, nodes_identity_r[i + 1].nid], [(1, 1.)]))
         eid_next += 1
     # a_i operators connected to right terminal
     for i in range(2, L):
@@ -456,9 +451,8 @@ def molecular_hamiltonian_mpo(tkin, vint) -> MPO:
             graph.add_connect_edge(
                 OpGraphEdge(eid_next, [nodes_a_ann_r[i][j].nid, nodes_a_ann_r[i][j + 1].nid], [(3, 1.)]))
             eid_next += 1
-        j = i
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [nodes_a_ann_r[i][j].nid, nodes_identity_r[j + 1].nid], [(-1, 1.)]))
+            OpGraphEdge(eid_next, [nodes_a_ann_r[i][i].nid, nodes_identity_r[i + 1].nid], [(-1, 1.)]))
         eid_next += 1
     # a^{\dagger}_i a^{\dagger}_j operators connected to right terminal
     for i in range(L//2 + 1, L - 1):
@@ -468,9 +462,8 @@ def molecular_hamiltonian_mpo(tkin, vint) -> MPO:
                 graph.add_connect_edge(
                     OpGraphEdge(eid_next, [nodes_a_dag_a_dag_r[i, j][k].nid, nodes_a_dag_a_dag_r[i, j][k + 1].nid], [(0, 1.)]))
                 eid_next += 1
-            k = i
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_a_dag_a_dag_r[i, j][k].nid, nodes_a_dag_r[j][k + 1].nid], [(1, 1.)]))
+                OpGraphEdge(eid_next, [nodes_a_dag_a_dag_r[i, j][i].nid, nodes_a_dag_r[j][i + 1].nid], [(1, 1.)]))
             eid_next += 1
     # a_i a_j operators connected to right terminal
     for i in range(L//2 + 1, L - 1):
@@ -480,9 +473,8 @@ def molecular_hamiltonian_mpo(tkin, vint) -> MPO:
                 graph.add_connect_edge(
                     OpGraphEdge(eid_next, [nodes_a_ann_a_ann_r[i, j][k].nid, nodes_a_ann_a_ann_r[i, j][k + 1].nid], [(0, 1.)]))
                 eid_next += 1
-            k = i
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_a_ann_a_ann_r[i, j][k].nid, nodes_a_ann_r[j][k + 1].nid], [(-1, 1.)]))
+                OpGraphEdge(eid_next, [nodes_a_ann_a_ann_r[i, j][i].nid, nodes_a_ann_r[j][i + 1].nid], [(-1, 1.)]))
             eid_next += 1
     # a^{\dagger}_i a_j operators connected to right terminal
     for i in range(L//2 + 1, L):
