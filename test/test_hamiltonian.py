@@ -128,34 +128,31 @@ class TestHamiltonian(unittest.TestCase):
         tkin = ptn.crandn(2 * (L,), rng)
         vint = ptn.crandn(4 * (L,), rng)
 
-        mpoH = ptn.molecular_hamiltonian_mpo(tkin, vint)
+        for opt in (True, False):
+            mpoH = ptn.molecular_hamiltonian_mpo(tkin, vint, opt)
 
-        # alternative implementation (very slow for larger systems)
-        mpoH_alt = molecular_hamiltonian_mpo_alt(tkin, vint)
+            # theoretically predicted virtual bond dimensions
+            D_theo = []
+            for i in range(L + 1):
+                nl = i
+                nr = L - i
+                n = min(nl, nr)
+                D1 = 2 if 1 < i < L - 1 else 1
+                D2 = n**2 + 2 * n * (n - 1) // 2
+                if opt:
+                    D3 = 2 * min(nl**2 * (nl - 1) // 2, nr) + 2 * min(nl, nr**2 * (nr - 1) // 2)
+                else:
+                    # slightly sub-optimal
+                    D3 = 2 * ((nl if i < L - 1 else 0) + (nr if i > 1 else 0))
+                D_theo.append(D1 + D2 + D3)
+            self.assertEqual(mpoH.bond_dims, D_theo)
 
-        # theoretically predicted optimal virtual bond dimension
-        D_theo = []
-        for i in range(L + 1):
-            nl = i
-            nr = L - i
-            n = min(nl, nr)
-            D1 = 2 if 1 < i < L - 1 else 1
-            D2 = n**2 + 2 * n * (n - 1) // 2
-            D3 = 2 * min(nl**2 * (nl - 1) // 2, nr) + 2 * min(nl, nr**2 * (nr - 1) // 2)
-            D_theo.append(D1 + D2 + D3)
-        for i, D in enumerate(mpoH.bond_dims):
-            # exclude left and right boundary from comparison (not optimal there)
-            if i not in (2, L - 2):
-                self.assertEqual(D, D_theo[i])
-        self.assertEqual(mpoH_alt.bond_dims, D_theo)
+            # reference Hamiltonian
+            Href = construct_molecular_hamiltonian(tkin, vint)
 
-        # reference Hamiltonian
-        Href = construct_molecular_hamiltonian(tkin, vint)
-
-        # compare matrix representations
-        self.assertTrue(np.allclose(mpoH.as_matrix(), Href.todense()) and
-                        np.allclose(mpoH_alt.as_matrix(), Href.todense()),
-            msg='matrix representation of MPO and reference Hamiltonian must match')
+            # compare matrix representations
+            self.assertTrue(np.allclose(mpoH.as_matrix(), Href.todense()),
+                msg='matrix representation of MPO and reference Hamiltonian must match')
 
 
 def construct_ising_hamiltonian(L: int, J: float, h: float, g: float):
@@ -320,86 +317,6 @@ def construct_molecular_hamiltonian(tkin, vint):
                 for l in range(L):
                     H += 0.5*vint[i, j, k, l] * (clist[i] @ clist[j] @ alist[l] @ alist[k])
     H.eliminate_zeros()
-    return H
-
-
-def molecular_hamiltonian_mpo_alt(tkin, vint) -> ptn.MPO:
-    r"""
-    Construct a molecular Hamiltonian as MPO,
-    using physicists' convention for the interaction term (note ordering of k and \ell):
-
-    .. math::
-
-        H = \sum_{i,j} t_{i,j} a^{\dagger}_i a_j + \\frac{1}{2} \sum_{i,j,k,\ell} v_{i,j,k,\ell} a^{\dagger}_i a^{\dagger}_j a_{\ell} a_k
-    """
-    tkin = np.asarray(tkin)
-    vint = np.asarray(vint)
-    L = tkin.shape[0]
-    assert tkin.shape == (L, L)
-    assert vint.shape == (L, L, L, L)
-
-    # local operators
-    # creation and annihilation operators for a single spin and lattice site
-    a_ann = np.array([[0., 1.], [0., 0.]])
-    a_dag = np.array([[0., 0.], [1., 0.]])
-    # number operator
-    numop = np.array([[0., 0.], [0., 1.]])
-    # Pauli-Z matrix required for Jordan-Wigner transformation
-    Z = np.array([[1., 0.], [0., -1.]])
-    # operator map
-    opmap = {
-        -1: a_ann,
-         0: np.identity(2),
-         1: a_dag,
-         2: numop,
-         3: Z }
-
-    opchains = []
-    # kinetic hopping terms t_{i,j} a^{\dagger}_i a_j
-    for i in range(L):
-        for j in range(L):
-            if i == j:
-                # diagonal hopping term
-                opchains.append(ptn.OpChain([2], [0, 0], tkin[i, i], i))
-            else:
-                (a, p), (b, q) = sorted([(i, 1), (j, -1)])
-                opchains.append(ptn.OpChain([p] + (b - a - 1)*[3] + [q],
-                                            [0] + (b - a)*[p] + [0], tkin[i, j], a))
-    # interaction terms v_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k:
-    # can anti-commute fermionic operators such that i < j and l < k;
-    # global minus sign from Jordan-Wigner transformation
-    gint = -0.5 * (vint - np.transpose(vint, (1, 0, 2, 3)) - np.transpose(vint, (0, 1, 3, 2)) + np.transpose(vint, (1, 0, 3, 2)))
-    for i in range(L):
-        for j in range(i + 1, L):   # i < j
-            for k in range(L):
-                for l in range(k):  # l < k
-                    (a, p), (b, q), (c, r), (d, s) = sorted([(i, 1), (j, 1), (l, -1), (k, -1)])
-                    if a == b:
-                        assert b < c
-                        if c == d:
-                            # two number operators
-                            oids  = [2] + (c - b - 1)*[0] + [2]
-                            qnums = (c - b + 2)*[0]
-                        else:
-                            # number operator at the beginning
-                            oids  = [2] + (c - b - 1)*[0] + [r] + (d - c - 1)*[3] + [s]
-                            qnums = (c - b + 1)*[0] + (d - c)*[r] + [0]
-                    elif b == c:
-                        # number operator in the middle
-                        oids  = [p] + (b - a - 1)*[3] + [2] + (d - c - 1)*[3] + [s]
-                        qnums = [0] + (d - a)*[p] + [0]
-                    elif c == d:
-                        # number operator at the end
-                        oids  = [p] + (b - a - 1)*[3] + [q] + (c - b - 1)*[0] + [2]
-                        qnums = [0] + (b - a)*[p] + (c - b + 1)*[0]
-                    else:
-                        # generic case: i, j, k, l pairwise different
-                        oids  = [p] + (b - a - 1)*[3] + [q] + (c - b - 1)*[0] + [r] + (d - c - 1)*[3] + [s]
-                        qnums = [0] + (b - a)*[p] + (c - b)*[p + q] + (d - c)*[-s] + [0]
-                    opchains.append(ptn.OpChain(oids, qnums, gint[i, j, k, l], a))
-    opgraph = ptn.OpGraph.from_opchains(opchains, L, 0)
-    # convert to MPO
-    H = ptn.MPO.from_opgraph([0, 1], opgraph, opmap)
     return H
 
 
