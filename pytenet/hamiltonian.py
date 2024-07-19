@@ -32,7 +32,7 @@ def ising_mpo(L: int, J: float, h: float, g: float) -> MPO:
     opmap = {
         0: np.identity(2),
         1: sigma_z,
-        2: h*sigma_z + g*sigma_x }
+        2: sigma_x }
     # operator state automaton:
     #
     #     ___   __Z__o__Z__   ___
@@ -52,7 +52,8 @@ def ising_mpo(L: int, J: float, h: float, g: float) -> MPO:
     autop.add_connect_edge(AutOpEdge(2, [node_term0.nid,     node_z.nid], [(1, J )]))
     autop.add_connect_edge(AutOpEdge(3, [node_z.nid,     node_term1.nid], [(1, 1.)]))
     # h Z + g X terms
-    autop.add_connect_edge(AutOpEdge(4, [node_term0.nid, node_term1.nid], [(2, 1.)]))
+    autop.add_connect_edge(AutOpEdge(4, [node_term0.nid, node_term1.nid], [(1, h )]))
+    autop.add_connect_edge(AutOpEdge(5, [node_term0.nid, node_term1.nid], [(2, g )]))
     assert autop.is_consistent()
     # convert to a graph and then to an MPO
     graph = OpGraph.from_automaton(autop, L)
@@ -158,11 +159,13 @@ def bose_hubbard_mpo(d: int, L: int, t: float, U: float, mu: float) -> MPO:
         -1: b_ann,
          0: np.identity(d),
          1: b_dag,
-         2: 0.5*U*(numop @ (numop - np.identity(d))) - mu*numop }
+         2: numop,
+         3: numop @ (numop - np.identity(d)) / 2 }
     # local two-site and single-site terms
     lopchains = [OpChain([ 1, -1], [0,  1, 0], -t,  0),
                  OpChain([-1,  1], [0, -1, 0], -t,  0),
-                 OpChain([ 2    ], [0,  0   ], 1.0, 0)]
+                 OpChain([ 2    ], [0,  0   ], -mu, 0),
+                 OpChain([ 3    ], [0,  0   ],  U,  0)]
     # convert to MPO
     return _local_opchains_to_mpo(qd, lopchains, L, opmap, 0)
 
@@ -197,16 +200,18 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
     F = np.array([[1., 0.], [0., -1.]])
     # operator map
     opmap = {
-        0: np.identity(4),
-        1: np.kron(a_dag, F),
-        2: np.kron(a_ann, F),
-        3: np.kron(a_ann, id2),
-        4: np.kron(a_dag, id2),
-        5: np.kron(id2, a_dag),
-        6: np.kron(id2, a_ann),
-        7: np.kron(F,   a_ann),
-        8: np.kron(F,   a_dag),
-        9: U*np.diag([0.25, -0.25, -0.25, 0.25]) - mu*(np.kron(numop, id2) + np.kron(id2, numop)) }
+         0: np.identity(4),
+         1: np.kron(a_dag, F),
+         2: np.kron(a_ann, F),
+         3: np.kron(a_ann, id2),
+         4: np.kron(a_dag, id2),
+         5: np.kron(id2, a_dag),
+         6: np.kron(id2, a_ann),
+         7: np.kron(F,   a_ann),
+         8: np.kron(F,   a_dag),
+         9: np.kron(numop, id2) + np.kron(id2, numop),  # n_up + n_dn
+        10: np.diag([0.25, -0.25, -0.25, 0.25])         # (n_up - 1/2) (n_dn - 1/2)
+    }
     # local two-site and single-site terms
     lopchains = [
         # spin-up kinetic hopping
@@ -215,8 +220,10 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
         # spin-down kinetic hopping
         OpChain([5, 7], [0, ( 1 << 16) - 1, 0], -t,  0),
         OpChain([6, 8], [0, (-1 << 16) + 1, 0], -t,  0),
-        # interaction U (n_up-1/2) (n_dn-1/2) and number operator - mu (n_up + n_dn)
-        OpChain([9   ], [0, 0                ], 1.0, 0)]
+        # number operator - mu (n_up + n_dn)
+        OpChain([9   ], [0, 0                ], -mu, 0),
+        # interaction U (n_up - 1/2) (n_dn - 1/2)
+        OpChain([10  ], [0, 0                ],  U,  0)]
     # convert to MPO
     return _local_opchains_to_mpo(qd, lopchains, L, opmap, 0)
 
