@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 from scipy import sparse
+from scipy.stats import unitary_group
 import pytenet as ptn
 
 
@@ -118,7 +119,7 @@ class TestHamiltonian(unittest.TestCase):
             msg='matrix representation of MPO and reference Hamiltonian must match')
 
 
-    def test_molecular_hamiltonian(self):
+    def test_molecular_hamiltonian_construction(self):
 
         rng = np.random.default_rng()
 
@@ -137,7 +138,11 @@ class TestHamiltonian(unittest.TestCase):
                 nl = i
                 nr = L - i
                 n = min(nl, nr)
-                D1 = 2 if 1 < i < L - 1 else 1
+                if opt:
+                    D1 = 2 if 1 < i < L - 1 else 1
+                else:
+                    # slightly sub-optimal
+                    D1 = 2 if 1 <= i <= L - 1 else 1
                 D2 = n**2 + 2 * n * (n - 1) // 2
                 if opt:
                     D3 = 2 * min(nl**2 * (nl - 1) // 2, nr) + 2 * min(nl, nr**2 * (nr - 1) // 2)
@@ -153,6 +158,47 @@ class TestHamiltonian(unittest.TestCase):
             # compare matrix representations
             self.assertTrue(np.allclose(mpoH.as_matrix(), Href.todense()),
                 msg='matrix representation of MPO and reference Hamiltonian must match')
+
+
+    def test_molecular_hamiltonian_orbital_rotation(self):
+
+        rng = np.random.default_rng()
+
+        # number of fermionic modes
+        L = 6
+        # Hamiltonian coefficients
+        tkin = ptn.crandn(2 * (L,), rng)
+        vint = ptn.crandn(4 * (L,), rng)
+
+        for i in range(L - 1):
+
+            mpoH = ptn.molecular_hamiltonian_mpo(tkin, vint, optimize=False)
+
+            # random rotation matrix for two orbitals
+            u2 = unitary_group.rvs(2, random_state=rng)
+
+            # extend to overall orbital rotation matrix
+            u = np.identity(L, dtype=u2.dtype)
+            u[i:i+2, i:i+2] = u2
+
+            # apply transposed single-orbital rotation matrix to Hamiltonian coefficients
+            tkin_rotorb = np.einsum(u, (2, 0), u.conj(), (3, 1), tkin, (2, 3), (0, 1))
+            vint_rotorb = np.einsum(u, (4, 0), u, (5, 1), u.conj(), (6, 2), u.conj(), (7, 3), vint, (4, 5, 6, 7), (0, 1, 2, 3))
+
+            # rotated reference MPO
+            mpoH_rotorb = ptn.molecular_hamiltonian_mpo(tkin_rotorb, vint_rotorb, optimize=False)
+
+            # copy transformed MPO tensors at sites `i` and `i + 1`
+            mpoH.A[i    ] = np.copy(mpoH_rotorb.A[i    ])
+            mpoH.A[i + 1] = np.copy(mpoH_rotorb.A[i + 1])
+            # apply left and right gauge transformations
+            v_l, v_r = ptn.molecular_hamiltonian_orbital_gauge_transform(mpoH, u2, i)
+            mpoH.A[i    ] = np.einsum(v_l, (2, 4), mpoH.A[i    ], (0, 1, 4, 3), (0, 1, 2, 3))
+            mpoH.A[i + 1] = np.einsum(v_r, (3, 4), mpoH.A[i + 1], (0, 1, 2, 4), (0, 1, 2, 3))
+
+            # compare matrix representations
+            self.assertTrue(np.allclose(mpoH.as_matrix(), mpoH_rotorb.as_matrix()),
+                msg='matrix representation of MPO after orbital rotation and reference Hamiltonian must match')
 
 
 def construct_ising_hamiltonian(L: int, J: float, h: float, g: float):

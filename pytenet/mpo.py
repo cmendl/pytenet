@@ -70,7 +70,7 @@ class MPO:
         return mpo
 
     @classmethod
-    def from_opgraph(cls, qd: Sequence[int], graph: OpGraph, opmap: Mapping):
+    def from_opgraph(cls, qd: Sequence[int], graph: OpGraph, opmap: Mapping, compute_nid_map=False):
         """
         Construct a MPO from an operator graph.
 
@@ -78,6 +78,7 @@ class MPO:
             qd: physical quantum numbers at each site (same for all sites)
             graph: symbolic operator graph
             opmap: local operators as dictionary, using operator IDs as keys
+            compute_nid_map: whether to construct the map from node IDs to bond location and index
 
         Returns:
             MPO: MPO representation of the operator graph
@@ -90,6 +91,10 @@ class MPO:
         # node IDs at current bond site
         nids0 = [graph.nid_terminal[0]]
         qD.append([graph.nodes[graph.nid_terminal[0]].qnum])
+        if compute_nid_map:
+            nid_map = {}
+            nid_map[graph.nid_terminal[0]] = (0, 0)
+            l = 1
         while True:
             # node IDs at next bond site
             nids1 = []
@@ -103,6 +108,10 @@ class MPO:
             if not nids1:   # reached final site
                 break
             qD.append([graph.nodes[nid].qnum for nid in nids1])
+            if compute_nid_map:
+                for i, nid in enumerate(nids1):
+                    # record bond information (site location and index)
+                    nid_map[nid] = (l, i)
             A = np.zeros((d, d, len(nids0), len(nids1)), dtype=complex)
             for i, nid in enumerate(nids0):
                 node = graph.nodes[nid]
@@ -113,6 +122,9 @@ class MPO:
                     A[:, :, i, j] += sum(c * opmap[i] for i, c in edge.opics)
             Alist.append(A)
             nids0 = nids1
+            if compute_nid_map:
+                # next bond
+                l += 1
         assert len(Alist) + 1 == len(qD)
         op = cls(qd, qD, fill='postpone')
         op.A = Alist
@@ -120,6 +132,9 @@ class MPO:
         for i in range(op.nsites):
             assert is_qsparse(op.A[i], [op.qd, -op.qd, op.qD[i], -op.qD[i+1]]), \
                 'sparsity pattern of MPO tensor does not match quantum numbers'
+        # store node ID map in MPO
+        if compute_nid_map:
+            op.nid_map = nid_map
         return op
 
     @property

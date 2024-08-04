@@ -7,7 +7,7 @@ from .opchain import OpChain
 from .autop import AutOpNode, AutOpEdge, AutOp
 from .opgraph import OpGraphNode, OpGraphEdge, OpGraph
 
-__all__ = ['ising_mpo', 'heisenberg_xxz_mpo', 'heisenberg_xxz_spin1_mpo', 'bose_hubbard_mpo', 'fermi_hubbard_mpo', 'molecular_hamiltonian_mpo']
+__all__ = ['ising_mpo', 'heisenberg_xxz_mpo', 'heisenberg_xxz_spin1_mpo', 'bose_hubbard_mpo', 'fermi_hubbard_mpo', 'molecular_hamiltonian_mpo', 'molecular_hamiltonian_orbital_gauge_transform']
 
 
 def ising_mpo(L: int, J: float, h: float, g: float) -> MPO:
@@ -191,6 +191,13 @@ def bose_hubbard_mpo(d: int, L: int, t: float, U: float, mu: float) -> MPO:
     return _local_opchains_to_mpo(qd, lopchains, L, opmap, OID.Id)
 
 
+def _encode_quantum_number_pair(qa: int, qb: int):
+    """
+    Encode a pair of quantum numbers into a single quantum number.
+    """
+    return (qa << 16) + qb
+
+
 def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
     """
     Construct Fermi-Hubbard Hamiltonian
@@ -210,7 +217,7 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
     # physical particle number and spin quantum numbers (encoded as single integer)
     qN = [0,  1,  1,  2]
     qS = [0, -1,  1,  0]
-    qd = [(qn[0] << 16) + qn[1] for qn in zip(qN, qS)]
+    qd = [_encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
     id2 = np.identity(2)
     # creation and annihilation operators for a single spin and lattice site
     a_dag = np.array([[0., 0.], [1., 0.]])
@@ -248,15 +255,15 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
     # local two-site and single-site terms
     lopchains = [
         # spin-up kinetic hopping
-        OpChain([OID.CZ, OID.AI], [0, ( 1 << 16) + 1, 0], -t,  0),
-        OpChain([OID.AZ, OID.CI], [0, (-1 << 16) - 1, 0], -t,  0),
+        OpChain([OID.CZ, OID.AI], [0, _encode_quantum_number_pair( 1,  1), 0], -t, 0),
+        OpChain([OID.AZ, OID.CI], [0, _encode_quantum_number_pair(-1, -1), 0], -t, 0),
         # spin-down kinetic hopping
-        OpChain([OID.IC, OID.ZA], [0, ( 1 << 16) - 1, 0], -t,  0),
-        OpChain([OID.IA, OID.ZC], [0, (-1 << 16) + 1, 0], -t,  0),
+        OpChain([OID.IC, OID.ZA], [0, _encode_quantum_number_pair( 1, -1), 0], -t, 0),
+        OpChain([OID.IA, OID.ZC], [0, _encode_quantum_number_pair(-1,  1), 0], -t, 0),
         # number operator - mu (n_up + n_dn)
-        OpChain([OID.Nt],         [0, 0                ], -mu, 0),
+        OpChain([OID.Nt], [0, 0], -mu, 0),
         # interaction U (n_up - 1/2) (n_dn - 1/2)
-        OpChain([OID.NI],         [0, 0                ],  U,  0)]
+        OpChain([OID.NI], [0, 0],  U,  0)]
     # convert to MPO
     return _local_opchains_to_mpo(qd, lopchains, L, opmap, OID.Id)
 
@@ -315,7 +322,7 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                 else:
                     (a, p), (b, q) = sorted([(i, OID.C), (j, OID.A)])
                     opchains.append(OpChain([p] + (b - a - 1)*[OID.Z] + [q],
-                                            [0] + (b - a)    *[p]     + [0], tkin[i, j], a))
+                                            [0] + (b - a)*[int(p)] + [0], tkin[i, j], a))
         # interaction terms 1/2 \sum_{i,j,k,l} v_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k
         for i in range(L):
             for j in range(i + 1, L):   # i < j
@@ -331,19 +338,19 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                             else:
                                 # number operator at the beginning
                                 oids  = [OID.N] + (c - b - 1)*[OID.I] + [r] + (d - c - 1)*[OID.Z] + [s]
-                                qnums = (c - b + 1)*[0] + (d - c)*[r] + [0]
+                                qnums = (c - b + 1)*[0] + (d - c)*[int(r)] + [0]
                         elif b == c:
                             # number operator in the middle
                             oids  = [p] + (b - a - 1)*[OID.Z] + [OID.N] + (d - c - 1)*[OID.Z] + [s]
-                            qnums = [0] + (d - a)*[p] + [0]
+                            qnums = [0] + (d - a)*[int(p)] + [0]
                         elif c == d:
                             # number operator at the end
                             oids  = [p] + (b - a - 1)*[OID.Z] + [q] + (c - b - 1)*[OID.I] + [OID.N]
-                            qnums = [0] + (b - a)*[p] + (c - b + 1)*[0]
+                            qnums = [0] + (b - a)*[int(p)] + (c - b + 1)*[0]
                         else:
                             # generic case: i, j, k, l pairwise different
                             oids  = [p] + (b - a - 1)*[OID.Z] + [q] + (c - b - 1)*[OID.I] + [r] + (d - c - 1)*[OID.Z] + [s]
-                            qnums = [0] + (b - a)*[p] + (c - b)*[p + q] + (d - c)*[-s] + [0]
+                            qnums = [0] + (b - a)*[int(p)] + (c - b)*[int(p) + int(q)] + (d - c)*[-int(s)] + [0]
                         opchains.append(OpChain(oids, qnums, gint[i, j, k, l], a))
         graph = OpGraph.from_opchains(opchains, L, 0)
 
@@ -358,10 +365,10 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
         # identity chains from the left and right
         nodes_identity_l = {}
         nodes_identity_r = {}
-        for i in range(L - 1):
+        for i in range(L):
             nodes_identity_l[i] = OpGraphNode(nid_next, [], [], 0)
             nid_next += 1
-        for i in range(2, L + 1):
+        for i in range(1, L + 1):
             nodes_identity_r[i] = OpGraphNode(nid_next, [], [], 0)
             nid_next += 1
         # a^{\dagger}_i operators connected to left terminal
@@ -459,11 +466,11 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
         # edges
         eid_next = 0
         # identities connected to left and right terminals
-        for i in range(L - 2):
+        for i in range(L - 1):
             graph.add_connect_edge(
                 OpGraphEdge(eid_next, [nodes_identity_l[i].nid, nodes_identity_l[i + 1].nid], [(OID.I, 1.)]))
             eid_next += 1
-        for i in range(2, L):
+        for i in range(1, L):
             graph.add_connect_edge(
                 OpGraphEdge(eid_next, [nodes_identity_r[i].nid, nodes_identity_r[i + 1].nid], [(OID.I, 1.)]))
             eid_next += 1
@@ -592,17 +599,10 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                         OpGraphEdge(eid_next, [nodes_a_dag_a_ann_r[i, j][j].nid, nodes_a_dag_r[i][j + 1].nid], [(OID.A, 1.)]))
                     eid_next += 1
         # diagonal kinetic terms t_{i,i} n_i
-        for i in range(L//2):
+        for i in range(L):
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, i][i + 1].nid, nodes_identity_r[i + 2].nid], [(OID.I, tkin[i, i])]))
+                OpGraphEdge(eid_next, [nodes_identity_l[i].nid, nodes_identity_r[i + 1].nid], [(OID.N, tkin[i, i])]))
             eid_next += 1
-        for i in range(L//2 + 1, L):
-            graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_identity_l[i - 1].nid, nodes_a_dag_a_ann_r[i, i][i].nid], [(OID.I, tkin[i, i])]))
-            eid_next += 1
-        graph.add_connect_edge(
-            OpGraphEdge(eid_next, [nodes_identity_l[L//2].nid, nodes_identity_r[L//2 + 1].nid], [(OID.N, tkin[L//2, L//2])]))
-        eid_next += 1
         # t_{i,j} a^{\dagger}_i a_j terms, for i < j
         for i in range(L//2):
             for j in range(i + 1, L//2 + 1):
@@ -742,7 +742,311 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
     if L <= 12:
         assert graph.is_consistent()
     # convert to MPO
-    return MPO.from_opgraph([0, 1], graph, opmap)
+    mpo = MPO.from_opgraph([0, 1], graph, opmap, compute_nid_map=(not optimize))
+    # store node information in MPO, to identify virtual bonds by creation and annihilation operators
+    if not optimize:
+        # identity chains from the left and right
+        mpo.nids_identity_l = {}
+        mpo.nids_identity_r = {}
+        for i in range(L):
+            mpo.nids_identity_l[i] = nodes_identity_l[i].nid
+        for i in range(1, L + 1):
+            mpo.nids_identity_r[i] = nodes_identity_r[i].nid
+        # a^{\dagger}_i operators connected to left terminal
+        mpo.nids_a_dag_l = {}
+        for i in range(L - 2):
+            mpo.nids_a_dag_l[i] = {}
+            for j in range(i + 1, L - 1):
+                mpo.nids_a_dag_l[i][j] = nodes_a_dag_l[i][j].nid
+        # a_i operators connected to left terminal
+        mpo.nids_a_ann_l = {}
+        for i in range(L - 2):
+            mpo.nids_a_ann_l[i] = {}
+            for j in range(i + 1, L - 1):
+                mpo.nids_a_ann_l[i][j] = nodes_a_ann_l[i][j].nid
+        # a^{\dagger}_i a^{\dagger}_j operators connected to left terminal
+        mpo.nids_a_dag_a_dag_l = {}
+        for i in range(L//2 - 1):
+            for j in range(i + 1, L//2):
+                mpo.nids_a_dag_a_dag_l[i, j] = {}
+                for k in range(j + 1, L//2 + 1):
+                    mpo.nids_a_dag_a_dag_l[i, j][k] = nodes_a_dag_a_dag_l[i, j][k].nid
+        # a_i a_j operators connected to left terminal
+        mpo.nids_a_ann_a_ann_l = {}
+        for i in range(L//2 - 1):
+            for j in range(i + 1, L//2):
+                mpo.nids_a_ann_a_ann_l[i, j] = {}
+                for k in range(j + 1, L//2 + 1):
+                    mpo.nids_a_ann_a_ann_l[i, j][k] = nodes_a_ann_a_ann_l[i, j][k].nid
+        # a^{\dagger}_i a_j operators connected to left terminal
+        mpo.nids_a_dag_a_ann_l = {}
+        for i in range(L//2):
+            for j in range(L//2):
+                mpo.nids_a_dag_a_ann_l[i, j] = {}
+                for k in range(max(i, j) + 1, L//2 + 1):
+                    mpo.nids_a_dag_a_ann_l[i, j][k] = nodes_a_dag_a_ann_l[i, j][k].nid
+        # a^{\dagger}_i operators connected to right terminal
+        mpo.nids_a_dag_r = {}
+        for i in range(2, L):
+            mpo.nids_a_dag_r[i] = {}
+            for j in range(2, i + 1):
+                mpo.nids_a_dag_r[i][j] = nodes_a_dag_r[i][j].nid
+        # a_i operators connected to right terminal
+        mpo.nids_a_ann_r = {}
+        for i in range(2, L):
+            mpo.nids_a_ann_r[i] = {}
+            for j in range(2, i + 1):
+                mpo.nids_a_ann_r[i][j] = nodes_a_ann_r[i][j].nid
+        # a^{\dagger}_i a^{\dagger}_j operators connected to right terminal
+        mpo.nids_a_dag_a_dag_r = {}
+        for i in range(L//2 + 1, L - 1):
+            for j in range(i + 1, L):
+                mpo.nids_a_dag_a_dag_r[i, j] = {}
+                for k in range(L//2 + 1, i + 1):
+                    mpo.nids_a_dag_a_dag_r[i, j][k] = nodes_a_dag_a_dag_r[i, j][k].nid
+        # a_i a_j operators connected to right terminal
+        mpo.nids_a_ann_a_ann_r = {}
+        for i in range(L//2 + 1, L - 1):
+            for j in range(i + 1, L):
+                mpo.nids_a_ann_a_ann_r[i, j] = {}
+                for k in range(L//2 + 1, i + 1):
+                    mpo.nids_a_ann_a_ann_r[i, j][k] = nodes_a_ann_a_ann_r[i, j][k].nid
+        # a^{\dagger}_i a_j operators connected to right terminal
+        mpo.nids_a_dag_a_ann_r = {}
+        for i in range(L//2 + 1, L):
+            for j in range(L//2 + 1, L):
+                mpo.nids_a_dag_a_ann_r[i, j] = {}
+                for k in range(L//2 + 1, min(i, j) + 1):
+                    mpo.nids_a_dag_a_ann_r[i, j][k] = nodes_a_dag_a_ann_r[i, j][k].nid
+    return mpo
+
+
+def molecular_hamiltonian_orbital_gauge_transform(h: MPO, u, i: int):
+    """
+    Generate the left and right gauge transformation matrices corresponding to
+    the single-orbital rotation matrix `u` applied to orbitals `i` and `i + 1`.
+    """
+    u = np.asarray(u)
+    assert u.shape == (2, 2)
+    assert np.allclose(u.conj().T @ u, np.identity(2))
+    assert i >= 0 and i < h.nsites - 1
+    # left gauge transformation matrix
+    v_l = np.identity(h.bond_dims[i], dtype=u.dtype)
+    # a^{\dagger}_i operators connected to right terminal
+    if i in h.nids_a_dag_r:
+        if i in h.nids_a_dag_r[i]:
+            _, j0 = h.nid_map[h.nids_a_dag_r[i    ][i]]
+            _, j1 = h.nid_map[h.nids_a_dag_r[i + 1][i]]
+            v_l[j0, j0] = u[0, 0]
+            v_l[j0, j1] = u[0, 1]
+            v_l[j1, j0] = u[1, 0]
+            v_l[j1, j1] = u[1, 1]
+    # a_i operators connected to right terminal
+    if i in h.nids_a_ann_r:
+        if i in h.nids_a_ann_r[i]:
+            _, j0 = h.nid_map[h.nids_a_ann_r[i    ][i]]
+            _, j1 = h.nid_map[h.nids_a_ann_r[i + 1][i]]
+            v_l[j0, j0] = u[0, 0].conj()
+            v_l[j0, j1] = u[0, 1].conj()
+            v_l[j1, j0] = u[1, 0].conj()
+            v_l[j1, j1] = u[1, 1].conj()
+    # a^{\dagger}_i a^{\dagger}_j operators connected to right terminal
+    for k in range(i):
+        if (k, i) in h.nids_a_dag_a_dag_r:
+            if i in h.nids_a_dag_a_dag_r[k, i]:
+                _, j0 = h.nid_map[h.nids_a_dag_a_dag_r[k, i    ][i]]
+                _, j1 = h.nid_map[h.nids_a_dag_a_dag_r[k, i + 1][i]]
+                v_l[j0, j0] = u[0, 0]
+                v_l[j0, j1] = u[0, 1]
+                v_l[j1, j0] = u[1, 0]
+                v_l[j1, j1] = u[1, 1]
+    for k in range(i + 2, h.nsites):
+        if (i, k) in h.nids_a_dag_a_dag_r:
+            if i in h.nids_a_dag_a_dag_r[i, k]:
+                _, j0 = h.nid_map[h.nids_a_dag_a_dag_r[i,     k][i]]
+                _, j1 = h.nid_map[h.nids_a_dag_a_dag_r[i + 1, k][i]]
+                v_l[j0, j0] = u[0, 0]
+                v_l[j0, j1] = u[0, 1]
+                v_l[j1, j0] = u[1, 0]
+                v_l[j1, j1] = u[1, 1]
+    if (i, i + 1) in h.nids_a_dag_a_dag_r:
+        if i in h.nids_a_dag_a_dag_r[i, i + 1]:
+            _, j = h.nid_map[h.nids_a_dag_a_dag_r[i, i + 1][i]]
+            v_l[j, j] = u[0, 0] * u[1, 1] - u[0, 1] * u[1, 0]
+    # a_i a_j operators connected to right terminal
+    for k in range(i):
+        if (k, i) in h.nids_a_ann_a_ann_r:
+            if i in h.nids_a_ann_a_ann_r[k, i]:
+                _, j0 = h.nid_map[h.nids_a_ann_a_ann_r[k, i    ][i]]
+                _, j1 = h.nid_map[h.nids_a_ann_a_ann_r[k, i + 1][i]]
+                v_l[j0, j0] = u[0, 0].conj()
+                v_l[j0, j1] = u[0, 1].conj()
+                v_l[j1, j0] = u[1, 0].conj()
+                v_l[j1, j1] = u[1, 1].conj()
+    for k in range(i + 2, h.nsites):
+        if (i, k) in h.nids_a_ann_a_ann_r:
+            if i in h.nids_a_ann_a_ann_r[i, k]:
+                _, j0 = h.nid_map[h.nids_a_ann_a_ann_r[i,     k][i]]
+                _, j1 = h.nid_map[h.nids_a_ann_a_ann_r[i + 1, k][i]]
+                v_l[j0, j0] = u[0, 0].conj()
+                v_l[j0, j1] = u[0, 1].conj()
+                v_l[j1, j0] = u[1, 0].conj()
+                v_l[j1, j1] = u[1, 1].conj()
+    if (i, i + 1) in h.nids_a_ann_a_ann_r:
+        if i in h.nids_a_ann_a_ann_r[i, i + 1]:
+            _, j = h.nid_map[h.nids_a_ann_a_ann_r[i, i + 1][i]]
+            v_l[j, j] = (u[0, 0] * u[1, 1] - u[0, 1] * u[1, 0]).conj()
+    # a^{\dagger}_i a_j operators connected to right terminal
+    for k in list(range(i)) + list(range(i + 2, h.nsites)):
+        if (i, k) in h.nids_a_dag_a_ann_r:
+            if i in h.nids_a_dag_a_ann_r[i, k]:
+                _, j0 = h.nid_map[h.nids_a_dag_a_ann_r[i,     k][i]]
+                _, j1 = h.nid_map[h.nids_a_dag_a_ann_r[i + 1, k][i]]
+                v_l[j0, j0] = u[0, 0]
+                v_l[j0, j1] = u[0, 1]
+                v_l[j1, j0] = u[1, 0]
+                v_l[j1, j1] = u[1, 1]
+        if (k, i) in h.nids_a_dag_a_ann_r:
+            if i in h.nids_a_dag_a_ann_r[k, i]:
+                _, j0 = h.nid_map[h.nids_a_dag_a_ann_r[k, i    ][i]]
+                _, j1 = h.nid_map[h.nids_a_dag_a_ann_r[k, i + 1][i]]
+                v_l[j0, j0] = u[0, 0].conj()
+                v_l[j0, j1] = u[0, 1].conj()
+                v_l[j1, j0] = u[1, 0].conj()
+                v_l[j1, j1] = u[1, 1].conj()
+    if (i, i + 1) in h.nids_a_dag_a_ann_r:
+        if i in h.nids_a_dag_a_ann_r[i, i + 1]:
+            _, j00 = h.nid_map[h.nids_a_dag_a_ann_r[i,     i    ][i]]
+            _, j01 = h.nid_map[h.nids_a_dag_a_ann_r[i,     i + 1][i]]
+            _, j10 = h.nid_map[h.nids_a_dag_a_ann_r[i + 1, i    ][i]]
+            _, j11 = h.nid_map[h.nids_a_dag_a_ann_r[i + 1, i + 1][i]]
+            v_l[j00, j00] = abs(u[0, 0])**2
+            v_l[j00, j01] = u[0, 0] * u[0, 1].conj()
+            v_l[j00, j10] = u[0, 1] * u[0, 0].conj()
+            v_l[j00, j11] = abs(u[0, 1])**2
+            v_l[j01, j00] = u[0, 0] * u[1, 0].conj()
+            v_l[j01, j01] = u[0, 0] * u[1, 1].conj()
+            v_l[j01, j10] = u[0, 1] * u[1, 0].conj()
+            v_l[j01, j11] = u[0, 1] * u[1, 1].conj()
+            v_l[j10, j00] = u[1, 0] * u[0, 0].conj()
+            v_l[j10, j01] = u[1, 0] * u[0, 1].conj()
+            v_l[j10, j10] = u[1, 1] * u[0, 0].conj()
+            v_l[j10, j11] = u[1, 1] * u[0, 1].conj()
+            v_l[j11, j00] = abs(u[1, 0])**2
+            v_l[j11, j01] = u[1, 0] * u[1, 1].conj()
+            v_l[j11, j10] = u[1, 1] * u[1, 0].conj()
+            v_l[j11, j11] = abs(u[1, 1])**2
+    assert np.allclose(v_l.conj().T @ v_l, np.identity(v_l.shape[1]))
+
+    # right gauge transformation matrix
+    v_r = np.identity(h.bond_dims[i + 2], dtype=u.dtype)
+    # a^{\dagger}_i operators connected to left terminal
+    if i in h.nids_a_dag_l:
+        if i + 2 in h.nids_a_dag_l[i]:
+            _, j0 = h.nid_map[h.nids_a_dag_l[i    ][i + 2]]
+            _, j1 = h.nid_map[h.nids_a_dag_l[i + 1][i + 2]]
+            v_r[j0, j0] = u[0, 0]
+            v_r[j0, j1] = u[0, 1]
+            v_r[j1, j0] = u[1, 0]
+            v_r[j1, j1] = u[1, 1]
+    # a_i operators connected to left terminal
+    if i in h.nids_a_ann_l:
+        if i + 2 in h.nids_a_ann_l[i]:
+            _, j0 = h.nid_map[h.nids_a_ann_l[i    ][i + 2]]
+            _, j1 = h.nid_map[h.nids_a_ann_l[i + 1][i + 2]]
+            v_r[j0, j0] = u[0, 0].conj()
+            v_r[j0, j1] = u[0, 1].conj()
+            v_r[j1, j0] = u[1, 0].conj()
+            v_r[j1, j1] = u[1, 1].conj()
+    # a^{\dagger}_i a^{\dagger}_j operators connected to left terminal
+    for k in range(i):
+        if (k, i) in h.nids_a_dag_a_dag_l:
+            if i + 2 in h.nids_a_dag_a_dag_l[k, i]:
+                _, j0 = h.nid_map[h.nids_a_dag_a_dag_l[k, i    ][i + 2]]
+                _, j1 = h.nid_map[h.nids_a_dag_a_dag_l[k, i + 1][i + 2]]
+                v_r[j0, j0] = u[0, 0]
+                v_r[j0, j1] = u[0, 1]
+                v_r[j1, j0] = u[1, 0]
+                v_r[j1, j1] = u[1, 1]
+    for k in range(i + 2, h.nsites):
+        if (i, k) in h.nids_a_dag_a_dag_l:
+            if i + 2 in h.nids_a_dag_a_dag_l[i, k]:
+                _, j0 = h.nid_map[h.nids_a_dag_a_dag_l[i,     k][i + 2]]
+                _, j1 = h.nid_map[h.nids_a_dag_a_dag_l[i + 1, k][i + 2]]
+                v_r[j0, j0] = u[0, 0]
+                v_r[j0, j1] = u[0, 1]
+                v_r[j1, j0] = u[1, 0]
+                v_r[j1, j1] = u[1, 1]
+    if (i, i + 1) in h.nids_a_dag_a_dag_l:
+        if i + 2 in h.nids_a_dag_a_dag_l[i, i + 1]:
+            _, j = h.nid_map[h.nids_a_dag_a_dag_l[i, i + 1][i + 2]]
+            v_r[j, j] = u[0, 0] * u[1, 1] - u[0, 1] * u[1, 0]
+    # a_i a_j operators connected to left terminal
+    for k in range(i):
+        if (k, i) in h.nids_a_ann_a_ann_l:
+            if i + 2 in h.nids_a_ann_a_ann_l[k, i]:
+                _, j0 = h.nid_map[h.nids_a_ann_a_ann_l[k, i    ][i + 2]]
+                _, j1 = h.nid_map[h.nids_a_ann_a_ann_l[k, i + 1][i + 2]]
+                v_r[j0, j0] = u[0, 0].conj()
+                v_r[j0, j1] = u[0, 1].conj()
+                v_r[j1, j0] = u[1, 0].conj()
+                v_r[j1, j1] = u[1, 1].conj()
+    for k in range(i + 2, h.nsites):
+        if (i, k) in h.nids_a_ann_a_ann_l:
+            if i + 2 in h.nids_a_ann_a_ann_l[i, k]:
+                _, j0 = h.nid_map[h.nids_a_ann_a_ann_l[i,     k][i + 2]]
+                _, j1 = h.nid_map[h.nids_a_ann_a_ann_l[i + 1, k][i + 2]]
+                v_r[j0, j0] = u[0, 0].conj()
+                v_r[j0, j1] = u[0, 1].conj()
+                v_r[j1, j0] = u[1, 0].conj()
+                v_r[j1, j1] = u[1, 1].conj()
+    if (i, i + 1) in h.nids_a_ann_a_ann_l:
+        if i + 2 in h.nids_a_ann_a_ann_l[i, i + 1]:
+            _, j = h.nid_map[h.nids_a_ann_a_ann_l[i, i + 1][i + 2]]
+            v_r[j, j] = (u[0, 0] * u[1, 1] - u[0, 1] * u[1, 0]).conj()
+    # a^{\dagger}_i a_j operators connected to left terminal
+    for k in list(range(i)) + list(range(i + 2, h.nsites)):
+        if (i, k) in h.nids_a_dag_a_ann_l:
+            if i + 2 in h.nids_a_dag_a_ann_l[i, k]:
+                _, j0 = h.nid_map[h.nids_a_dag_a_ann_l[i,     k][i + 2]]
+                _, j1 = h.nid_map[h.nids_a_dag_a_ann_l[i + 1, k][i + 2]]
+                v_r[j0, j0] = u[0, 0]
+                v_r[j0, j1] = u[0, 1]
+                v_r[j1, j0] = u[1, 0]
+                v_r[j1, j1] = u[1, 1]
+        if (k, i) in h.nids_a_dag_a_ann_l:
+            if i + 2 in h.nids_a_dag_a_ann_l[k, i]:
+                _, j0 = h.nid_map[h.nids_a_dag_a_ann_l[k, i    ][i + 2]]
+                _, j1 = h.nid_map[h.nids_a_dag_a_ann_l[k, i + 1][i + 2]]
+                v_r[j0, j0] = u[0, 0].conj()
+                v_r[j0, j1] = u[0, 1].conj()
+                v_r[j1, j0] = u[1, 0].conj()
+                v_r[j1, j1] = u[1, 1].conj()
+    if (i, i + 1) in h.nids_a_dag_a_ann_l:
+        if i + 2 in h.nids_a_dag_a_ann_l[i, i + 1]:
+            _, j00 = h.nid_map[h.nids_a_dag_a_ann_l[i,     i    ][i + 2]]
+            _, j01 = h.nid_map[h.nids_a_dag_a_ann_l[i,     i + 1][i + 2]]
+            _, j10 = h.nid_map[h.nids_a_dag_a_ann_l[i + 1, i    ][i + 2]]
+            _, j11 = h.nid_map[h.nids_a_dag_a_ann_l[i + 1, i + 1][i + 2]]
+            v_r[j00, j00] = abs(u[0, 0])**2
+            v_r[j00, j01] = u[0, 0] * u[0, 1].conj()
+            v_r[j00, j10] = u[0, 1] * u[0, 0].conj()
+            v_r[j00, j11] = abs(u[0, 1])**2
+            v_r[j01, j00] = u[0, 0] * u[1, 0].conj()
+            v_r[j01, j01] = u[0, 0] * u[1, 1].conj()
+            v_r[j01, j10] = u[0, 1] * u[1, 0].conj()
+            v_r[j01, j11] = u[0, 1] * u[1, 1].conj()
+            v_r[j10, j00] = u[1, 0] * u[0, 0].conj()
+            v_r[j10, j01] = u[1, 0] * u[0, 1].conj()
+            v_r[j10, j10] = u[1, 1] * u[0, 0].conj()
+            v_r[j10, j11] = u[1, 1] * u[0, 1].conj()
+            v_r[j11, j00] = abs(u[1, 0])**2
+            v_r[j11, j01] = u[1, 0] * u[1, 1].conj()
+            v_r[j11, j10] = u[1, 1] * u[1, 0].conj()
+            v_r[j11, j11] = abs(u[1, 1])**2
+    assert np.allclose(v_r.conj().T @ v_r, np.identity(v_r.shape[1]))
+
+    return v_l, v_r
 
 
 def _local_opchains_to_mpo(qd: Sequence[int], lopchains: Sequence[OpChain], size: int, opmap: Mapping, oid_identity: int) -> MPO:
