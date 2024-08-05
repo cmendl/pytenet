@@ -1,9 +1,10 @@
 import numpy as np
 from .mps import MPS
 from .mpo import MPO
+from .qnumber import qnumber_flatten, is_qsparse
 
 __all__ = ['vdot', 'norm', 'operator_average', 'operator_inner_product', 'operator_density_average',
-           'compute_right_operator_blocks', 'apply_local_hamiltonian', 'apply_local_bond_contraction']
+           'apply_operator', 'compute_right_operator_blocks', 'apply_local_hamiltonian', 'apply_local_bond_contraction']
 
 
 def vdot(chi: MPS, psi: MPS):
@@ -165,6 +166,28 @@ def operator_density_average(rho: MPO, op: MPO):
     # T should now be a 1x1 matrix
     assert T.shape == (1, 1)
     return T[0, 0]
+
+
+def apply_operator(op: MPO, psi: MPS) -> MPS:
+    """
+    Apply an operator represented as MPO to a state in MPS form.
+    """
+    # quantum numbers on physical sites must match
+    assert np.array_equal(psi.qd, op.qd)
+    assert psi.nsites == op.nsites
+    # bond quantum numbers
+    qD = [qnumber_flatten((op.qD[i], psi.qD[i])) for i in range(psi.nsites + 1)]
+    op_psi = MPS(psi.qd, qD, fill='postpone')
+    for i in range(psi.nsites):
+        A = np.tensordot(op.A[i], psi.A[i], axes=(1, 0))
+        A = np.transpose(A, (0, 1, 3, 2, 4))
+        # group virtual bonds
+        s = A.shape
+        A = np.reshape(A, (s[0], s[1]*s[2], s[3]*s[4]))
+        op_psi.A[i] = A
+        assert is_qsparse(op_psi.A[i], [op_psi.qd, op_psi.qD[i], -op_psi.qD[i+1]]), \
+            'sparsity pattern of MPS tensor does not match quantum numbers'
+    return op_psi
 
 
 def contraction_operator_step_right(A: np.ndarray, B: np.ndarray, W: np.ndarray, R: np.ndarray):

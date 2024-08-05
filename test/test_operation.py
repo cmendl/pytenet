@@ -100,5 +100,35 @@ class TestOperation(unittest.TestCase):
         self.assertAlmostEqual(err, 0., delta=1e-12, msg='operator average must match reference value')
 
 
+    def test_apply_operator(self):
+
+        rng = np.random.default_rng()
+
+        # physical quantum numbers
+        qd = [0, -1, 1]
+
+        # create random matrix product state
+        D = [1, 9, 25, 31, 23, 8, 1]
+        psi = ptn.MPS(qd, [rng.integers(-1, 2, size=Di) for Di in D], fill='random', rng=rng)
+        # rescale to achieve norm of order 1
+        for i in range(psi.nsites):
+            psi.A[i] *= 5
+
+        # create random matrix product operator
+        D = [1, 5, 16, 43, 35, 7, 1]
+        op = ptn.MPO(qd, [rng.integers(-1, 2, size=Di) for Di in D], fill='random', rng=rng)
+        # rescale to achieve norm of order 1
+        for i in range(op.nsites):
+            op.A[i] *= 5
+
+        op_psi = ptn.apply_operator(op, psi)
+
+        # reference
+        op_psi_ref = op.as_matrix() @ psi.as_vector()
+
+        # compare
+        self.assertTrue(np.allclose(op_psi.as_vector(), op_psi_ref, rtol=1e-12, atol=1e-12))
+
+
 if __name__ == '__main__':
     unittest.main()
