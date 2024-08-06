@@ -180,10 +180,10 @@ def apply_operator(op: MPO, psi: MPS) -> MPS:
     op_psi = MPS(psi.qd, qD, fill='postpone')
     for i in range(psi.nsites):
         A = np.tensordot(op.A[i], psi.A[i], axes=(1, 0))
-        A = np.transpose(A, (0, 1, 3, 2, 4))
+        A = A.transpose((0, 1, 3, 2, 4))
         # group virtual bonds
         s = A.shape
-        A = np.reshape(A, (s[0], s[1]*s[2], s[3]*s[4]))
+        A = A.reshape((s[0], s[1]*s[2], s[3]*s[4]))
         op_psi.A[i] = A
         assert is_qsparse(op_psi.A[i], [op_psi.qd, op_psi.qD[i], -op_psi.qD[i+1]]), \
             'sparsity pattern of MPS tensor does not match quantum numbers'
