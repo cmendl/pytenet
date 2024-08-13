@@ -306,9 +306,8 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
         OID.Z: Z }
 
     # interaction terms 1/2 \sum_{i,j,k,l} v_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k:
-    # can anti-commute fermionic operators such that i < j and l < k;
-    # global minus sign from Jordan-Wigner transformation, since a Z = -a
-    gint = -0.5 * (vint - np.transpose(vint, (1, 0, 2, 3)) - np.transpose(vint, (0, 1, 3, 2)) + np.transpose(vint, (1, 0, 3, 2)))
+    # can anti-commute fermionic operators such that i < j and k < l
+    gint = 0.5 * (vint - np.transpose(vint, (1, 0, 2, 3)) - np.transpose(vint, (0, 1, 3, 2)) + np.transpose(vint, (1, 0, 3, 2)))
 
     if optimize:
         # optimize MPO bond dimensions based on bipartite graph theory
@@ -325,9 +324,9 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                                             [0] + (b - a)*[int(p)] + [0], tkin[i, j], a))
         # interaction terms 1/2 \sum_{i,j,k,l} v_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k
         for i in range(L):
-            for j in range(i + 1, L):   # i < j
+            for j in range(i + 1, L):  # i < j
                 for k in range(L):
-                    for l in range(k):  # l < k
+                    for l in range(k + 1, L):  # k < l
                         (a, p), (b, q), (c, r), (d, s) = sorted([(i, OID.C), (j, OID.C), (l, OID.A), (k, OID.A)])
                         if a == b:
                             assert b < c
@@ -395,10 +394,10 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                     nid_next += 1
         # a_i a_j operators connected to left terminal
         nodes_a_ann_a_ann_l = {}
-        for i in range(L//2 - 1):
-            for j in range(i + 1, L//2):
+        for i in range(L//2):
+            for j in range(i):
                 nodes_a_ann_a_ann_l[i, j] = {}
-                for k in range(j + 1, L//2 + 1):
+                for k in range(i + 1, L//2 + 1):
                     nodes_a_ann_a_ann_l[i, j][k] = OpGraphNode(nid_next, [], [], -2)
                     nid_next += 1
         # a^{\dagger}_i a_j operators connected to left terminal
@@ -433,10 +432,10 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                     nid_next += 1
         # a_i a_j operators connected to right terminal
         nodes_a_ann_a_ann_r = {}
-        for i in range(L//2 + 1, L - 1):
-            for j in range(i + 1, L):
+        for i in range(L//2 + 1, L):
+            for j in range(L//2 + 1, i):
                 nodes_a_ann_a_ann_r[i, j] = {}
-                for k in range(L//2 + 1, i + 1):
+                for k in range(L//2 + 1, j + 1):
                     nodes_a_ann_a_ann_r[i, j][k] = OpGraphNode(nid_next, [], [], 2)
                     nid_next += 1
         # a^{\dagger}_i a_j operators connected to right terminal
@@ -506,13 +505,13 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                         OpGraphEdge(eid_next, [nodes_a_dag_a_dag_l[i, j][k].nid, nodes_a_dag_a_dag_l[i, j][k + 1].nid], [(OID.I, 1.)]))
                     eid_next += 1
         # a_i a_j operators connected to left terminal
-        for i in range(L//2 - 1):
-            for j in range(i + 1, L//2):
+        for i in range(L//2):
+            for j in range(i):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_a_ann_l[i][j].nid, nodes_a_ann_a_ann_l[i, j][j + 1].nid], [(OID.A, 1.)]))
+                    OpGraphEdge(eid_next, [nodes_a_ann_l[j][i].nid, nodes_a_ann_a_ann_l[i, j][i + 1].nid], [(OID.A, 1.)]))
                 eid_next += 1
                 # identities for transition to next site
-                for k in range(j + 1, L//2):
+                for k in range(i + 1, L//2):
                     graph.add_connect_edge(
                         OpGraphEdge(eid_next, [nodes_a_ann_a_ann_l[i, j][k].nid, nodes_a_ann_a_ann_l[i, j][k + 1].nid], [(OID.I, 1.)]))
                     eid_next += 1
@@ -568,15 +567,15 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                     OpGraphEdge(eid_next, [nodes_a_dag_a_dag_r[i, j][i].nid, nodes_a_dag_r[j][i + 1].nid], [(OID.C, 1.)]))
                 eid_next += 1
         # a_i a_j operators connected to right terminal
-        for i in range(L//2 + 1, L - 1):
-            for j in range(i + 1, L):
+        for i in range(L//2 + 1, L):
+            for j in range(L//2 + 1, i):
                 # identities for transition to next site
-                for k in range(L//2 + 1, i):
+                for k in range(L//2 + 1, j):
                     graph.add_connect_edge(
                         OpGraphEdge(eid_next, [nodes_a_ann_a_ann_r[i, j][k].nid, nodes_a_ann_a_ann_r[i, j][k + 1].nid], [(OID.I, 1.)]))
                     eid_next += 1
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_a_ann_a_ann_r[i, j][i].nid, nodes_a_ann_r[j][i + 1].nid], [(OID.A, 1.)]))
+                    OpGraphEdge(eid_next, [nodes_a_ann_a_ann_r[i, j][j].nid, nodes_a_ann_r[i][j + 1].nid], [(OID.A, 1.)]))
                 eid_next += 1
         # a^{\dagger}_i a_j operators connected to right terminal
         for i in range(L//2 + 1, L):
@@ -635,107 +634,107 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                 graph.add_connect_edge(
                     OpGraphEdge(eid_next, [nodes_a_ann_l[j][L//2].nid, nodes_a_dag_r[i][L//2 + 1].nid], [(OID.Z, tkin[i, j])]))
                 eid_next += 1
-        # g_{i,j,k,j} a^{\dagger}_i n_j a_k terms, for i < j < k
+        # g_{i,j,j,l} a^{\dagger}_i n_j a_l terms, for i < j < l
         for i in range(L - 2):
             for j in range(i + 1, L - 1):
-                for k in range(j + 1, L):
+                for l in range(j + 1, L):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [nodes_a_dag_l[i][j].nid, nodes_a_ann_r[k][j + 1].nid], [(OID.N, gint[i, j, k, j])]))
+                        OpGraphEdge(eid_next, [nodes_a_dag_l[i][j].nid, nodes_a_ann_r[l][j + 1].nid], [(OID.N, gint[i, j, j, l])]))
                     eid_next += 1
-        # g_{i,j,i,l} a_l n_i a^{\dagger}_j terms, for l < i < j
-        for l in range(L - 2):
-            for i in range(l + 1, L - 1):
+        # g_{i,j,k,i} n_i a^{\dagger}_j a_l terms, for k < i < j
+        for k in range(L - 2):
+            for i in range(k + 1, L - 1):
                 for j in range(i + 1, L):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [nodes_a_ann_l[l][i].nid, nodes_a_dag_r[j][i + 1].nid], [(OID.N, gint[i, j, i, l])]))
+                        OpGraphEdge(eid_next, [nodes_a_ann_l[k][i].nid, nodes_a_dag_r[j][i + 1].nid], [(OID.N, gint[i, j, k, i])]))
                     eid_next += 1
-        # g_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k terms, for i < j < l < k
+        # g_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k terms, for i < j < k < l
         for i in range(L//2 - 1):
             for j in range(i + 1, L//2):
-                for l in range(j + 1, L//2 + 1):
-                    for k in range(l + 1, L):
+                for k in range(j + 1, L//2 + 1):
+                    for l in range(k + 1, L):
                         graph.add_connect_edge(
-                            OpGraphEdge(eid_next, [nodes_a_dag_a_dag_l[i, j][l].nid, nodes_a_ann_r[k][l + 1].nid], [(OID.A, gint[i, j, k, l])]))
+                            OpGraphEdge(eid_next, [nodes_a_dag_a_dag_l[i, j][k].nid, nodes_a_ann_r[l][k + 1].nid], [(OID.A, gint[i, j, k, l])]))
                         eid_next += 1
-        for l in range(L//2 + 1, L - 1):
-            for k in range(l + 1, L):
-                for j in range(L//2, l):
+        for l in range(L//2 + 1, L):
+            for k in range(L//2 + 1, l):
+                for j in range(L//2, k):
                     for i in range(j):
                         graph.add_connect_edge(
                             OpGraphEdge(eid_next, [nodes_a_dag_l[i][j].nid, nodes_a_ann_a_ann_r[l, k][j + 1].nid], [(OID.C, gint[i, j, k, l])]))
                         eid_next += 1
         for i in range(L//2 - 1):
             for j in range(i + 1, L//2):
-                for l in range(L//2 + 1, L - 1):
-                    for k in range(l + 1, L):
+                for k in range(L//2 + 1, L - 1):
+                    for l in range(k + 1, L):
                         graph.add_connect_edge(
                             OpGraphEdge(eid_next, [nodes_a_dag_a_dag_l[i, j][L//2].nid, nodes_a_ann_a_ann_r[l, k][L//2 + 1].nid], [(OID.I, gint[i, j, k, l])]))
                         eid_next += 1
-        # g_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k terms, for l < k < i < j
-        for l in range(L//2 - 1):
-            for k in range(l + 1, L//2):
-                for i in range(k + 1, L//2 + 1):
+        # g_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k terms, for k < l < i < j
+        for k in range(L//2 - 1):
+            for l in range(k + 1, L//2):
+                for i in range(l + 1, L//2 + 1):
                     for j in range(i + 1, L):
                         graph.add_connect_edge(
                             OpGraphEdge(eid_next, [nodes_a_ann_a_ann_l[l, k][i].nid, nodes_a_dag_r[j][i + 1].nid], [(OID.C, gint[i, j, k, l])]))
                         eid_next += 1
         for i in range(L//2 + 1, L - 1):
             for j in range(i + 1, L):
-                for k in range(L//2, i):
-                    for l in range(k):
+                for l in range(L//2, i):
+                    for k in range(l):
                         graph.add_connect_edge(
-                            OpGraphEdge(eid_next, [nodes_a_ann_l[l][k].nid, nodes_a_dag_a_dag_r[i, j][k + 1].nid], [(OID.A, gint[i, j, k, l])]))
+                            OpGraphEdge(eid_next, [nodes_a_ann_l[k][l].nid, nodes_a_dag_a_dag_r[i, j][l + 1].nid], [(OID.A, gint[i, j, k, l])]))
                         eid_next += 1
-        for l in range(L//2 - 1):
-            for k in range(l + 1, L//2):
+        for k in range(L//2 - 1):
+            for l in range(k + 1, L//2):
                 for i in range(L//2 + 1, L - 1):
                     for j in range(i + 1, L):
                         graph.add_connect_edge(
                             OpGraphEdge(eid_next, [nodes_a_ann_a_ann_l[l, k][L//2].nid, nodes_a_dag_a_dag_r[i, j][L//2 + 1].nid], [(OID.I, gint[i, j, k, l])]))
                         eid_next += 1
-        # g_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k terms, for i, l < j, k
+        # g_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k terms, for i, k < j, l
         for i in range(L//2):
-            for l in range(L//2):
-                for j in range(max(i, l) + 1, L):
-                    for k in range(max(i, l) + 1, L):
-                        if min(j, k) > L//2:
+            for k in range(L//2):
+                for j in range(max(i, k) + 1, L):
+                    for l in range(max(i, k) + 1, L):
+                        if min(j, l) > L//2:
                             continue
-                        if j < k:
+                        if j < l:
                             graph.add_connect_edge(
-                                OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, l][j].nid, nodes_a_ann_r[k][j + 1].nid], [(OID.C, gint[i, j, k, l])]))
+                                OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, k][j].nid, nodes_a_ann_r[l][j + 1].nid], [(OID.C, gint[i, j, k, l])]))
                             eid_next += 1
-                        elif j == k:
+                        elif j == l:
                             graph.add_connect_edge(
-                                OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, l][j].nid, nodes_identity_r[j + 1].nid], [(OID.N, gint[i, j, k, l])]))
+                                OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, k][j].nid, nodes_identity_r[j + 1].nid], [(OID.N, gint[i, j, k, l])]))
                             eid_next += 1
-                        else:  # j > k
+                        else:  # j > l
                             graph.add_connect_edge(
-                                OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, l][k].nid, nodes_a_dag_r[j][k + 1].nid], [(OID.A, gint[i, j, k, l])]))
+                                OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, k][l].nid, nodes_a_dag_r[j][l + 1].nid], [(OID.A, gint[i, j, k, l])]))
                             eid_next += 1
         for j in range(L//2 + 1, L):
-            for k in range(L//2 + 1, L):
-                for i in range(min(j, k)):
-                    for l in range(min(j, k)):
-                        if max(i, l) < L//2:
+            for l in range(L//2 + 1, L):
+                for i in range(min(j, l)):
+                    for k in range(min(j, l)):
+                        if max(i, k) < L//2:
                             continue
-                        if i < l:
+                        if i < k:
                             graph.add_connect_edge(
-                                OpGraphEdge(eid_next, [nodes_a_dag_l[i][l].nid, nodes_a_dag_a_ann_r[j, k][l + 1].nid], [(OID.A, gint[i, j, k, l])]))
+                                OpGraphEdge(eid_next, [nodes_a_dag_l[i][k].nid, nodes_a_dag_a_ann_r[j, l][k + 1].nid], [(OID.A, gint[i, j, k, l])]))
                             eid_next += 1
-                        elif i == l:
+                        elif i == k:
                             graph.add_connect_edge(
-                                OpGraphEdge(eid_next, [nodes_identity_l[i].nid, nodes_a_dag_a_ann_r[j, k][i + 1].nid], [(OID.N, gint[i, j, k, l])]))
+                                OpGraphEdge(eid_next, [nodes_identity_l[i].nid, nodes_a_dag_a_ann_r[j, l][i + 1].nid], [(OID.N, gint[i, j, k, l])]))
                             eid_next += 1
-                        else:  # i > l
+                        else:  # i > k
                             graph.add_connect_edge(
-                                OpGraphEdge(eid_next, [nodes_a_ann_l[l][i].nid, nodes_a_dag_a_ann_r[j, k][i + 1].nid], [(OID.C, gint[i, j, k, l])]))
+                                OpGraphEdge(eid_next, [nodes_a_ann_l[k][i].nid, nodes_a_dag_a_ann_r[j, l][i + 1].nid], [(OID.C, gint[i, j, k, l])]))
                             eid_next += 1
         for i in range(L//2):
-            for l in range(L//2):
+            for k in range(L//2):
                 for j in range(L//2 + 1, L):
-                    for k in range(L//2 + 1, L):
+                    for l in range(L//2 + 1, L):
                         graph.add_connect_edge(
-                            OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, l][L//2].nid, nodes_a_dag_a_ann_r[j, k][L//2 + 1].nid], [(OID.I, gint[i, j, k, l])]))
+                            OpGraphEdge(eid_next, [nodes_a_dag_a_ann_l[i, k][L//2].nid, nodes_a_dag_a_ann_r[j, l][L//2 + 1].nid], [(OID.I, gint[i, j, k, l])]))
                         eid_next += 1
 
     # skip consistency check for larger L (would take very long)
@@ -773,10 +772,10 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                     mpo.nids_a_dag_a_dag_l[i, j][k] = nodes_a_dag_a_dag_l[i, j][k].nid
         # a_i a_j operators connected to left terminal
         mpo.nids_a_ann_a_ann_l = {}
-        for i in range(L//2 - 1):
-            for j in range(i + 1, L//2):
+        for i in range(L//2):
+            for j in range(i):
                 mpo.nids_a_ann_a_ann_l[i, j] = {}
-                for k in range(j + 1, L//2 + 1):
+                for k in range(i + 1, L//2 + 1):
                     mpo.nids_a_ann_a_ann_l[i, j][k] = nodes_a_ann_a_ann_l[i, j][k].nid
         # a^{\dagger}_i a_j operators connected to left terminal
         mpo.nids_a_dag_a_ann_l = {}
@@ -806,10 +805,10 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                     mpo.nids_a_dag_a_dag_r[i, j][k] = nodes_a_dag_a_dag_r[i, j][k].nid
         # a_i a_j operators connected to right terminal
         mpo.nids_a_ann_a_ann_r = {}
-        for i in range(L//2 + 1, L - 1):
-            for j in range(i + 1, L):
+        for i in range(L//2 + 1, L):
+            for j in range(L//2 + 1, i):
                 mpo.nids_a_ann_a_ann_r[i, j] = {}
-                for k in range(L//2 + 1, i + 1):
+                for k in range(L//2 + 1, j + 1):
                     mpo.nids_a_ann_a_ann_r[i, j][k] = nodes_a_ann_a_ann_r[i, j][k].nid
         # a^{\dagger}_i a_j operators connected to right terminal
         mpo.nids_a_dag_a_ann_r = {}
@@ -875,15 +874,6 @@ def molecular_hamiltonian_orbital_gauge_transform(h: MPO, u, i: int):
             v_l[j, j] = u[0, 0] * u[1, 1] - u[0, 1] * u[1, 0]
     # a_i a_j operators connected to right terminal
     for k in range(i):
-        if (k, i) in h.nids_a_ann_a_ann_r:
-            if i in h.nids_a_ann_a_ann_r[k, i]:
-                _, j0 = h.nid_map[h.nids_a_ann_a_ann_r[k, i    ][i]]
-                _, j1 = h.nid_map[h.nids_a_ann_a_ann_r[k, i + 1][i]]
-                v_l[j0, j0] = u[0, 0].conj()
-                v_l[j0, j1] = u[0, 1].conj()
-                v_l[j1, j0] = u[1, 0].conj()
-                v_l[j1, j1] = u[1, 1].conj()
-    for k in range(i + 2, h.nsites):
         if (i, k) in h.nids_a_ann_a_ann_r:
             if i in h.nids_a_ann_a_ann_r[i, k]:
                 _, j0 = h.nid_map[h.nids_a_ann_a_ann_r[i,     k][i]]
@@ -892,9 +882,18 @@ def molecular_hamiltonian_orbital_gauge_transform(h: MPO, u, i: int):
                 v_l[j0, j1] = u[0, 1].conj()
                 v_l[j1, j0] = u[1, 0].conj()
                 v_l[j1, j1] = u[1, 1].conj()
-    if (i, i + 1) in h.nids_a_ann_a_ann_r:
-        if i in h.nids_a_ann_a_ann_r[i, i + 1]:
-            _, j = h.nid_map[h.nids_a_ann_a_ann_r[i, i + 1][i]]
+    for k in range(i + 2, h.nsites):
+        if (k, i) in h.nids_a_ann_a_ann_r:
+            if i in h.nids_a_ann_a_ann_r[k, i]:
+                _, j0 = h.nid_map[h.nids_a_ann_a_ann_r[k, i    ][i]]
+                _, j1 = h.nid_map[h.nids_a_ann_a_ann_r[k, i + 1][i]]
+                v_l[j0, j0] = u[0, 0].conj()
+                v_l[j0, j1] = u[0, 1].conj()
+                v_l[j1, j0] = u[1, 0].conj()
+                v_l[j1, j1] = u[1, 1].conj()
+    if (i + 1, i) in h.nids_a_ann_a_ann_r:
+        if i in h.nids_a_ann_a_ann_r[i + 1, i]:
+            _, j = h.nid_map[h.nids_a_ann_a_ann_r[i + 1, i][i]]
             v_l[j, j] = (u[0, 0] * u[1, 1] - u[0, 1] * u[1, 0]).conj()
     # a^{\dagger}_i a_j operators connected to right terminal
     for k in list(range(i)) + list(range(i + 2, h.nsites)):
@@ -983,15 +982,6 @@ def molecular_hamiltonian_orbital_gauge_transform(h: MPO, u, i: int):
             v_r[j, j] = u[0, 0] * u[1, 1] - u[0, 1] * u[1, 0]
     # a_i a_j operators connected to left terminal
     for k in range(i):
-        if (k, i) in h.nids_a_ann_a_ann_l:
-            if i + 2 in h.nids_a_ann_a_ann_l[k, i]:
-                _, j0 = h.nid_map[h.nids_a_ann_a_ann_l[k, i    ][i + 2]]
-                _, j1 = h.nid_map[h.nids_a_ann_a_ann_l[k, i + 1][i + 2]]
-                v_r[j0, j0] = u[0, 0].conj()
-                v_r[j0, j1] = u[0, 1].conj()
-                v_r[j1, j0] = u[1, 0].conj()
-                v_r[j1, j1] = u[1, 1].conj()
-    for k in range(i + 2, h.nsites):
         if (i, k) in h.nids_a_ann_a_ann_l:
             if i + 2 in h.nids_a_ann_a_ann_l[i, k]:
                 _, j0 = h.nid_map[h.nids_a_ann_a_ann_l[i,     k][i + 2]]
@@ -1000,9 +990,18 @@ def molecular_hamiltonian_orbital_gauge_transform(h: MPO, u, i: int):
                 v_r[j0, j1] = u[0, 1].conj()
                 v_r[j1, j0] = u[1, 0].conj()
                 v_r[j1, j1] = u[1, 1].conj()
-    if (i, i + 1) in h.nids_a_ann_a_ann_l:
-        if i + 2 in h.nids_a_ann_a_ann_l[i, i + 1]:
-            _, j = h.nid_map[h.nids_a_ann_a_ann_l[i, i + 1][i + 2]]
+    for k in range(i + 2, h.nsites):
+        if (k, i) in h.nids_a_ann_a_ann_l:
+            if i + 2 in h.nids_a_ann_a_ann_l[k, i]:
+                _, j0 = h.nid_map[h.nids_a_ann_a_ann_l[k, i    ][i + 2]]
+                _, j1 = h.nid_map[h.nids_a_ann_a_ann_l[k, i + 1][i + 2]]
+                v_r[j0, j0] = u[0, 0].conj()
+                v_r[j0, j1] = u[0, 1].conj()
+                v_r[j1, j0] = u[1, 0].conj()
+                v_r[j1, j1] = u[1, 1].conj()
+    if (i + 1, i) in h.nids_a_ann_a_ann_l:
+        if i + 2 in h.nids_a_ann_a_ann_l[i + 1, i]:
+            _, j = h.nid_map[h.nids_a_ann_a_ann_l[i + 1, i][i + 2]]
             v_r[j, j] = (u[0, 0] * u[1, 1] - u[0, 1] * u[1, 0]).conj()
     # a^{\dagger}_i a_j operators connected to left terminal
     for k in list(range(i)) + list(range(i + 2, h.nsites)):
