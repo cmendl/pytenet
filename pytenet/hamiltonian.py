@@ -7,7 +7,10 @@ from .opchain import OpChain
 from .autop import AutOpNode, AutOpEdge, AutOp
 from .opgraph import OpGraphNode, OpGraphEdge, OpGraph
 
-__all__ = ['ising_mpo', 'heisenberg_xxz_mpo', 'heisenberg_xxz_spin1_mpo', 'bose_hubbard_mpo', 'fermi_hubbard_mpo', 'molecular_hamiltonian_mpo', 'molecular_hamiltonian_orbital_gauge_transform']
+__all__ = ['ising_mpo', 'heisenberg_xxz_mpo', 'heisenberg_xxz_spin1_mpo',
+           'bose_hubbard_mpo', 'fermi_hubbard_mpo',
+           'molecular_hamiltonian_mpo', 'molecular_hamiltonian_orbital_gauge_transform',
+           'molecular_spin_hamiltonian_mpo']
 
 
 def ising_mpo(L: int, J: float, h: float, g: float) -> MPO:
@@ -31,9 +34,9 @@ def ising_mpo(L: int, J: float, h: float, g: float) -> MPO:
     sigma_z = np.array([[1., 0.], [0., -1.]])
     # operator map
     class OID(IntEnum):
-        I = 0,
-        Z = 1,
-        X = 2,
+        I = 0
+        Z = 1
+        X = 2
     opmap = {
         OID.I: np.identity(2),
         OID.Z: sigma_z,
@@ -87,10 +90,10 @@ def heisenberg_xxz_mpo(L: int, J: float, D: float, h: float) -> MPO:
     Sz  = np.array([[0.5, 0.], [0., -0.5]])
     # operator map
     class OID(IntEnum):
-        Sd = -1,
-        Id =  0,
-        Su =  1,
-        Sz =  2,
+        Sd = -1
+        Id =  0
+        Su =  1
+        Sz =  2
     opmap = {
         OID.Sd: Sdn,
         OID.Id: np.identity(2),
@@ -128,10 +131,10 @@ def heisenberg_xxz_spin1_mpo(L: int, J: float, D: float, h: float) -> MPO:
     Sz  = np.array([[1.,  0.,  0.], [0.,  0.,  0. ], [0.,  0., -1.]])
     # operator map
     class OID(IntEnum):
-        Sd = -1,
-        Id =  0,
-        Su =  1,
-        Sz =  2,
+        Sd = -1
+        Id =  0
+        Su =  1
+        Sz =  2
     opmap = {
         OID.Sd: Sdn,
         OID.Id: np.identity(3),
@@ -171,11 +174,11 @@ def bose_hubbard_mpo(d: int, L: int, t: float, U: float, mu: float) -> MPO:
     numop = np.diag(np.arange(d, dtype=float))
     # operator map
     class OID(IntEnum):
-        B  = -1,
-        Id =  0,
-        Bd =  1,
-        N  =  2,
-        NI =  3,
+        B  = -1
+        Id =  0
+        Bd =  1
+        N  =  2
+        NI =  3
     opmap = {
         OID.B:  b_ann,
         OID.Id: np.identity(d),
@@ -228,17 +231,17 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
     Z = np.array([[1., 0.], [0., -1.]])
     # operator map
     class OID(IntEnum):
-        Id =  0,
-        CI =  1,
-        AI =  2,
-        CZ =  3,
-        AZ =  4,
-        IC =  5,
-        IA =  6,
-        ZC =  7,
-        ZA =  8,
-        Nt =  9,
-        NI = 10,
+        Id =  0
+        CI =  1
+        AI =  2
+        CZ =  3
+        AZ =  4
+        IC =  5
+        IA =  6
+        ZC =  7
+        ZA =  8
+        Nt =  9
+        NI = 10
     opmap = {
         OID.Id: np.identity(4),
         OID.CI: np.kron(a_dag, id2),
@@ -293,11 +296,11 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
     Z = np.array([[1., 0.], [0., -1.]])
     # operator map
     class OID(IntEnum):
-        A = -1,
-        I =  0,
-        C =  1,
-        N =  2,
-        Z =  3,
+        A = -1
+        I =  0
+        C =  1
+        N =  2
+        Z =  3
     opmap = {
         OID.A: a_ann,
         OID.I: np.identity(2),
@@ -641,7 +644,7 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                     graph.add_connect_edge(
                         OpGraphEdge(eid_next, [nodes_a_dag_l[i][j].nid, nodes_a_ann_r[l][j + 1].nid], [(OID.N, gint[i, j, j, l])]))
                     eid_next += 1
-        # g_{i,j,k,i} n_i a^{\dagger}_j a_l terms, for k < i < j
+        # g_{i,j,k,i} n_i a^{\dagger}_j a_k terms, for k < i < j
         for k in range(L - 2):
             for i in range(k + 1, L - 1):
                 for j in range(i + 1, L):
@@ -828,7 +831,7 @@ def molecular_hamiltonian_orbital_gauge_transform(h: MPO, u, i: int):
     u = np.asarray(u)
     assert u.shape == (2, 2)
     assert np.allclose(u.conj().T @ u, np.identity(2))
-    assert i >= 0 and i < h.nsites - 1
+    assert 0 <= i < h.nsites - 1
     # left gauge transformation matrix
     v_l = np.identity(h.bond_dims[i], dtype=u.dtype)
     # a^{\dagger}_i operators connected to right terminal
@@ -1046,6 +1049,217 @@ def molecular_hamiltonian_orbital_gauge_transform(h: MPO, u, i: int):
     assert np.allclose(v_r.conj().T @ v_r, np.identity(v_r.shape[1]))
 
     return v_l, v_r
+
+
+def molecular_spin_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
+    r"""
+    Construct a molecular spin Hamiltonian as MPO, taking the electronic spin into account and
+    using physicists' convention for the interaction term (note ordering of k and \ell):
+
+    .. math::
+
+        H = \sum_{i,j,\sigma} t_{i,j} a^{\dagger}_{i,\sigma} a_{j,\sigma} + \\frac{1}{2} \sum_{i,j,k,\ell,\sigma,\tau} v_{i,j,k,\ell} a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{\ell,\tau} a_{k,\sigma}
+    """
+    tkin = np.asarray(tkin)
+    vint = np.asarray(vint)
+    L = tkin.shape[0]
+    assert tkin.shape == (L, L)
+    assert vint.shape == (L, L, L, L)
+
+    # physical particle number and spin quantum numbers (encoded as single integer)
+    qN = [0,  1,  1,  2]
+    qS = [0, -1,  1,  0]
+    qd = [_encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
+    id2 = np.identity(2)
+    # creation and annihilation operators for a single spin and lattice site
+    a_dag = np.array([[0., 0.], [1., 0.]])
+    a_ann = np.array([[0., 1.], [0., 0.]])
+    # number operator
+    numop = np.array([[0., 0.], [0., 1.]])
+    # Pauli-Z matrix required for Jordan-Wigner transformation
+    Z = np.array([[1., 0.], [0., -1.]])
+    # operator map
+    class OID(IntEnum):
+        Id =  0
+        IC =  1
+        IA =  2
+        IN =  3
+        CI =  4
+        CC =  5
+        CA =  6
+        CN =  7
+        CZ =  8
+        AI =  9
+        AC = 10
+        AA = 11
+        AN = 12
+        AZ = 13
+        NI = 14
+        NC = 15
+        NA = 16
+        NN = 17
+        NZ = 18
+        ZC = 19
+        ZA = 20
+        ZN = 21
+        ZZ = 22
+    opmap = {
+        OID.Id: np.identity(4),
+        OID.IC: np.kron(id2,   a_dag),
+        OID.IA: np.kron(id2,   a_ann),
+        OID.IN: np.kron(id2,   numop),
+        OID.CI: np.kron(a_dag, id2  ),
+        OID.CC: np.kron(a_dag, a_dag),
+        OID.CA: np.kron(a_dag, a_ann),
+        OID.CN: np.kron(a_dag, numop),
+        OID.CZ: np.kron(a_dag, Z    ),
+        OID.AI: np.kron(a_ann, id2  ),
+        OID.AC: np.kron(a_ann, a_dag),
+        OID.AA: np.kron(a_ann, a_ann),
+        OID.AN: np.kron(a_ann, numop),
+        OID.AZ: np.kron(a_ann, Z    ),
+        OID.NI: np.kron(numop, id2  ),
+        OID.NC: np.kron(numop, a_dag),
+        OID.NA: np.kron(numop, a_ann),
+        OID.NN: np.kron(numop, numop),
+        OID.NZ: np.kron(numop, Z    ),
+        OID.ZC: np.kron(Z,     a_dag),
+        OID.ZA: np.kron(Z,     a_ann),
+        OID.ZN: np.kron(Z,     numop),
+        OID.ZZ: np.kron(Z,     Z    ),
+    }
+
+    # interaction terms 1/2 \sum_{i,j,k,l,\sigma,\tau,\mu,\nu} v_{i,j,k,l} \delta_{\sigma,\mu} \delta_{\tau,\nu} a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{l,\nu} a_{k,\mu}:
+    # can anti-commute fermionic operators such that (i,\sigma) < (j,\tau) and (k,\mu) < (l,\nu)
+    gint0 = 0.5 * (vint                             + np.transpose(vint, (1, 0, 3, 2)))
+    gint1 = 0.5 * (np.transpose(vint, (1, 0, 2, 3)) + np.transpose(vint, (0, 1, 3, 2)))
+
+    def get_vint_coeff(spatialidx, spinidx):
+        valid = False
+        coeff = 0
+        if (spinidx[0] == spinidx[2]) and (spinidx[1] == spinidx[3]):
+            coeff += gint0[spatialidx]
+            valid = True
+        if (spinidx[0] == spinidx[3]) and (spinidx[1] == spinidx[2]):
+            coeff -= gint1[spatialidx]
+            valid = True
+        return coeff, valid
+
+    if optimize:
+        # optimize MPO bond dimensions based on bipartite graph theory
+
+        class OIDSingle(IntEnum):
+            A = -1
+            I =  0
+            C =  1
+            N =  2
+            Z =  3
+
+        # map a single OID pair to a combined OID
+        oid_single_pair_map = {
+            (OIDSingle.I, OIDSingle.I): OID.Id,
+            (OIDSingle.I, OIDSingle.C): OID.IC,
+            (OIDSingle.I, OIDSingle.A): OID.IA,
+            (OIDSingle.I, OIDSingle.N): OID.IN,
+            (OIDSingle.C, OIDSingle.I): OID.CI,
+            (OIDSingle.C, OIDSingle.C): OID.CC,
+            (OIDSingle.C, OIDSingle.A): OID.CA,
+            (OIDSingle.C, OIDSingle.N): OID.CN,
+            (OIDSingle.C, OIDSingle.Z): OID.CZ,
+            (OIDSingle.A, OIDSingle.I): OID.AI,
+            (OIDSingle.A, OIDSingle.C): OID.AC,
+            (OIDSingle.A, OIDSingle.A): OID.AA,
+            (OIDSingle.A, OIDSingle.N): OID.AN,
+            (OIDSingle.A, OIDSingle.Z): OID.AZ,
+            (OIDSingle.N, OIDSingle.I): OID.NI,
+            (OIDSingle.N, OIDSingle.C): OID.NC,
+            (OIDSingle.N, OIDSingle.A): OID.NA,
+            (OIDSingle.N, OIDSingle.N): OID.NN,
+            (OIDSingle.N, OIDSingle.Z): OID.NZ,
+            (OIDSingle.Z, OIDSingle.C): OID.ZC,
+            (OIDSingle.Z, OIDSingle.A): OID.ZA,
+            (OIDSingle.Z, OIDSingle.N): OID.ZN,
+            (OIDSingle.Z, OIDSingle.Z): OID.ZZ,
+        }
+
+        def convert_to_spin_opchain(opchain_single: OpChain):
+            assert opchain_single.qnums[ 0] == 0
+            assert opchain_single.qnums[-1] == 0
+            if opchain_single.istart % 2 == 1:
+                opchain_single.oids.insert(0, OIDSingle.I)
+                opchain_single.qnums.insert(0, 0)
+                opchain_single.istart -= 1
+            if opchain_single.length % 2 == 1:
+                opchain_single.oids.append(OIDSingle.I)
+                opchain_single.qnums.append(0)
+            assert opchain_single.length % 2 == 0
+            oids = [oid_single_pair_map[pair] for pair in zip(opchain_single.oids[0::2], opchain_single.oids[1::2])]
+            qnums = [0]
+            qspin = 0
+            for i in range(opchain_single.length // 2):
+                # determine spin quantum number from particle quantum numbers
+                qspin -= (opchain_single.qnums[2*i] - 2*opchain_single.qnums[2*i + 1] + opchain_single.qnums[2*i + 2])
+                qnums.append(_encode_quantum_number_pair(opchain_single.qnums[2*(i + 1)], qspin))
+            assert qnums[-1] == 0
+            return OpChain(oids, qnums, opchain_single.coeff, opchain_single.istart // 2)
+
+        opchains = []
+        # kinetic hopping terms \sum_{i,j,\sigma} t_{i,j} a^{\dagger}_{i,\sigma} a_{j,\sigma}
+        for i in range(2*L):
+            for j in range(2*L):
+                if (i - j) % 2 != 0:
+                    continue
+                if i == j:
+                    # diagonal hopping term
+                    opchains.append(convert_to_spin_opchain(OpChain([OIDSingle.N], [0, 0], tkin[i//2, i//2], i)))
+                else:
+                    (a, p), (b, q) = sorted([(i, OIDSingle.C), (j, OIDSingle.A)])
+                    opchains.append(convert_to_spin_opchain(
+                        OpChain([p] + (b - a - 1)*[OIDSingle.Z] + [q],
+                                [0] + (b - a)*[int(p)] + [0], tkin[i//2, j//2], a)))
+        # interaction terms 1/2 \sum_{i,j,k,l,\sigma,\tau} v_{i,j,k,l} a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{l,\tau} a_{k,\sigma}
+        for i in range(2*L):
+            for j in range(i + 1, 2*L):  # i < j
+                for k in range(2*L):
+                    for l in range(k + 1, 2*L):  # k < l
+                        coeff, valid = get_vint_coeff((i // 2, j // 2, k // 2, l // 2),
+                                                      (i %  2, j %  2, k %  2, l %  2))
+                        if not valid:
+                            continue
+                        (a, p), (b, q), (c, r), (d, s) = sorted([(i, OIDSingle.C), (j, OIDSingle.C), (l, OIDSingle.A), (k, OIDSingle.A)])
+                        if a == b:
+                            assert b < c
+                            if c == d:
+                                # two number operators
+                                oids  = [OIDSingle.N] + (c - b - 1)*[OIDSingle.I] + [OIDSingle.N]
+                                qnums = (c - b + 2)*[0]
+                            else:
+                                # number operator at the beginning
+                                oids  = [OIDSingle.N] + (c - b - 1)*[OIDSingle.I] + [r] + (d - c - 1)*[OIDSingle.Z] + [s]
+                                qnums = (c - b + 1)*[0] + (d - c)*[int(r)] + [0]
+                        elif b == c:
+                            # number operator in the middle
+                            oids  = [p] + (b - a - 1)*[OIDSingle.Z] + [OIDSingle.N] + (d - c - 1)*[OIDSingle.Z] + [s]
+                            qnums = [0] + (d - a)*[int(p)] + [0]
+                        elif c == d:
+                            # number operator at the end
+                            oids  = [p] + (b - a - 1)*[OIDSingle.Z] + [q] + (c - b - 1)*[OIDSingle.I] + [OIDSingle.N]
+                            qnums = [0] + (b - a)*[int(p)] + (c - b + 1)*[0]
+                        else:
+                            # generic case: i, j, k, l pairwise different
+                            oids  = [p] + (b - a - 1)*[OIDSingle.Z] + [q] + (c - b - 1)*[OIDSingle.I] + [r] + (d - c - 1)*[OIDSingle.Z] + [s]
+                            qnums = [0] + (b - a)*[int(p)] + (c - b)*[int(p) + int(q)] + (d - c)*[-int(s)] + [0]
+                        opchains.append(convert_to_spin_opchain(OpChain(oids, qnums, coeff, a)))
+        graph = OpGraph.from_opchains(opchains, L, OID.Id)
+
+    else:
+        raise NotImplementedError
+
+    # skip consistency check for larger L (would take very long)
+    if L <= 10:
+        assert graph.is_consistent()
+    # convert to MPO
+    return MPO.from_opgraph(qd, graph, opmap, compute_nid_map=(not optimize))
 
 
 def _local_opchains_to_mpo(qd: Sequence[int], lopchains: Sequence[OpChain], size: int, opmap: Mapping, oid_identity: int) -> MPO:

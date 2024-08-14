@@ -129,6 +129,9 @@ class TestHamiltonian(unittest.TestCase):
         tkin = ptn.crandn(2 * (L,), rng)
         vint = ptn.crandn(4 * (L,), rng)
 
+        # reference Hamiltonian
+        Href = construct_molecular_hamiltonian(tkin, vint)
+
         for opt in (True, False):
             mpoH = ptn.molecular_hamiltonian_mpo(tkin, vint, opt)
 
@@ -151,9 +154,6 @@ class TestHamiltonian(unittest.TestCase):
                     D3 = 2 * ((nl if i < L - 1 else 0) + (nr if i > 1 else 0))
                 D_theo.append(D1 + D2 + D3)
             self.assertEqual(mpoH.bond_dims, D_theo)
-
-            # reference Hamiltonian
-            Href = construct_molecular_hamiltonian(tkin, vint)
 
             # compare matrix representations
             self.assertTrue(np.allclose(mpoH.as_matrix(), Href.todense()),
@@ -199,6 +199,27 @@ class TestHamiltonian(unittest.TestCase):
             # compare matrix representations
             self.assertTrue(np.allclose(mpoH.as_matrix(), mpoH_rotorb.as_matrix()),
                 msg='matrix representation of MPO after orbital rotation and reference Hamiltonian must match')
+
+
+    def test_molecular_spin_hamiltonian_construction(self):
+
+        rng = np.random.default_rng()
+
+        # number of spin-endowed lattice sites
+        L = 4
+        # Hamiltonian parameters
+        tkin = ptn.crandn(2 * (L,), rng)
+        vint = ptn.crandn(4 * (L,), rng)
+
+        # reference Hamiltonian
+        Href = construct_molecular_spin_hamiltonian(tkin, vint)
+
+        for opt in (True,):
+            mpoH = ptn.molecular_spin_hamiltonian_mpo(tkin, vint, opt)
+
+            # compare matrix representations
+            self.assertTrue(np.allclose(mpoH.as_matrix(), Href.todense()),
+                msg='matrix representation of MPO and reference Hamiltonian must match')
 
 
 def construct_ising_hamiltonian(L: int, J: float, h: float, g: float):
@@ -364,6 +385,36 @@ def construct_molecular_hamiltonian(tkin, vint):
                     H += 0.5*vint[i, j, k, l] * (clist[i] @ clist[j] @ alist[l] @ alist[k])
     H.eliminate_zeros()
     return H
+
+
+def construct_molecular_spin_hamiltonian(tkin, vint):
+    """
+    Construct a molecular spin Hamiltonian as sparse matrix.
+    """
+    tkin = np.asarray(tkin)
+    vint = np.asarray(vint)
+
+    L = tkin.shape[0]
+    assert tkin.shape == (L, L)
+    assert vint.shape == (L, L, L, L)
+
+    # enlarge the single- and two-particle electron overlap integral tensors
+    # from an orbital basis without spin to a spin-orbital basis
+
+    # single-particle integrals
+    tkin_spin = np.kron(tkin, np.eye(2))
+
+    # two-particle integrals
+    tmp = np.zeros((2*L, L, 2*L, L), dtype=vint.dtype)
+    for i in range(L):
+        for j in range(L):
+            tmp[:, i, :, j] = np.kron(vint[:, i, :, j], np.eye(2))
+    vint_spin = np.zeros((2*L, 2*L, 2*L, 2*L), dtype=vint.dtype)
+    for i in range(2*L):
+        for j in range(2*L):
+            vint_spin[i, :, j, :] = np.kron(tmp[i, :, j, :], np.eye(2))
+
+    return construct_molecular_hamiltonian(tkin_spin, vint_spin)
 
 
 if __name__ == '__main__':
