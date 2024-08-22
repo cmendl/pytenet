@@ -201,7 +201,7 @@ class TestHamiltonian(unittest.TestCase):
                 msg='matrix representation of MPO after orbital rotation and reference Hamiltonian must match')
 
 
-    def test_molecular_spin_hamiltonian_construction(self):
+    def test_spin_molecular_hamiltonian_construction(self):
 
         rng = np.random.default_rng()
 
@@ -212,10 +212,10 @@ class TestHamiltonian(unittest.TestCase):
         vint = ptn.crandn(4 * (L,), rng)
 
         # reference Hamiltonian
-        Href = construct_molecular_spin_hamiltonian(tkin, vint)
+        Href = construct_spin_molecular_hamiltonian(tkin, vint)
 
-        for opt in (True,):
-            mpoH = ptn.molecular_spin_hamiltonian_mpo(tkin, vint, opt)
+        for opt in (True, False):
+            mpoH = ptn.spin_molecular_hamiltonian_mpo(tkin, vint, opt)
 
             # compare matrix representations
             self.assertTrue(np.allclose(mpoH.as_matrix(), Href.todense()),
@@ -387,9 +387,9 @@ def construct_molecular_hamiltonian(tkin, vint):
     return H
 
 
-def construct_molecular_spin_hamiltonian(tkin, vint):
+def construct_spin_molecular_hamiltonian(tkin, vint):
     """
-    Construct a molecular spin Hamiltonian as sparse matrix.
+    Construct a molecular Hamiltonian for a spin orbital basis as sparse matrix.
     """
     tkin = np.asarray(tkin)
     vint = np.asarray(vint)
@@ -399,7 +399,7 @@ def construct_molecular_spin_hamiltonian(tkin, vint):
     assert vint.shape == (L, L, L, L)
 
     # enlarge the single- and two-particle electron overlap integral tensors
-    # from an orbital basis without spin to a spin-orbital basis
+    # from an orbital basis without spin to a spin orbital basis
 
     # single-particle integrals
     tkin_spin = np.kron(tkin, np.eye(2))
