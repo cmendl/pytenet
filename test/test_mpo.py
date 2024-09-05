@@ -160,6 +160,25 @@ class TestMPO(unittest.TestCase):
         self.assertTrue(np.allclose(mpo.as_matrix(), opref))
 
 
+    def test_as_matrix(self):
+
+        rng = np.random.default_rng()
+
+        # create a random matrix product operator
+        qd = rng.integers(-2, 3, size=3)
+        qD = [rng.integers(-2, 3, size=Di) for Di in [1, 11, 16, 23, 19, 9, 1]]
+        mpo = ptn.MPO(qd, qD, fill='random', rng=rng)
+        # rescale to reach norm of order 1
+        for i in range(mpo.nsites):
+            mpo.A[i] *= 5
+        # matrix representations
+        mat_dense  = mpo.as_matrix(sparse_format=False)
+        mat_sparse = mpo.as_matrix(sparse_format=True)
+        # compare
+        self.assertTrue(np.allclose(mat_dense, mat_sparse.toarray(), rtol=1e-13),
+            msg='dense and sparse matrix representations of an MPO must agree')
+
+
     def test_add(self):
 
         rng = np.random.default_rng()

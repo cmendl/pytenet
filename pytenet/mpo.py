@@ -1,5 +1,6 @@
 from collections.abc import Sequence, Mapping
 import numpy as np
+from scipy import sparse
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
 from .bond_ops import qr
 from .opgraph import OpGraph
@@ -203,17 +204,41 @@ class MPO:
             return nrm
         raise ValueError(f'mode = {mode} invalid; must be "left" or "right".')
 
-    def as_matrix(self) -> np.ndarray:
+    def as_matrix(self, sparse_format:bool=False):
         """
         Merge all tensors to obtain the matrix representation on the full Hilbert space.
         """
-        op = self.A[0]
-        for i in range(1, len(self.A)):
-            op = merge_mpo_tensor_pair(op, self.A[i])
-        assert op.ndim == 4
-        assert op.shape[2] == 1 and op.shape[3] == 1
-        op = op.reshape((op.shape[0], op.shape[1]))
-        return op
+        if not sparse_format:
+            op = self.A[0]
+            for i in range(1, len(self.A)):
+                op = merge_mpo_tensor_pair(op, self.A[i])
+            assert op.ndim == 4
+            assert op.shape[2] == 1 and op.shape[3] == 1
+            op = op.reshape((op.shape[0], op.shape[1]))
+            return op
+        else:
+            n = len(self.qd)
+            op = self.A[0]
+            assert op.shape[2] == 1
+            # keep right virtual bond dimension as column dimension
+            op = sparse.csr_array(op.reshape((-1, op.shape[3])))
+            for i in range(1, len(self.A)):
+                T = self.A[i]
+                assert T.shape[0] == len(self.qd)
+                op_next_list = []
+                for j in range(len(self.qd)):
+                    # explicitly index physical output axis;
+                    # compressed sparse column format for subsequent multiplication
+                    Tj = sparse.csc_array(T[j].transpose((1, 0, 2)).reshape(T.shape[2], -1))
+                    # contract along virtual bond and isolate physical output axis of 'op'
+                    op_next_list.append((op @ Tj).reshape((n, -1)))
+                op = sparse.csr_array(sparse.hstack(op_next_list))
+                n *= len(self.qd)
+                op = op.reshape((n**2, -1))
+            assert op.shape[1] == 1
+            # restore physical input and output dimensions
+            op = sparse.csr_array(op.reshape((n, n)))
+            return op
 
     def __add__(self, other):
         """
