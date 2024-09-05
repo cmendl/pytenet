@@ -141,17 +141,20 @@ class TestHamiltonian(unittest.TestCase):
                 nl = i
                 nr = L - i
                 n = min(nl, nr)
+                # identity chains
                 if opt:
                     D1 = 2 if 1 < i < L - 1 else 1
                 else:
                     # slightly sub-optimal
                     D1 = 2 if 1 <= i <= L - 1 else 1
-                D2 = n**2 + 2 * n * (n - 1) // 2
+                # a^{\dagger}_i and a_i chains, reaching (almost) from one boundary to the other
                 if opt:
-                    D3 = 2 * min(nl**2 * (nl - 1) // 2, nr) + 2 * min(nl, nr**2 * (nr - 1) // 2)
+                    D2 = 2 * min(nl**2 * (nl - 1) // 2, nr) + 2 * min(nl, nr**2 * (nr - 1) // 2)
                 else:
                     # slightly sub-optimal
-                    D3 = 2 * ((nl if i < L - 1 else 0) + (nr if i > 1 else 0))
+                    D2 = 2 * ((nl if i < L - 1 else 0) + (nr if i > 1 else 0))
+                # a^{\dagger}_i a^{\dagger}_j (for i < j), a_i a_j (for i > j) and a^{\dagger}_i a_j chains, extending from boundary to center
+                D3 = 2 * n * (n - 1) // 2 + n**2
                 D_theo.append(D1 + D2 + D3)
             self.assertEqual(mpoH.bond_dims, D_theo)
 

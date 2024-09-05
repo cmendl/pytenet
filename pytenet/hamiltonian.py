@@ -1154,7 +1154,7 @@ class SpinOperatorConverter:
         return OpChain(oids, qnums, opchain_single.coeff, opchain_single.istart // 2)
 
     @classmethod
-    def to_spin_operator(cls, oplist: Sequence[tuple], even_parity_left, even_parity_right) -> SpinMolecularOID:
+    def to_spin_operator(cls, oplist: Sequence[tuple], even_parity_left: bool, even_parity_right: bool) -> SpinMolecularOID:
         """
         Convert a list of local creation and annihilation operators of the form [(spin_a, oid_a), ...]
         to the corresponding operator using a spin orbital basis.
@@ -1255,7 +1255,7 @@ class SpinMolecularOpGraphNodes:
                 if (i, sigma) >= (j, tau):
                     continue
                 self.a_dag_a_dag_l[i, sigma, j, tau] = {}
-                for k in range(j + 1, L//2 + 2):
+                for k in range(j + 1, L//2 + 1):
                     self.a_dag_a_dag_l[i, sigma, j, tau][k] = OpGraphNode(
                         nid_next, [], [], _encode_quantum_number_pair( 2, [1, -1][sigma] + [1, -1][tau]))
                     nid_next += 1
@@ -1449,14 +1449,13 @@ class SpinMolecularOpGraphNodes:
                         OpGraphEdge(eid_next, [self.a_dag_l[i, sigma][j].nid, self.a_dag_a_ann_l[i, sigma, j, tau][j + 1].nid], [([SpinMolecularOID.AI, SpinMolecularOID.ZA][tau], 1.)]))
                 elif i == j:
                     if sigma < tau:
-                        graph.add_connect_edge(
-                            OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_dag_a_ann_l[i, sigma, j, tau][i + 1].nid], [(SpinMolecularOID.CA, 1.)]))
+                        oid = SpinMolecularOID.CA
                     elif sigma == tau:
-                        graph.add_connect_edge(
-                            OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_dag_a_ann_l[i, sigma, j, tau][i + 1].nid], [([SpinMolecularOID.NI, SpinMolecularOID.IN][sigma], 1.)]))
+                        oid = [SpinMolecularOID.NI, SpinMolecularOID.IN][sigma]
                     else:  # sigma > tau
-                        graph.add_connect_edge(
-                            OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_dag_a_ann_l[i, sigma, j, tau][i + 1].nid], [(SpinMolecularOID.AC, 1.)]))
+                        oid = SpinMolecularOID.AC
+                    graph.add_connect_edge(
+                        OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_dag_a_ann_l[i, sigma, j, tau][i + 1].nid], [(oid, 1.)]))
                 else:  # i > j
                     graph.add_connect_edge(
                         OpGraphEdge(eid_next, [self.a_ann_l[j, tau][i].nid, self.a_dag_a_ann_l[i, sigma, j, tau][i + 1].nid], [([SpinMolecularOID.CI, SpinMolecularOID.ZC][sigma], 1.)]))
@@ -1520,7 +1519,7 @@ class SpinMolecularOpGraphNodes:
                 else:
                     assert sigma == 1 and tau == 0
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_ann_a_ann_r[i, sigma, j, tau][i].nid, self.identity_r[i + 1].nid], [(SpinMolecularOID.AA, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_ann_a_ann_r[i, sigma, j, tau][j].nid, self.identity_r[j + 1].nid], [(SpinMolecularOID.AA, 1.)]))
                 eid_next += 1
         # a^{\dagger}_{i,\sigma} a_{j,\tau} operators connected to right terminal
         for i, sigma in itertools.product(range(L//2 + 1, L), (0, 1)):
@@ -1534,14 +1533,13 @@ class SpinMolecularOpGraphNodes:
                         OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][i].nid, self.a_ann_r[j, tau][i + 1].nid], [([SpinMolecularOID.CZ, SpinMolecularOID.IC][sigma], 1.)]))
                 elif i == j:
                     if sigma < tau:
-                        graph.add_connect_edge(
-                            OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][i].nid, self.identity_r[i + 1].nid], [(SpinMolecularOID.CA, 1.)]))
+                        oid = SpinMolecularOID.CA
                     elif sigma == tau:
-                        graph.add_connect_edge(
-                            OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][i].nid, self.identity_r[i + 1].nid], [([SpinMolecularOID.NI, SpinMolecularOID.IN][sigma], 1.)]))
+                        oid = [SpinMolecularOID.NI, SpinMolecularOID.IN][sigma]
                     else:  # sigma > tau
-                        graph.add_connect_edge(
-                            OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][i].nid, self.identity_r[i + 1].nid], [(SpinMolecularOID.AC, 1.)]))
+                        oid = SpinMolecularOID.AC
+                    graph.add_connect_edge(
+                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][i].nid, self.identity_r[i + 1].nid], [(oid, 1.)]))
                 else:  # i > j
                     graph.add_connect_edge(
                         OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][j].nid, self.a_dag_r[i, sigma][j + 1].nid], [([SpinMolecularOID.AZ, SpinMolecularOID.IA][tau], 1.)]))
@@ -1580,7 +1578,7 @@ class SpinMolecularOpGraphNodes:
                 if (i, sigma) >= (j, tau):
                     continue
                 target.nids_a_dag_a_dag_l[i, sigma, j, tau] = {}
-                for k in range(j + 1, L//2 + 2):
+                for k in range(j + 1, L//2 + 1):
                     target.nids_a_dag_a_dag_l[i, sigma, j, tau][k] = self.a_dag_a_dag_l[i, sigma, j, tau][k].nid
         # a_{i,\sigma} a_{j,\tau} operators connected to left terminal
         target.nids_a_ann_a_ann_l = {}

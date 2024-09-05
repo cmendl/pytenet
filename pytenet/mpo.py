@@ -107,6 +107,8 @@ class MPO:
                         nids1.append(edge.nids[1])
             if not nids1:   # reached final site
                 break
+            # sort by node ID
+            nids1 = sorted(nids1)
             qD.append([graph.nodes[nid].qnum for nid in nids1])
             if compute_nid_map:
                 for i, nid in enumerate(nids1):
