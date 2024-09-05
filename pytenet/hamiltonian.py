@@ -9,7 +9,7 @@ from .autop import AutOpNode, AutOpEdge, AutOp
 from .opgraph import OpGraphNode, OpGraphEdge, OpGraph
 
 __all__ = ['ising_mpo', 'heisenberg_xxz_mpo', 'heisenberg_xxz_spin1_mpo',
-           'bose_hubbard_mpo', 'fermi_hubbard_mpo',
+           'bose_hubbard_mpo', 'fermi_hubbard_mpo', 'linear_fermionic_mpo',
            'molecular_hamiltonian_mpo', 'molecular_hamiltonian_orbital_gauge_transform',
            'spin_molecular_hamiltonian_mpo']
 
@@ -270,6 +270,74 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
         OpChain([OID.NI], [0, 0],  U,  0)]
     # convert to MPO
     return _local_opchains_to_mpo(qd, lopchains, L, opmap, OID.Id)
+
+
+def linear_fermionic_mpo(coeff, ftype: str) -> MPO:
+    """
+    Represent a sum of fermionic creation or annihilation operators of the following form as MPO:
+
+    .. math::
+
+        op = \sum_{i=1}^L f_i a^{\dagger}_i \text{ or } op = \sum_{i=1}^L coeff_i a_i
+    """
+    L = len(coeff)
+
+    use_creation_op = (ftype in ['c', 'create', 'creation'])
+
+    # creation and annihilation operators
+    a_ann = np.array([[0., 1.], [0., 0.]])
+    a_dag = np.array([[0., 0.], [1., 0.]])
+    # Pauli-Z matrix required for Jordan-Wigner transformation
+    Z = np.array([[1., 0.], [0., -1.]])
+    # operator map
+    class OID(IntEnum):
+        A = -1
+        I =  0
+        C =  1
+        Z =  2
+    opmap = {
+        OID.A: a_ann,
+        OID.I: np.identity(2),
+        OID.C: a_dag,
+        OID.Z: Z
+    }
+
+    # construct operator graph
+    nid_next = 0
+    # identity and Z strings from the left and right
+    identity_l = {}
+    z_string_r = {}
+    for i in range(L):
+        identity_l[i] = OpGraphNode(nid_next, [], [], 0)
+        nid_next += 1
+    for i in range(1, L + 1):
+        z_string_r[i] = OpGraphNode(nid_next, [], [], 1 if use_creation_op else -1)
+        nid_next += 1
+    # initialize graph with nodes
+    graph = OpGraph(list(identity_l.values()) +
+                    list(z_string_r.values()),
+                    [], [identity_l[0].nid, z_string_r[L].nid])
+    # edges
+    eid_next = 0
+    # identities
+    for i in range(L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[i].nid, identity_l[i + 1].nid], [(OID.I, 1.)]))
+        eid_next += 1
+    # Z strings
+    for i in range(1, L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [z_string_r[i].nid, z_string_r[i + 1].nid], [(OID.Z, 1.)]))
+        eid_next += 1
+    # creation or annihilation operators
+    for i in range(L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[i].nid, z_string_r[i + 1].nid], [(OID.C if use_creation_op else OID.A, coeff[i])]))
+        eid_next += 1
+    assert graph.is_consistent()
+
+    # convert to MPO
+    return MPO.from_opgraph([0, 1], graph, opmap)
 
 
 class MolecularOID(IntEnum):
