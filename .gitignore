@@ -20,3 +20,6 @@ __pycache__/
 *.fig
 *.jpg
 *.png
+
+# Ignore virtual environments
+.venv/
