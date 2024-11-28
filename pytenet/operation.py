@@ -3,7 +3,8 @@ from .mps import MPS
 from .mpo import MPO
 
 __all__ = ['vdot', 'norm', 'operator_average', 'operator_density_average',
-           'compute_right_operator_blocks', 'apply_local_hamiltonian', 'apply_local_bond_contraction']
+           'compute_right_operator_blocks', 'apply_local_hamiltonian',
+           'apply_local_bond_contraction', 'compute_left_state_blocks']
 
 
 def vdot(chi: MPS, psi: MPS):
@@ -92,6 +93,36 @@ def contraction_step_left(A: np.ndarray, B: np.ndarray, L: np.ndarray):
     Lnext = np.tensordot(A, T, axes=((0, 1), (1, 0)))
     return Lnext
 
+def compute_left_state_blocks(mpsA: MPS, mpsB: MPS):
+    r"""
+    Compute all partial contractions from the left of a state-state contraction.
+    """
+    L = mpsA.nsites
+    assert L == mpsB.nsites
+    left_blocks = [None for _ in range(L)]
+    # initialize leftmost dummy block
+    left_blocks[0] = np.array([1], dtype=complex).reshape(1,1)
+    # Compute left environment blocks
+    for i in range(1, L):
+        left_blocks[i] = contraction_step_left(mpsA.A[i-1],
+                                                mpsB.A[i-1],
+                                                left_blocks[i-1])
+    return left_blocks
+
+def compute_left_state_blocks_conj(mpsA: MPS):
+    r"""
+    Compute all partial contractions from the left of a state-state contraction.
+    """
+    L = mpsA.nsites
+    left_blocks = [None for _ in range(L)]
+    # initialize leftmost dummy block
+    left_blocks[0] = np.array([1], dtype=complex).reshape(1,1)
+    # Compute left environment blocks
+    for i in range(1, L):
+        left_blocks[i] = contraction_step_left(mpsA.A[i-1],
+                                                mpsA.A[i-1].conj(),
+                                                left_blocks[i-1])
+    return left_blocks
 
 def operator_average(psi: MPS, op: MPO):
     """
