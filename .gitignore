@@ -6,6 +6,12 @@ obsolete/
 .ipynb_checkpoints/
 __pycache__/
 
+# ignore virtual environments
+.venv/
+
+# ignore package files
+*.egg-info
+
 # ignore typical data files
 *.dat
 

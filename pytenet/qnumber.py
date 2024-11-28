@@ -22,6 +22,11 @@ def qnumber_outer_sum(qnums):
         T = np.add.outer(T, qnums[i])
     return T
 
+def common_qnumbers(qnums0, qnums1):
+    """
+    Find common quantum numbers between two lists of quantum numbers.
+    """
+    return np.intersect1d(qnums0, qnums1)
 
 def qnumber_flatten(qnums):
     """

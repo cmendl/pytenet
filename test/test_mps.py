@@ -81,7 +81,7 @@ class TestMPS(unittest.TestCase):
         qd = [-1, 1, 0]
 
         for tol in (0., 1e-4):
-            for mode in ('left', 'right'):
+            for mode, direction in [('svd', 'left'), ('svd', 'right'), ('density', 'any')]:
                 # create random matrix product state
                 D = [1, 30, 83, 102, 75, 23, 1]
                 psi = ptn.MPS(qd, [rng.integers(-1, 2, size=Di) for Di in D], fill='random', rng=rng)
@@ -94,9 +94,15 @@ class TestMPS(unittest.TestCase):
                     psi.A[i] *= 5 / np.linalg.norm(psi.A[i])
 
                 psi_ref = psi.as_vector()
+                nrm_ref = np.linalg.norm(psi_ref)
+                # print("np.linalg.norm(psi_ref):", np.linalg.norm(psi_ref))
 
-                nrm, scale = psi.compress(tol, mode)
-                self.assertAlmostEqual(scale, 1, delta=(1e-13 if tol == 0 else 1e-3))
+                nrm, scale = psi.compress(tol, mode=mode, direction=direction)
+
+                # norm of input state vector
+                self.assertAlmostEqual(nrm, nrm_ref, delta=1e-13)
+
+                self.assertAlmostEqual(scale, 1, delta=(1e-13 if tol == 0 else 1e-2))
                 # must be normalized after compression
                 self.assertAlmostEqual(ptn.norm(psi), 1, delta=1e-13)
 

@@ -3,8 +3,10 @@ from .mps import MPS
 from .mpo import MPO
 from .qnumber import qnumber_flatten, is_qsparse
 
-__all__ = ['vdot', 'norm', 'operator_average', 'operator_inner_product', 'operator_density_average',
-           'apply_operator', 'compute_right_operator_blocks', 'apply_local_hamiltonian', 'apply_local_bond_contraction']
+__all__ = ['vdot', 'norm', 'compute_left_state_blocks', 'operator_average',
+           'operator_inner_product', 'operator_density_average',
+           'apply_operator', 'compute_right_operator_blocks',
+           'apply_local_hamiltonian', 'apply_local_bond_contraction']
 
 
 def vdot(chi: MPS, psi: MPS):
@@ -92,6 +94,21 @@ def contraction_step_left(A: np.ndarray, B: np.ndarray, L: np.ndarray):
     # multiply with A tensor
     Lnext = np.tensordot(A, T, axes=((0, 1), (1, 0)))
     return Lnext
+
+
+def compute_left_state_blocks(chi: MPS, psi: MPS):
+    """
+    Compute all partial contractions from the left of the inner product `<chi | psi>`.
+    """
+    L = chi.nsites
+    assert L == psi.nsites
+    blocks = [None for _ in range(L + 1)]
+    # initialize leftmost dummy block
+    blocks[0] = np.identity(1, dtype=psi.A[0].dtype)
+    # compute left environment blocks
+    for i in range(1, L + 1):
+        blocks[i] = contraction_step_left(psi.A[i-1], chi.A[i-1], blocks[i-1])
+    return blocks
 
 
 def operator_average(psi: MPS, op: MPO):
@@ -303,12 +320,12 @@ def compute_right_operator_blocks(psi: MPS, op: MPO):
     """
     L = psi.nsites
     assert L == op.nsites
-    BR = [None for _ in range(L)]
+    blocks = [None for _ in range(L)]
     # initialize rightmost dummy block
-    BR[L-1] = np.array([[[1]]], dtype=complex)
-    for i in reversed(range(L-1)):
-        BR[i] = contraction_operator_step_right(psi.A[i+1], psi.A[i+1], op.A[i+1], BR[i+1])
-    return BR
+    blocks[L-1] = np.array([[[1]]], dtype=complex)
+    for i in reversed(range(L - 1)):
+        blocks[i] = contraction_operator_step_right(psi.A[i+1], psi.A[i+1], op.A[i+1], blocks[i+1])
+    return blocks
 
 
 def apply_local_hamiltonian(L: np.ndarray, R: np.ndarray, W: np.ndarray, A: np.ndarray):

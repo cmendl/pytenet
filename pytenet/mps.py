@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 import numpy as np
 from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
-from .bond_ops import qr, retained_bond_indices, split_matrix_svd
+from .bond_ops import qr, eigh, retained_bond_indices, split_matrix_svd
 from .util import crandn
 
 __all__ = ['MPS', 'merge_mps_tensor_pair', 'split_mps_tensor']
@@ -121,43 +121,93 @@ class MPS:
             return nrm
         raise ValueError(f'mode = {mode} invalid; must be "left" or "right".')
 
-    def compress(self, tol: float, mode='left'):
+    def compress(self, tol: float, mode='svd', direction='left'):
         """
-        Compress and orthonormalize a MPS by site-local SVDs and singular value truncations.
+        Compress and orthonormalize a MPS.
+
+        For 'mode == "svd"', the function performs site-local SVDs and singular value truncations.
+        For 'mode == "density"', the function implements the rounding compression
+        discussed in the paper "From density-matrix renormalization group to matrix product states" (cited below),
+        see also https://tensornetwork.org/mps/#toc_6
 
         Returns original norm and scaling factor due to compression.
+
+        Reference:
+            Ian P. McCulloch
+            From density-matrix renormalization group to matrix product states
+            J. Stat. Mech. (2007) P10014
+            DOI: 10.1088/1742-5468/2007/10/P10014
+            https://arxiv.org/abs/cond-mat/0701428
         """
-        if mode == 'left':
-            # transform to right-canonical form first
-            nrm = self.orthonormalize(mode='right')
-            for i in range(len(self.A) - 1):
-                self.A[i], self.A[i+1], self.qD[i+1] = local_orthonormalize_left_svd(self.A[i], self.A[i+1], self.qd, self.qD[i:i+2], tol)
-                assert is_qsparse(self.A[i], [self.qd, self.qD[i], -self.qD[i+1]]), \
+        if mode == 'svd':
+            if direction == 'left':
+                # transform to right-canonical form first
+                nrm = self.orthonormalize(mode='right')
+                for i in range(len(self.A) - 1):
+                    self.A[i], self.A[i+1], self.qD[i+1] = local_orthonormalize_left_svd(self.A[i], self.A[i+1], self.qd, self.qD[i:i+2], tol)
+                    assert is_qsparse(self.A[i], [self.qd, self.qD[i], -self.qD[i+1]]), \
+                        'sparsity pattern of MPS tensor does not match quantum numbers'
+                # last tensor
+                self.A[-1], T, self.qD[-1] = local_orthonormalize_left_svd(self.A[-1], np.array([[[1]]]), self.qd, self.qD[-2:], tol)
+                assert is_qsparse(self.A[-1], [self.qd, self.qD[-2], -self.qD[-1]]), \
                     'sparsity pattern of MPS tensor does not match quantum numbers'
-            # last tensor
-            self.A[-1], T, self.qD[-1] = local_orthonormalize_left_svd(self.A[-1], np.array([[[1]]]), self.qd, self.qD[-2:], tol)
-            assert is_qsparse(self.A[-1], [self.qd, self.qD[-2], -self.qD[-1]]), \
-                'sparsity pattern of MPS tensor does not match quantum numbers'
-            assert T.shape == (1, 1, 1)
-            # absorb potential phase factor into MPS tensor
-            self.A[-1] *= T[0, 0, 0] / abs(T[0, 0, 0])
-            return (nrm, abs(T[0, 0, 0]))
-        if mode == 'right':
-            # transform to left-canonical form first
-            nrm = self.orthonormalize(mode='left')
-            for i in reversed(range(1, len(self.A))):
-                self.A[i], self.A[i-1], self.qD[i] = local_orthonormalize_right_svd(self.A[i], self.A[i-1], self.qd, self.qD[i:i+2], tol)
-                assert is_qsparse(self.A[i], [self.qd, self.qD[i], -self.qD[i+1]]), \
+                assert T.shape == (1, 1, 1)
+                # absorb potential phase factor into MPS tensor
+                self.A[-1] *= T[0, 0, 0] / abs(T[0, 0, 0])
+                return (nrm, abs(T[0, 0, 0]))
+            if direction == 'right':
+                # transform to left-canonical form first
+                nrm = self.orthonormalize(mode='left')
+                for i in reversed(range(1, len(self.A))):
+                    self.A[i], self.A[i-1], self.qD[i] = local_orthonormalize_right_svd(self.A[i], self.A[i-1], self.qd, self.qD[i:i+2], tol)
+                    assert is_qsparse(self.A[i], [self.qd, self.qD[i], -self.qD[i+1]]), \
+                        'sparsity pattern of MPS tensor does not match quantum numbers'
+                # first tensor
+                self.A[0], T, self.qD[0] = local_orthonormalize_right_svd(self.A[0], np.array([[[1]]]), self.qd, self.qD[:2], tol)
+                assert is_qsparse(self.A[0], [self.qd, self.qD[0], -self.qD[1]]), \
                     'sparsity pattern of MPS tensor does not match quantum numbers'
-            # first tensor
-            self.A[0], T, self.qD[0] = local_orthonormalize_right_svd(self.A[0], np.array([[[1]]]), self.qd, self.qD[:2], tol)
-            assert is_qsparse(self.A[0], [self.qd, self.qD[0], -self.qD[1]]), \
-                'sparsity pattern of MPS tensor does not match quantum numbers'
-            assert T.shape == (1, 1, 1)
-            # absorb potential phase factor into MPS tensor
-            self.A[0] *= T[0, 0, 0] / abs(T[0, 0, 0])
-            return (nrm, abs(T[0, 0, 0]))
-        raise ValueError(f'mode = {mode} invalid; must be "left" or "right".')
+                assert T.shape == (1, 1, 1)
+                # absorb potential phase factor into MPS tensor
+                self.A[0] *= T[0, 0, 0] / abs(T[0, 0, 0])
+                return (nrm, abs(T[0, 0, 0]))
+            raise ValueError(f'direction = {direction} invalid; must be "left" or "right".')
+        if mode == 'density':
+            from .operation import compute_left_state_blocks
+            left_envs = compute_left_state_blocks(self, self)
+            assert left_envs[-1].shape == (1, 1)
+            assert left_envs[-1][0, 0].real > 0
+            nrm = np.sqrt(left_envs[-1][0, 0].real)
+            # trivial initial tensors
+            b = np.array([1], dtype=self.A[-1].dtype).reshape(1, 1, 1)
+            # current 'U' matrix
+            u = np.array([1], dtype=self.A[-1].dtype).reshape(1, 1, 1)
+            for i in reversed(range(1, self.nsites)):
+                # compute new 'B' block
+                b = np.tensordot(b, u.conj(), axes=([0, 2], [0, 2]))
+                b = np.tensordot(self.A[i], b, axes=([2], [0]))
+                # compute density matrix
+                rho = np.tensordot(b, left_envs[i], axes=([1], [0]))
+                rho = np.tensordot(rho, b.conj(), axes=([2], [1]))
+                # diagonalize density matrix
+                assert rho.ndim == 4
+                orig_shape = rho.shape[0:2]
+                rho = rho.reshape((np.prod(rho.shape[0:2]), np.prod(rho.shape[2:4])))
+                qnums_rho = qnumber_flatten([self.qd, -self.qD[i+1]])
+                assert is_qsparse(rho, [qnums_rho, -qnums_rho])
+                u, _, qnums_eig = eigh(rho, qnums_rho, tol=tol)
+                qnums_eig = -qnums_eig
+                assert is_qsparse(u, [qnums_rho, qnums_eig])
+                u = u.reshape(orig_shape[0], orig_shape[1], u.shape[1]).transpose((0, 2, 1))
+                assert is_qsparse(u, [self.qd, qnums_eig, -self.qD[i+1]])
+                self.A[i] = u
+                self.qD[i] = qnums_eig
+            # for the leftmost site, we merely need to find the block, as the bond is already truncated
+            b = np.tensordot(b, u.conj(), axes=([0, 2], [0, 2]))
+            b = np.tensordot(self.A[0], b, axes=([2], [0]))
+            s = np.linalg.norm(b.reshape(-1))
+            self.A[0] = b / s
+            return (nrm, s / nrm)
+        raise ValueError(f'mode = {mode} invalid; must be "svd" or "density".')
 
     def as_vector(self) -> np.ndarray:
         """
