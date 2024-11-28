@@ -92,7 +92,7 @@ class TestBondOps(unittest.TestCase):
         mask = ptn.qnumber_outer_sum([q0, -q0])
         A = np.where(mask == 0, A, 0)
 
-        # perform diagonalisation
+        # perform diagonalisation without truncation
         U, evals, qinterm = ptn.eigh(A, q0)
 
         self.assertTrue(np.allclose(U @ np.diag(evals) @ U.conj().T, A, rtol=1e-13),
@@ -104,6 +104,19 @@ class TestBondOps(unittest.TestCase):
         self.assertTrue(ptn.is_qsparse(U, [q0, -qinterm]),
                         msg='sparsity pattern of U matrix must match quantum numbers')
 
+        eig_norm = np.linalg.norm(evals)
+
+        # perform diagonalisation with truncation
+        U, evals, qinterm = ptn.eigh(A, q0, tol=0.15)
+
+        self.assertAlmostEqual(np.linalg.norm(U @ np.diag(evals) @ U.conj().T - A), np.sqrt(eig_norm**2 - np.linalg.norm(evals)**2),
+                               delta=1e-14, msg='weight of truncated singular values must agree with norm of matrix difference')
+
+        self.assertTrue(np.allclose(U.conj().T @ U, np.identity(U.shape[1]), rtol=1e-14),
+                        msg='columns of U matrix must be orthonormalized')
+
+        self.assertTrue(ptn.is_qsparse(U, [q0, -qinterm]),
+                        msg='sparsity pattern of U matrix must match quantum numbers')
 
 if __name__ == '__main__':
     unittest.main()

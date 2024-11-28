@@ -225,7 +225,7 @@ def qr(A, q0, q1):
 
     return (Q, R, qinterm)
 
-def eigh(A, q0):
+def eigh(A, q0, tol=0.0):
     """
     Compute the block-wise diagonalisation of a hermitian matrix A, taking block
     sparsity structure dictated by quantum numbers into account
@@ -278,6 +278,12 @@ def eigh(A, q0):
     U = U[:, :D]
     evals = evals[:D]
     q = q[:D]
+
+    # Truncate small eigenvalues
+    idx = retained_bond_indices(evals, tol)
+    U = U[:, idx]
+    evals = evals[idx]
+    q = q[idx]
 
     # undo sorting of quantum numbers
     if np.any(idx0 - np.arange(len(idx0))):
