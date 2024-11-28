@@ -65,7 +65,7 @@ def integrate_local_singlesite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanc
                                      qnumber_flatten([psi.qd, psi.qD[i]]), psi.qD[i+1])
             psi.A[i] = Q.reshape((s[0], s[1], Q.shape[1]))
             # update the left blocks
-            BL[i+1] = contraction_operator_step_left(psi.A[i], H.A[i], BL[i])
+            BL[i+1] = contraction_operator_step_left(psi.A[i], psi.A[i], H.A[i], BL[i])
             # evolve C backward in time by half a time step
             C = _local_bond_step(BL[i+1], BR[i], C, -0.5*dt, numiter_lanczos)
             # update psi.A[i+1] tensor: multiply with C from left
@@ -88,7 +88,7 @@ def integrate_local_singlesite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanc
             # replace psi.A[i] by reshaped Q matrix and undo flip of left and right virtual bond dimensions
             psi.A[i] = Q.reshape((s[0], s[1], Q.shape[1])).transpose((0, 2, 1))
             # update the right blocks
-            BR[i-1] = contraction_operator_step_right(psi.A[i], H.A[i], BR[i])
+            BR[i-1] = contraction_operator_step_right(psi.A[i], psi.A[i], H.A[i], BR[i])
             # evolve C backward in time by half a time step
             C = np.transpose(C)
             C = _local_bond_step(BL[i], BR[i-1], C, -0.5*dt, numiter_lanczos)
@@ -154,7 +154,7 @@ def integrate_local_twosite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanczos
             # split Am
             psi.A[i], psi.A[i+1], psi.qD[i+1] = split_mps_tensor(Am, psi.qd, psi.qd, [psi.qD[i], psi.qD[i+2]], 'right', tol=tol_split)
             # update the left blocks
-            BL[i+1] = contraction_operator_step_left(psi.A[i], H.A[i], BL[i])
+            BL[i+1] = contraction_operator_step_left(psi.A[i], psi.A[i], H.A[i], BL[i])
             # evolve psi.A[i+1] backward in time by half a time step
             psi.A[i+1] = _local_hamiltonian_step(BL[i+1], BR[i+1], H.A[i+1], psi.A[i+1], -0.5*dt, numiter_lanczos)
 
@@ -168,7 +168,7 @@ def integrate_local_twosite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanczos
         # split Am
         psi.A[i], psi.A[i+1], psi.qD[i+1] = split_mps_tensor(Am, psi.qd, psi.qd, [psi.qD[i], psi.qD[i+2]], 'left', tol=tol_split)
         # update the right blocks
-        BR[i] = contraction_operator_step_right(psi.A[i+1], H.A[i+1], BR[i+1])
+        BR[i] = contraction_operator_step_right(psi.A[i+1], psi.A[i+1], H.A[i+1], BR[i+1])
 
         # sweep from right to left
         for i in reversed(range(L - 2)):
@@ -182,7 +182,7 @@ def integrate_local_twosite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanczos
             # split Am
             psi.A[i], psi.A[i+1], psi.qD[i+1] = split_mps_tensor(Am, psi.qd, psi.qd, [psi.qD[i], psi.qD[i+2]], 'left', tol=tol_split)
             # update the right blocks
-            BR[i] = contraction_operator_step_right(psi.A[i+1], H.A[i+1], BR[i+1])
+            BR[i] = contraction_operator_step_right(psi.A[i+1], psi.A[i+1], H.A[i+1], BR[i+1])
 
     # return norm of initial psi
     return nrm

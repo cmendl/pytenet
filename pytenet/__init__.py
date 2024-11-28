@@ -12,6 +12,7 @@ from .compression     import *
 from .qnumber         import *
 from .opchain         import *
 from .optree          import *
+from .autop           import *
 from .opgraph         import *
 from .mps             import *
 from .mpo             import *

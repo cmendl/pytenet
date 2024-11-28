@@ -73,6 +73,38 @@ class TestMPS(unittest.TestCase):
                             msg='right-orthonormalization')
 
 
+    def test_compression(self):
+
+        rng = np.random.default_rng()
+
+        # physical quantum numbers
+        qd = [-1, 1, 0]
+
+        for tol in (0., 1e-4):
+            for mode in ('left', 'right'):
+                # create random matrix product state
+                D = [1, 30, 83, 102, 75, 23, 1]
+                psi = ptn.MPS(qd, [rng.integers(-1, 2, size=Di) for Di in D], fill='random', rng=rng)
+                for i in range(psi.nsites):
+                    # imitate small entanglement by multiplying bonds with small scaling factors
+                    s = np.exp(-30*(rng.uniform(size=psi.bond_dims[i + 1])))
+                    s /= np.linalg.norm(s)
+                    psi.A[i] = psi.A[i] * s
+                    # rescale to achieve norm of order 1
+                    psi.A[i] *= 5 / np.linalg.norm(psi.A[i])
+
+                psi_ref = psi.as_vector()
+
+                nrm, scale = psi.compress(tol, mode)
+                self.assertAlmostEqual(scale, 1, delta=(1e-13 if tol == 0 else 1e-3))
+                # must be normalized after compression
+                self.assertAlmostEqual(ptn.norm(psi), 1, delta=1e-13)
+
+                # compare with original state vector
+                ctol = (1e-13 if tol == 0 else 0.05)
+                self.assertTrue(np.allclose(nrm*psi.as_vector(), psi_ref, atol=ctol, rtol=ctol))
+
+
     def test_split_tensor(self):
 
         rng = np.random.default_rng()

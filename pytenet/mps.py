@@ -121,6 +121,44 @@ class MPS:
             return nrm
         raise ValueError(f'mode = {mode} invalid; must be "left" or "right".')
 
+    def compress(self, tol: float, mode='left'):
+        """
+        Compress and orthonormalize a MPS by site-local SVDs and singular value truncations.
+
+        Returns original norm and scaling factor due to compression.
+        """
+        if mode == 'left':
+            # transform to right-canonical form first
+            nrm = self.orthonormalize(mode='right')
+            for i in range(len(self.A) - 1):
+                self.A[i], self.A[i+1], self.qD[i+1] = local_orthonormalize_left_svd(self.A[i], self.A[i+1], self.qd, self.qD[i:i+2], tol)
+                assert is_qsparse(self.A[i], [self.qd, self.qD[i], -self.qD[i+1]]), \
+                    'sparsity pattern of MPS tensor does not match quantum numbers'
+            # last tensor
+            self.A[-1], T, self.qD[-1] = local_orthonormalize_left_svd(self.A[-1], np.array([[[1]]]), self.qd, self.qD[-2:], tol)
+            assert is_qsparse(self.A[-1], [self.qd, self.qD[-2], -self.qD[-1]]), \
+                'sparsity pattern of MPS tensor does not match quantum numbers'
+            assert T.shape == (1, 1, 1)
+            # absorb potential phase factor into MPS tensor
+            self.A[-1] *= T[0, 0, 0] / abs(T[0, 0, 0])
+            return (nrm, abs(T[0, 0, 0]))
+        if mode == 'right':
+            # transform to left-canonical form first
+            nrm = self.orthonormalize(mode='left')
+            for i in reversed(range(1, len(self.A))):
+                self.A[i], self.A[i-1], self.qD[i] = local_orthonormalize_right_svd(self.A[i], self.A[i-1], self.qd, self.qD[i:i+2], tol)
+                assert is_qsparse(self.A[i], [self.qd, self.qD[i], -self.qD[i+1]]), \
+                    'sparsity pattern of MPS tensor does not match quantum numbers'
+            # first tensor
+            self.A[0], T, self.qD[0] = local_orthonormalize_right_svd(self.A[0], np.array([[[1]]]), self.qd, self.qD[:2], tol)
+            assert is_qsparse(self.A[0], [self.qd, self.qD[0], -self.qD[1]]), \
+                'sparsity pattern of MPS tensor does not match quantum numbers'
+            assert T.shape == (1, 1, 1)
+            # absorb potential phase factor into MPS tensor
+            self.A[0] *= T[0, 0, 0] / abs(T[0, 0, 0])
+            return (nrm, abs(T[0, 0, 0]))
+        raise ValueError(f'mode = {mode} invalid; must be "left" or "right".')
+
     def as_vector(self) -> np.ndarray:
         """
         Merge all tensors to obtain the vector representation on the full Hilbert space.
@@ -182,8 +220,8 @@ class MPS:
 
 def local_orthonormalize_left_qr(A: np.ndarray, Anext: np.ndarray, qd: Sequence[int], qD: Sequence[Sequence[int]]):
     """
-    Left-orthonormalize local site tensor `A` by a QR decomposition,
-    and update tensor at next site.
+    Left-orthonormalize the local site tensor `A` by a QR decomposition,
+    and update the tensor at the next site.
     """
     # perform QR decomposition and replace A by reshaped Q matrix
     s = A.shape
@@ -198,8 +236,8 @@ def local_orthonormalize_left_qr(A: np.ndarray, Anext: np.ndarray, qd: Sequence[
 
 def local_orthonormalize_right_qr(A: np.ndarray, Aprev: np.ndarray, qd: Sequence[int], qD: Sequence[Sequence[int]]):
     """
-    Right-orthonormalize local site tensor `A` by a QR decomposition,
-    and update tensor at previous site.
+    Right-orthonormalize the local site tensor `A` by a QR decomposition,
+    and update the tensor at the previous site.
     """
     # flip left and right virtual bond dimensions
     A = A.transpose((0, 2, 1))
@@ -212,6 +250,42 @@ def local_orthonormalize_right_qr(A: np.ndarray, Aprev: np.ndarray, qd: Sequence
     # update Aprev tensor: multiply with R from right
     Aprev = np.tensordot(Aprev, R, (2, 1))
     return (A, Aprev, -qbond)
+
+
+def local_orthonormalize_left_svd(A, Anext, qd: Sequence[int], qD: Sequence[Sequence[int]], tol: float):
+    """
+    Left-orthonormalize the local site tensor `A` by a SVD,
+    and update the tensor at the next site.
+    """
+    # perform SVD and replace A by reshaped U matrix
+    s = A.shape
+    assert len(s) == 3
+    q0 = qnumber_flatten([qd, qD[0]])
+    U, sigma, V, qbond = split_matrix_svd(A.reshape((s[0]*s[1], s[2])), q0, qD[1], tol)
+    A = U.reshape((s[0], s[1], U.shape[1]))
+    # update Anext tensor: multiply with (sigma @ V) from left
+    Anext = np.tensordot(sigma[:, None] * V, Anext, (1, 1)).transpose((1, 0, 2))
+    return (A, Anext, qbond)
+
+
+def local_orthonormalize_right_svd(A, Aprev, qd: Sequence[int], qD: Sequence[Sequence[int]], tol: float):
+    """
+    Right-orthonormalize the local site tensor `A` by a SVD,
+    and update the tensor at the previous site.
+    """
+    # flip physical and left virtual bond dimension
+    A = A.transpose((1, 0, 2))
+    # perform SVD and replace A by reshaped V matrix
+    s = A.shape
+    assert len(s) == 3
+    q1 = qnumber_flatten([-qd, qD[1]])
+    U, sigma, V, qbond = split_matrix_svd(A.reshape((s[0], s[1]*s[2])), qD[0], q1, tol)
+    A = V.reshape((V.shape[0], s[1], s[2]))
+    # undo flip of physical and left virtual bond dimension
+    A = A.transpose((1, 0, 2))
+    # update Aprev tensor: multiply with (U @ sigma) from right
+    Aprev = np.tensordot(Aprev, U * sigma, (2, 0))
+    return (A, Aprev, qbond)
 
 
 def merge_mps_tensor_pair(A0: np.ndarray, A1: np.ndarray) -> np.ndarray:
