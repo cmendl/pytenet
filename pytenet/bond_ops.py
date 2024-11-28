@@ -2,7 +2,7 @@ import numpy as np
 from .qnumber import (is_qsparse,
                       common_qnumbers)
 
-__all__ = ['retained_bond_indices', 'split_matrix_svd', 'qr']
+__all__ = ['retained_bond_indices', 'split_matrix_svd', 'qr', 'eigh']
 
 
 def sort_by_qnumbers(A, q0, q1):
@@ -45,7 +45,6 @@ def slice_with_qnumber(qn, qnums):
     start = iqn[0]
     end = iqn[-1] + 1
     return slice(start, end)
-
 
 def retained_bond_indices(s, tol):
     """
@@ -225,3 +224,64 @@ def qr(A, q0, q1):
         R = R[:, np.argsort(idx1)]
 
     return (Q, R, qinterm)
+
+def eigh(A, q0):
+    """
+    Compute the block-wise diagonalisation of a hermitian matrix A, taking block
+    sparsity structure dictated by quantum numbers into account
+    (that is, `A[i, j]` can only be non-zero if `q0[i] == q0[j]`).
+
+    Finds U and eigvals such that
+        A = U @ diag(eigvals) @ U^\dagger
+    """
+    assert A.ndim == 2
+    assert A.shape[0] == A.shape[1]
+    assert len(q0) == A.shape[0]
+    assert is_qsparse(A, [q0, -q0])
+
+    # find common quantum numbers
+    qis = set(q0)
+
+    A, (idx0, q0), (_, q1) = sort_by_qnumbers(A, q0, q0)
+
+    # maximum intermediate dimension
+    max_interm_dim = A.shape[0]
+
+    # keep track of intermediate dimension
+    D = 0
+
+    # allocate memory for unitary U and diagonal eval matrices
+    U = np.zeros((A.shape[0], max_interm_dim), dtype=A.dtype)
+    evals = np.zeros(max_interm_dim) # eval vector corresponds to the diagonal matrix
+    q = np.zeros(max_interm_dim, dtype=q0.dtype)
+
+    # for each shared quantum number...
+    for qn in qis:
+        # indices of current quantum numbers
+        row_slice = slice_with_qnumber(qn, q0)
+        col_slice = slice_with_qnumber(qn, q1)
+
+        # perform diagonalisation of current block
+        eval_sub, U_sub = np.linalg.eigh(A[row_slice, col_slice])
+
+        # update intermediate dimension
+        Dprev = D
+        D += len(eval_sub)
+
+        U[row_slice, Dprev:D] = U_sub
+        evals[Dprev:D] = eval_sub
+        q[Dprev:D] = qn
+
+    assert D <= max_interm_dim
+
+    # use actual intermediate dimensions
+    U = U[:, :D]
+    evals = evals[:D]
+    q = q[:D]
+
+    # undo sorting of quantum numbers
+    if np.any(idx0 - np.arange(len(idx0))):
+        U = U[np.argsort(idx0), :]
+
+    return (U, evals, q)
+    
