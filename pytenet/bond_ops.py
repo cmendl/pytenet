@@ -63,6 +63,12 @@ def retained_bond_indices(s, tol):
 
     return np.where(s > tol)[0]
 
+def retained_bond_indices_eigenvalues(s, tol):
+    """
+    Indices of retained eigenvalues based on given tolerance.
+    """
+    abs_s = np.abs(s) # Eigenvalues are real, but can be negative
+    return retained_bond_indices(abs_s, tol)
 
 def split_matrix_svd(A, q0, q1, tol):
     """
@@ -280,7 +286,7 @@ def eigh(A, q0, tol=0.0):
     q = q[:D]
 
     # Truncate small eigenvalues
-    idx = retained_bond_indices(evals, tol)
+    idx = retained_bond_indices_eigenvalues(evals, tol)
     U = U[:, idx]
     evals = evals[idx]
     q = q[idx]
