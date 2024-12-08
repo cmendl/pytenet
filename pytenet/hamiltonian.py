@@ -9,7 +9,8 @@ from .autop import AutOpNode, AutOpEdge, AutOp
 from .opgraph import OpGraphNode, OpGraphEdge, OpGraph
 
 __all__ = ['ising_mpo', 'heisenberg_xxz_mpo', 'heisenberg_xxz_spin1_mpo',
-           'bose_hubbard_mpo', 'fermi_hubbard_mpo', 'linear_fermionic_mpo',
+           'bose_hubbard_mpo', 'fermi_hubbard_mpo',
+           'linear_fermionic_mpo', 'quadratic_fermionic_mpo',
            'molecular_hamiltonian_mpo', 'molecular_hamiltonian_orbital_gauge_transform',
            'spin_molecular_hamiltonian_mpo']
 
@@ -278,7 +279,7 @@ def linear_fermionic_mpo(coeff, ftype: str) -> MPO:
 
     .. math::
 
-        op = \sum_{i=1}^L f_i a^{\dagger}_i \text{ or } op = \sum_{i=1}^L coeff_i a_i
+        op = \sum_{i=1}^L coeff_i a^{\dagger}_i \text{ or } op = \sum_{i=1}^L coeff_i a_i
     """
     L = len(coeff)
 
@@ -333,6 +334,113 @@ def linear_fermionic_mpo(coeff, ftype: str) -> MPO:
     for i in range(L):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [identity_l[i].nid, z_string_r[i + 1].nid], [(OID.C if use_creation_op else OID.A, coeff[i])]))
+        eid_next += 1
+    assert graph.is_consistent()
+
+    # convert to MPO
+    return MPO.from_opgraph([0, 1], graph, opmap)
+
+
+def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
+    """
+    Represent a product of sums of fermionic creation or annihilation operators of the following form as MPO:
+
+    .. math::
+
+        op = (\sum_{i=1}^L coeffc_i a^{\dagger}_i) (\sum_{j=1}^L coeffa_j a_j)
+    """
+    assert len(coeffc) == len(coeffa)
+    L = len(coeffc)
+
+    # creation and annihilation operators
+    a_ann = np.array([[0., 1.], [0., 0.]])
+    a_dag = np.array([[0., 0.], [1., 0.]])
+    # number operator
+    numop = np.array([[0., 0.], [0., 1.]])
+    # Pauli-Z matrix required for Jordan-Wigner transformation
+    Z = np.array([[1., 0.], [0., -1.]])
+    # operator map
+    class OID(IntEnum):
+        A = -1
+        I =  0
+        C =  1
+        N =  2
+        Z =  3
+    opmap = {
+        OID.A: a_ann,
+        OID.I: np.identity(2),
+        OID.C: a_dag,
+        OID.N: numop,
+        OID.Z: Z
+    }
+
+    # construct operator graph
+    nid_next = 0
+    # identity chains from the left and right
+    identity_l = {}
+    identity_r = {}
+    for i in range(L):
+        identity_l[i] = OpGraphNode(nid_next, [], [], 0)
+        nid_next += 1
+    for i in range(1, L + 1):
+        identity_r[i] = OpGraphNode(nid_next, [], [], 0)
+        nid_next += 1
+    # nodes connecting creation and annihilation operators
+    ca_nodes = {}
+    ac_nodes = {}
+    for i in range(1, L):
+        ca_nodes[i] = OpGraphNode(nid_next, [], [], 1)
+        nid_next += 1
+    for i in range(1, L):
+        ac_nodes[i] = OpGraphNode(nid_next, [], [], -1)
+        nid_next += 1
+    # initialize graph with nodes
+    graph = OpGraph(list(identity_l.values()) +
+                    list(identity_r.values()) +
+                    list(ca_nodes.values()) +
+                    list(ac_nodes.values()),
+                    [], [identity_l[0].nid, identity_r[L].nid])
+    # edges
+    eid_next = 0
+    # identities
+    for i in range(L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[i].nid, identity_l[i + 1].nid], [(OID.I, 1.)]))
+        eid_next += 1
+    for i in range(1, L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_r[i].nid, identity_r[i + 1].nid], [(OID.I, 1.)]))
+        eid_next += 1
+    # Z strings
+    for i in range(1, L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [ca_nodes[i].nid, ca_nodes[i + 1].nid], [(OID.Z, 1.)]))
+        eid_next += 1
+    for i in range(1, L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [ac_nodes[i].nid, ac_nodes[i + 1].nid], [(OID.Z, 1.)]))
+        eid_next += 1
+    # number operators
+    for i in range(L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[i].nid, identity_r[i + 1].nid], [(OID.N, coeffc[i]*coeffa[i])]))
+        eid_next += 1
+    # creation and annihilation operators
+    for i in range(L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[i].nid, ca_nodes[i + 1].nid], [(OID.C, coeffc[i])]))
+        eid_next += 1
+    for i in range(1, L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [ca_nodes[i].nid, identity_r[i + 1].nid], [(OID.A, coeffa[i])]))
+        eid_next += 1
+    for i in range(L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[i].nid, ac_nodes[i + 1].nid], [(OID.A, coeffa[i])]))
+        eid_next += 1
+    for i in range(1, L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [ac_nodes[i].nid, identity_r[i + 1].nid], [(OID.C, coeffc[i])]))
         eid_next += 1
     assert graph.is_consistent()
 

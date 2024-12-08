@@ -143,6 +143,30 @@ class TestHamiltonian(unittest.TestCase):
                 msg='matrix representation of MPO and reference operator must match')
 
 
+    def test_quadratic_fermionic(self):
+
+        rng = np.random.default_rng()
+
+        # number of lattice sites
+        L = 6
+        # coefficients
+        coeffc = ptn.crandn(L, rng)
+        coeffa = ptn.crandn(L, rng)
+
+        # construct the MPO
+        mpo = ptn.quadratic_fermionic_mpo(coeffc, coeffa)
+        self.assertEqual(mpo.bond_dims, [1] + (L - 1)*[4] + [1],
+            msg='virtual bond dimensions must match theoretical prediction')
+        # matrix representation, for comparison with reference
+        op = mpo.as_matrix()
+        # reference operator
+        clist, alist = generate_fermi_operators(L)
+        op_ref = sum(coeffc[i] * clist[i] for i in range(L)) @ sum(coeffa[i] * alist[i] for i in range(L))
+        # compare
+        self.assertTrue(np.allclose(op, op_ref.todense()),
+            msg='matrix representation of MPO and reference operator must match')
+
+
     def test_molecular_hamiltonian_construction(self):
 
         rng = np.random.default_rng()
