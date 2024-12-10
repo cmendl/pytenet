@@ -10,7 +10,8 @@ from .opgraph import OpGraphNode, OpGraphEdge, OpGraph
 
 __all__ = ['ising_mpo', 'heisenberg_xxz_mpo', 'heisenberg_xxz_spin1_mpo',
            'bose_hubbard_mpo', 'fermi_hubbard_mpo',
-           'linear_fermionic_mpo', 'quadratic_fermionic_mpo',
+           'linear_fermionic_mpo', 'linear_spin_fermionic_mpo',
+           'quadratic_fermionic_mpo', 'quadratic_spin_fermionic_mpo',
            'molecular_hamiltonian_mpo', 'molecular_hamiltonian_orbital_gauge_transform',
            'spin_molecular_hamiltonian_mpo']
 
@@ -341,6 +342,94 @@ def linear_fermionic_mpo(coeff, ftype: str) -> MPO:
     return MPO.from_opgraph([0, 1], graph, opmap)
 
 
+def linear_spin_fermionic_mpo(coeff, ftype: str, sigma: int) -> MPO:
+    """
+    Represent a sum of fermionic creation or annihilation operators of the following form as MPO,
+    where sigma = 1 indicates spin-up and sigma = -1 indicates spin-down:
+
+    .. math::
+
+        op = \sum_{i=1}^L coeff_i a^{\dagger}_{i,\sigma} \text{ or } op = \sum_{i=1}^L coeff_i a_{i,\sigma}
+    """
+    L = len(coeff)
+    assert L >= 1
+
+    if sigma not in (1, -1):
+        raise ValueError("'sigma' argument must be 1 (spin-up) or -1 (spin-down)")
+
+    use_creation_op = (ftype in ['c', 'create', 'creation'])
+
+    # physical particle number and spin quantum numbers (encoded as single integer)
+    qN = [0,  1,  1,  2]
+    qS = [0, -1,  1,  0]
+    qd = [_encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
+
+    id2 = np.identity(2)
+    # creation and annihilation operators
+    a_ann = np.array([[0., 1.], [0., 0.]])
+    a_dag = np.array([[0., 0.], [1., 0.]])
+    # Pauli-Z matrix required for Jordan-Wigner transformation
+    Z = np.array([[1., 0.], [0., -1.]])
+    # operator map
+    class OID(IntEnum):
+        Id = 0
+        CZ = 1
+        AZ = 2
+        IC = 3
+        IA = 4
+        ZZ = 5
+    opmap = {
+        OID.Id: np.identity(4),
+        OID.CZ: np.kron(a_dag, Z  ),
+        OID.AZ: np.kron(a_ann, Z  ),
+        OID.IC: np.kron(id2, a_dag),
+        OID.IA: np.kron(id2, a_ann),
+        OID.ZZ: np.kron(Z,   Z    ),
+    }
+
+    # construct operator graph
+    nid_next = 0
+    # identity and Z strings from the left and right
+    identity_l = {}
+    z_string_r = {}
+    for i in range(L):
+        identity_l[i] = OpGraphNode(nid_next, [], [], 0)
+        nid_next += 1
+    for i in range(1, L + 1):
+        qnum = _encode_quantum_number_pair(1 if use_creation_op else -1, sigma if use_creation_op else -sigma)
+        z_string_r[i] = OpGraphNode(nid_next, [], [], qnum)
+        nid_next += 1
+    # initialize graph with nodes
+    graph = OpGraph(list(identity_l.values()) +
+                    list(z_string_r.values()),
+                    [], [identity_l[0].nid, z_string_r[L].nid])
+    # edges
+    eid_next = 0
+    # identities
+    for i in range(L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[i].nid, identity_l[i + 1].nid], [(OID.Id, 1.)]))
+        eid_next += 1
+    # Z strings
+    for i in range(1, L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [z_string_r[i].nid, z_string_r[i + 1].nid], [(OID.ZZ, 1.)]))
+        eid_next += 1
+    # creation or annihilation operators
+    for i in range(L):
+        if use_creation_op:
+            oid = (OID.CZ if sigma == 1 else OID.IC)
+        else:
+            oid = (OID.AZ if sigma == 1 else OID.IA)
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[i].nid, z_string_r[i + 1].nid], [(oid, coeff[i])]))
+        eid_next += 1
+    assert graph.is_consistent()
+
+    # convert to MPO
+    return MPO.from_opgraph(qd, graph, opmap)
+
+
 def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
     """
     Represent a product of sums of fermionic creation or annihilation operators of the following form as MPO:
@@ -446,6 +535,140 @@ def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
 
     # convert to MPO
     return MPO.from_opgraph([0, 1], graph, opmap)
+
+
+def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
+    """
+    Represent a product of sums of fermionic creation or annihilation operators of the following form as MPO,
+    where sigma = 1 indicates spin-up and sigma = -1 indicates spin-down:
+
+    .. math::
+
+        op = (\sum_{i=1}^L coeffc_i a^{\dagger}_{i,\sigma}) (\sum_{j=1}^L coeffa_j a_{j,\sigma})
+    """
+    assert len(coeffc) == len(coeffa)
+    L = len(coeffc)
+    assert L >= 1
+
+    if sigma not in (1, -1):
+        raise ValueError("'sigma' argument must be 1 (spin-up) or -1 (spin-down)")
+
+    # physical particle number and spin quantum numbers (encoded as single integer)
+    qN = [0,  1,  1,  2]
+    qS = [0, -1,  1,  0]
+    qd = [_encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
+
+    id2 = np.identity(2)
+    # creation and annihilation operators
+    a_ann = np.array([[0., 1.], [0., 0.]])
+    a_dag = np.array([[0., 0.], [1., 0.]])
+    # number operator
+    numop = np.array([[0., 0.], [0., 1.]])
+    # Pauli-Z matrix required for Jordan-Wigner transformation
+    Z = np.array([[1., 0.], [0., -1.]])
+    # operator map
+    class OID(IntEnum):
+        Id =  0
+        IC =  1
+        IA =  2
+        IN =  3
+        ZC =  4
+        ZA =  5
+        CI =  6
+        AI =  7
+        NI =  8
+        CZ =  9
+        AZ = 10
+        ZZ = 11
+    opmap = {
+        OID.Id: np.identity(4),
+        OID.IC: np.kron(id2, a_dag),
+        OID.IA: np.kron(id2, a_ann),
+        OID.IN: np.kron(id2, numop),
+        OID.ZC: np.kron(Z,   a_dag),
+        OID.ZA: np.kron(Z,   a_ann),
+        OID.CI: np.kron(a_dag, id2),
+        OID.AI: np.kron(a_ann, id2),
+        OID.NI: np.kron(numop, id2),
+        OID.CZ: np.kron(a_dag, Z  ),
+        OID.AZ: np.kron(a_ann, Z  ),
+        OID.ZZ: np.kron(Z,     Z  ),
+    }
+
+    # construct operator graph
+    nid_next = 0
+    # identity chains from the left and right
+    identity_l = {}
+    identity_r = {}
+    for i in range(L):
+        identity_l[i] = OpGraphNode(nid_next, [], [], 0)
+        nid_next += 1
+    for i in range(1, L + 1):
+        identity_r[i] = OpGraphNode(nid_next, [], [], 0)
+        nid_next += 1
+    # nodes connecting creation and annihilation operators
+    ca_nodes = {}
+    ac_nodes = {}
+    for i in range(1, L):
+        qnum = _encode_quantum_number_pair(1, sigma)
+        ca_nodes[i] = OpGraphNode(nid_next, [], [], qnum)
+        nid_next += 1
+    for i in range(1, L):
+        qnum = _encode_quantum_number_pair(-1, -sigma)
+        ac_nodes[i] = OpGraphNode(nid_next, [], [], qnum)
+        nid_next += 1
+    # initialize graph with nodes
+    graph = OpGraph(list(identity_l.values()) +
+                    list(identity_r.values()) +
+                    list(ca_nodes.values()) +
+                    list(ac_nodes.values()),
+                    [], [identity_l[0].nid, identity_r[L].nid])
+    # edges
+    eid_next = 0
+    # identities
+    for i in range(L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[i].nid, identity_l[i + 1].nid], [(OID.Id, 1.)]))
+        eid_next += 1
+    for i in range(1, L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_r[i].nid, identity_r[i + 1].nid], [(OID.Id, 1.)]))
+        eid_next += 1
+    # Z strings
+    for i in range(1, L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [ca_nodes[i].nid, ca_nodes[i + 1].nid], [(OID.ZZ, 1.)]))
+        eid_next += 1
+    for i in range(1, L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [ac_nodes[i].nid, ac_nodes[i + 1].nid], [(OID.ZZ, 1.)]))
+        eid_next += 1
+    # number operators
+    for i in range(L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[i].nid, identity_r[i + 1].nid], [(OID.NI if sigma == 1 else OID.IN, coeffc[i]*coeffa[i])]))
+        eid_next += 1
+    # creation and annihilation operators
+    for i in range(L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[i].nid, ca_nodes[i + 1].nid], [(OID.CZ if sigma == 1 else OID.IC, coeffc[i])]))
+        eid_next += 1
+    for i in range(1, L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [ca_nodes[i].nid, identity_r[i + 1].nid], [(OID.AI if sigma == 1 else OID.ZA, coeffa[i])]))
+        eid_next += 1
+    for i in range(L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[i].nid, ac_nodes[i + 1].nid], [(OID.AZ if sigma == 1 else OID.IA, coeffa[i])]))
+        eid_next += 1
+    for i in range(1, L):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [ac_nodes[i].nid, identity_r[i + 1].nid], [(OID.CI if sigma == 1 else OID.ZC, coeffc[i])]))
+        eid_next += 1
+    assert graph.is_consistent()
+
+    # convert to MPO
+    return MPO.from_opgraph(qd, graph, opmap)
 
 
 class MolecularOID(IntEnum):
@@ -921,7 +1144,7 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
 
     .. math::
 
-        H = \sum_{i,j} t_{i,j} a^{\dagger}_i a_j + \\frac{1}{2} \sum_{i,j,k,\ell} v_{i,j,k,\ell} a^{\dagger}_i a^{\dagger}_j a_{\ell} a_k
+        H = \sum_{i,j} t_{i,j} a^{\dagger}_i a_j + \frac{1}{2} \sum_{i,j,k,\ell} v_{i,j,k,\ell} a^{\dagger}_i a^{\dagger}_j a_{\ell} a_k
     """
     tkin = np.asarray(tkin)
     vint = np.asarray(vint)
@@ -1906,7 +2129,7 @@ def spin_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
 
     .. math::
 
-        H = \sum_{i,j,\sigma} t_{i,j} a^{\dagger}_{i,\sigma} a_{j,\sigma} + \\frac{1}{2} \sum_{i,j,k,\ell,\sigma,\tau} v_{i,j,k,\ell} a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{\ell,\tau} a_{k,\sigma}
+        H = \sum_{i,j,\sigma} t_{i,j} a^{\dagger}_{i,\sigma} a_{j,\sigma} + \frac{1}{2} \sum_{i,j,k,\ell,\sigma,\tau} v_{i,j,k,\ell} a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{\ell,\tau} a_{k,\sigma}
     """
     tkin = np.asarray(tkin)
     vint = np.asarray(vint)
