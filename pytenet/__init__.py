@@ -17,6 +17,7 @@ from .mps             import *
 from .mpo             import *
 from .bipartite_graph import *
 from .hamiltonian     import *
+from .thc             import *
 from .operation       import *
 from .krylov          import *
 from .minimization    import *

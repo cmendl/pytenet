@@ -275,7 +275,7 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
 
 
 def linear_fermionic_mpo(coeff, ftype: str) -> MPO:
-    """
+    r"""
     Represent a sum of fermionic creation or annihilation operators of the following form as MPO:
 
     .. math::
@@ -343,7 +343,7 @@ def linear_fermionic_mpo(coeff, ftype: str) -> MPO:
 
 
 def linear_spin_fermionic_mpo(coeff, ftype: str, sigma: int) -> MPO:
-    """
+    r"""
     Represent a sum of fermionic creation or annihilation operators of the following form as MPO,
     where sigma = 1 indicates spin-up and sigma = -1 indicates spin-down:
 
@@ -431,7 +431,7 @@ def linear_spin_fermionic_mpo(coeff, ftype: str, sigma: int) -> MPO:
 
 
 def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
-    """
+    r"""
     Represent a product of sums of fermionic creation or annihilation operators of the following form as MPO:
 
     .. math::
@@ -538,7 +538,7 @@ def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
 
 
 def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
-    """
+    r"""
     Represent a product of sums of fermionic creation or annihilation operators of the following form as MPO,
     where sigma = 1 indicates spin-up and sigma = -1 indicates spin-down:
 

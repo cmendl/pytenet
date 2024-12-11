@@ -115,14 +115,17 @@ class MPO:
                 for i, nid in enumerate(nids1):
                     # record bond information (site location and index)
                     nid_map[nid] = (l, i)
-            A = np.zeros((d, d, len(nids0), len(nids1)), dtype=complex)
+            A = np.zeros((d, d, len(nids0), len(nids1)))
             for i, nid in enumerate(nids0):
                 node = graph.nodes[nid]
                 for eid in node.eids[1]:
                     edge = graph.edges[eid]
                     j = nids1.index(edge.nids[1])
                     # update local operator in MPO tensor (supporting multiple edges between same pair of nodes)
-                    A[:, :, i, j] += sum(c * opmap[i] for i, c in edge.opics)
+                    dAij = sum(c * opmap[k] for k, c in edge.opics)
+                    if np.iscomplexobj(dAij):
+                        A = A.astype(complex)
+                    A[:, :, i, j] += dAij
             Alist.append(A)
             nids0 = nids1
             if compute_nid_map:
