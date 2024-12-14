@@ -1,7 +1,11 @@
+import copy
 import numpy as np
 from .hamiltonian import quadratic_spin_fermionic_mpo
+from .mps import MPS, add_mps
+from .mpo import MPO
+from .operation import apply_operator
 
-__all__ = ['THCSpinMolecularHamiltonian']
+__all__ = ['THCSpinMolecularHamiltonian', 'apply_thc_spin_molecular_hamiltonian']
 
 
 class THCSpinMolecularHamiltonian:
@@ -87,3 +91,47 @@ class THCSpinMolecularHamiltonian:
                     for mu in range(self.thc_rank))
             mat += 0.5 * lambda_kernel[i] * (g @ g)
         return mat
+
+
+def _apply_operator_and_compress(op: MPO, psi: MPS, tol: float) -> MPS:
+    """
+    Apply an operator represented as MPO to a state in MPS form and compress the result.
+    """
+    op_psi = apply_operator(op, psi)
+    nrm, _ = op_psi.compress(tol)
+    op_psi.A[0] *= nrm
+    return op_psi
+
+
+def apply_thc_spin_molecular_hamiltonian(hamiltonian: THCSpinMolecularHamiltonian, psi: MPS, tol: float) -> MPS:
+    """
+    Apply a molecular Hamiltonian in tensor hypercontraction representation
+    to a state in MPS form.
+    """
+    assert psi.nsites == hamiltonian.nsites
+    assert psi.nsites >= 1
+
+    ret = None
+    # kinetic term
+    for i in range(psi.nsites):
+        for sigma in (0, 1):
+            op_psi = _apply_operator_and_compress(hamiltonian.mpo_kin[i][sigma], psi, tol)
+            if ret:
+                ret = add_mps(ret, op_psi, alpha=hamiltonian.en_kin[i])
+            else:
+                ret = op_psi
+                ret.A[0] *= hamiltonian.en_kin[i]
+            nrm, _ = ret.compress(tol)
+            ret.A[0] *= nrm
+    # interaction term
+    for nu in range(hamiltonian.thc_rank):
+        for tau in (0, 1):
+            chi = _apply_operator_and_compress(hamiltonian.mpo_thc[nu][tau], psi, tol)
+            for mu in range(hamiltonian.thc_rank):
+                chi_k = copy.deepcopy(chi)
+                chi_k.A[0] *= 0.5 * hamiltonian.thc_kernel[mu, nu]
+                for sigma in (0, 1):
+                    ret += _apply_operator_and_compress(hamiltonian.mpo_thc[mu][sigma], chi_k, tol)
+                    nrm, _ = ret.compress(tol)
+                    ret.A[0] *= nrm
+    return ret
