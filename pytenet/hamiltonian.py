@@ -46,10 +46,10 @@ def ising_mpo(L: int, J: float, h: float, g: float) -> MPO:
         OID.X: sigma_x }
     # operator state automaton:
     #
-    #     ___   __Z__o__Z__   ___
-    #    / > \ /  >     >  \ / > \
-    #  I|     o             o     |I
-    #    \_<_/ \_____>_____/ \_<_/
+    #             Z     Z
+    #   ╭──>─╮ ╭──>──o──>──╮ ╭──>─╮
+    #  I│     o             o     │I
+    #   ╰─<──╯ ╰─────>─────╯ ╰─<──╯
     #            h Z + g X
     #
     node_term0 = AutOpNode(0, [], [], 0)
@@ -432,7 +432,7 @@ def linear_spin_fermionic_mpo(coeff, ftype: str, sigma: int) -> MPO:
 
 def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
     r"""
-    Represent a product of sums of fermionic creation or annihilation operators of the following form as MPO:
+    Represent a product of sums of fermionic creation and annihilation operators of the following form as MPO:
 
     .. math::
 
@@ -539,7 +539,7 @@ def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
 
 def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
     r"""
-    Represent a product of sums of fermionic creation or annihilation operators of the following form as MPO,
+    Represent a product of sums of fermionic creation and annihilation operators of the following form as MPO,
     where sigma = 1 indicates spin-up and sigma = -1 indicates spin-down:
 
     .. math::

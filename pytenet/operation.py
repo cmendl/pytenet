@@ -46,16 +46,19 @@ def contraction_step_right(A: np.ndarray, B: np.ndarray, R: np.ndarray):
 
     To-be contracted tensor network::
 
-          _____           ______
-         /     \         /
-      ---|1 B*2|---   ---|1
-         \__0__/         |
-            |            |
-                         |    R
-          __|__          |
-         /  0  \         |
-      ---|1 A 2|---   ---|0
-         \_____/         \______
+       ╭───────╮       ╭─────────╮
+       │       │       │         │
+     ──1   B*  2──   ──1         │
+       │       │       │         │
+       ╰───0───╯       │         │
+           │           │         │
+                       │    R    │
+           │           │         │
+       ╭───0───╮       │         │
+       │       │       │         │
+     ──1   A   2──   ──0         │
+       │       │       │         │
+       ╰───────╯       ╰─────────╯
     """
 
     assert A.ndim == 3
@@ -75,16 +78,19 @@ def contraction_step_left(A: np.ndarray, B: np.ndarray, L: np.ndarray):
 
     To-be contracted tensor network::
 
-     ______           _____
-           \         /     \
-          1|---   ---|1 B*2|---
-           |         \__0__/
-           |            |
-      L    |
-           |          __|__
-           |         /  0  \
-          0|---   ---|1 A 2|---
-     ______/         \_____/
+     ╭─────────╮       ╭───────╮
+     │         │       │       │
+     │         1──   ──1   B*  2──
+     │         │       │       │
+     │         │       ╰───0───╯
+     │         │           │
+     │    L    │
+     │         │           │
+     │         │       ╭───0───╮
+     │         │       │       │
+     │         0──   ──1   A   2──
+     │         │       │       │
+     ╰─────────╯       ╰───────╯
     """
     assert A.ndim == 3
     assert B.ndim == 3
@@ -214,22 +220,27 @@ def contraction_operator_step_right(A: np.ndarray, B: np.ndarray, W: np.ndarray,
 
     To-be contracted tensor network::
 
-          _____           ______
-         /     \         /
-      ---|1 B*2|---   ---|2
-         \__0__/         |
-            |            |
-                         |
-          __|__          |
-         /  0  \         |
-      ---|2 W 3|---   ---|1   R
-         \__1__/         |
-            |            |
-                         |
-          __|__          |
-         /  0  \         |
-      ---|1 A 2|---   ---|0
-         \_____/         \______
+       ╭───────╮       ╭─────────╮
+       │       │       │         │
+     ──1   B*  2──   ──2         │
+       │       │       │         │
+       ╰───0───╯       │         │
+           │           │         │
+                       │         │
+           │           │         │
+       ╭───0───╮       │         │
+       │       │       │         │
+     ──2   W   3──   ──1    R    │
+       │       │       │         │
+       ╰───1───╯       │         │
+           │           │         │
+                       │         │
+           │           │         │
+       ╭───0───╮       │         │
+       │       │       │         │
+     ──1   A   2──   ──0         │
+       │       │       │         │
+       ╰───────╯       ╰─────────╯
     """
     assert A.ndim == 3
     assert B.ndim == 3
@@ -253,22 +264,27 @@ def contraction_operator_step_left(A: np.ndarray, B: np.ndarray, W: np.ndarray, 
 
     To-be contracted tensor network::
 
-     ______           _____
-           \         /     \
-          2|---   ---|1 B*2|---
-           |         \__0__/
-           |            |
-           |
-           |          __|__
-           |         /  0  \
-      L   1|---   ---|2 W 3|---
-           |         \__1__/
-           |            |
-           |
-           |          __|__
-           |         /  0  \
-          0|---   ---|1 A 2|---
-     ______/         \_____/
+     ╭─────────╮       ╭───────╮
+     │         │       │       │
+     │         2──   ──1   B*  2──
+     │         │       │       │
+     │         │       ╰───0───╯
+     │         │           │
+     │         │
+     │         │           │
+     │         │       ╭───0───╮
+     │         │       │       │
+     │    L    1──   ──2   W   3──
+     │         │       │       │
+     │         │       ╰───1───╯
+     │         │           │
+     │         │
+     │         │           │
+     │         │       ╭───0───╮
+     │         │       │       │
+     │         0──   ──1   A   2──
+     │         │       │       │
+     ╰─────────╯       ╰───────╯
     """
     assert A.ndim == 3
     assert B.ndim == 3
@@ -288,21 +304,25 @@ def contraction_operator_density_step_right(A: np.ndarray, W: np.ndarray, R: np.
     Contraction step between two matrix product operators
     (typically density matrix and Hamiltonian).
 
-    To-be contracted tensor network (with = denoting a connected loop)::
+    To-be contracted tensor network (with a connected loop over the physical axes)::
 
-            =
-          __|__           ______
-         /  0  \         /
-      ---|2 W 3|---   ---|1
-         \__1__/         |
-            |            |
-                         |    R
-          __|__          |
-         /  0  \         |
-      ---|2 A 3|---   ---|0
-         \__1__/         \______
-            |
-            =
+          ╭╮
+           │
+       ╭───0───╮       ╭─────────╮
+       │       │       │         │
+     ──2   W   3──   ──1         │
+       │       │       │         │
+       ╰───1───╯       │         │
+           │           │         │
+                       │    R    │
+           │           │         │
+       ╭───0───╮       │         │
+       │       │       │         │
+     ──2   A   3──   ──0         │
+       │       │       │         │
+       ╰───1───╯       ╰─────────╯
+           │
+          ╰╯
     """
     assert A.ndim == 4
     assert W.ndim == 4
@@ -335,22 +355,27 @@ def apply_local_hamiltonian(L: np.ndarray, R: np.ndarray, W: np.ndarray, A: np.n
     To-be contracted tensor network (the indices at the open legs
     show the ordering for the output tensor)::
 
-     ______                           ______
-           \                         /
-          2|---1                 2---|2
-           |                         |
-           |                         |
-           |            0            |
-           |          __|__          |
-           |         /  0  \         |
-      L   1|---   ---|2 W 3|---   ---|1   R
-           |         \__1__/         |
-           |            |            |
-           |                         |
-           |          __|__          |
-           |         /  0  \         |
-          0|---   ---|1 A 2|---   ---|0
-     ______/         \_____/         \______
+     ╭─────────╮                       ╭─────────╮
+     │         │                       │         │
+     │         2──   1           2   ──2         │
+     │         │                       │         │
+     │         │                       │         │
+     │         │           0           │         │
+     │         │                       │         │
+     │         │           │           │         │
+     │         │       ╭───0───╮       │         │
+     │         │       │       │       │         │
+     │    L    1──   ──2   W   3──   ──1    R    │
+     │         │       │       │       │         │
+     │         │       ╰───1───╯       │         │
+     │         │           │           │         │
+     │         │                       │         │
+     │         │           │           │         │
+     │         │       ╭───0───╮       │         │
+     │         │       │       │       │         │
+     │         0──   ──1   A   2──   ──0         │
+     │         │       │       │       │         │
+     ╰─────────╯       ╰───────╯       ╰─────────╯
     """
     assert L.ndim == 3
     assert R.ndim == 3
@@ -373,22 +398,27 @@ def apply_local_bond_contraction(L, R, C):
 
     To-be contracted tensor network::
 
-     ______                           ______
-           \                         /
-          2|---                   ---|2
-           |                         |
-           |                         |
-           |                         |
-           |                         |
-           |                         |
-      L   1|-----------   -----------|1   R
-           |                         |
-           |                         |
-           |                         |
-           |          _____          |
-           |         /     \         |
-          0|---   ---|0 C 1|---   ---|0
-     ______/         \_____/         \______
+     ╭─────────╮                       ╭─────────╮
+     │         │                       │         │
+     │         2──                   ──2         │
+     │         │                       │         │
+     │         │                       │         │
+     │         │                       │         │
+     │         │                       │         │
+     │         │                       │         │
+     │         │                       │         │
+     │         │                       │         │
+     │    L    1──────────   ──────────1    R    │
+     │         │                       │         │
+     │         │                       │         │
+     │         │                       │         │
+     │         │                       │         │
+     │         │                       │         │
+     │         │       ╭───────╮       │         │
+     │         │       │       │       │         │
+     │         0──   ──0   C   1──   ──0         │
+     │         │       │       │       │         │
+     ╰─────────╯       ╰───────╯       ╰─────────╯
     """
     assert L.ndim == 3
     assert R.ndim == 3
