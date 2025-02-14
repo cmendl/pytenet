@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.linalg import eigh_tridiagonal, expm
+from scipy.linalg import expm
 import warnings
 
 __all__ = ['lanczos_iteration', 'arnoldi_iteration', 'eigh_krylov', 'expm_krylov']
@@ -107,7 +107,7 @@ def eigh_krylov(Afunc, vstart, numiter, numeig):
     """
     alpha, beta, V = lanczos_iteration(Afunc, vstart, numiter)
     # diagonalize Hessenberg matrix
-    w_hess, u_hess = eigh_tridiagonal(alpha, beta)
+    w_hess, u_hess = eigh_tridiag(alpha, beta)
     # compute Ritz eigenvectors
     u_ritz = V @ u_hess[:, 0:numeig]
     return (w_hess[0:numeig], u_ritz)
@@ -126,8 +126,19 @@ def expm_krylov(Afunc, v, dt, numiter, hermitian=False):
     if hermitian:
         alpha, beta, V = lanczos_iteration(Afunc, v, numiter)
         # diagonalize Hessenberg matrix
-        w_hess, u_hess = eigh_tridiagonal(alpha, beta)
+        w_hess, u_hess = eigh_tridiag(alpha, beta)
         return V @ (u_hess @ (np.linalg.norm(v) * np.exp(dt*w_hess) * u_hess[0]))
     else:
         H, V = arnoldi_iteration(Afunc, v, numiter)
         return V @ (np.linalg.norm(v) * expm(dt*H)[:, 0])
+
+
+def eigh_tridiag(d, e):
+    """
+    Solve the eigenvalue problem for a real symmetric tridiagonal matrix.
+
+    This function is a work-around of `scipy.linalg.eigh_tridiagonal`,
+    which runs into convergence problems in some cases.
+    """
+    a = np.diag(d) + np.diag(e, k=1) + np.diag(e, k=-1)
+    return np.linalg.eigh(a)
