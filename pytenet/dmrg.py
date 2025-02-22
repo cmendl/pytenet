@@ -9,10 +9,10 @@ from .operation import (
 from .krylov import eigh_krylov
 from .qnumber import is_qsparse
 
-__all__ = ['calculate_ground_state_local_singlesite', 'calculate_ground_state_local_twosite']
+__all__ = ['dmrg_singlesite', 'dmrg_twosite']
 
 
-def calculate_ground_state_local_singlesite(H: MPO, psi: MPS, numsweeps: int, numiter_lanczos: int = 25):
+def dmrg_singlesite(H: MPO, psi: MPS, numsweeps: int, numiter_lanczos: int = 25):
     """
     Approximate the ground state MPS by left and right sweeps and local single-site optimizations
     (single-site DMRG algorithm). Virtual bond dimensions of starting state `psi` can only decrease.
@@ -84,7 +84,7 @@ def calculate_ground_state_local_singlesite(H: MPO, psi: MPS, numsweeps: int, nu
     return en_min
 
 
-def calculate_ground_state_local_twosite(H: MPO, psi: MPS, numsweeps: int, numiter_lanczos: int = 25, tol_split: float = 0):
+def dmrg_twosite(H: MPO, psi: MPS, numsweeps: int, numiter_lanczos: int = 25, tol_split: float = 0):
     """
     Approximate the ground state MPS by left and right sweeps and local two-site optimizations
     (two-site DMRG algorithm). Virtual bond dimensions of starting state `psi` can only decrease.

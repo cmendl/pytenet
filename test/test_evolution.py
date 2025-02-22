@@ -67,8 +67,8 @@ class TestEvolution(unittest.TestCase):
         # run TDVP time evolution
         psi1 = copy.deepcopy(psi)
         psi2 = copy.deepcopy(psi)
-        ptn.integrate_local_singlesite(mpoH, psi1, dt, numsteps, numiter_lanczos=5)
-        ptn.integrate_local_twosite(mpoH, psi2, dt, numsteps, numiter_lanczos=10)
+        ptn.tdvp_singlesite(mpoH, psi1, dt, numsteps, numiter_lanczos=5)
+        ptn.tdvp_twosite(mpoH, psi2, dt, numsteps, numiter_lanczos=10)
 
         # compare time-evolved wavefunctions
         self.assertTrue(np.allclose(psi1.as_vector(), psi_ref, atol=2e-5),
@@ -109,11 +109,11 @@ class TestEvolution(unittest.TestCase):
         # evolve forward and then backward in time;
         # should arrive at initial state since integration method is symmetric
         psi1 = copy.deepcopy(psi)
-        ptn.integrate_local_singlesite(mpoH, psi1,  dt, 1, numiter_lanczos=10)
-        ptn.integrate_local_singlesite(mpoH, psi1, -dt, 1, numiter_lanczos=10)
+        ptn.tdvp_singlesite(mpoH, psi1,  dt, 1, numiter_lanczos=10)
+        ptn.tdvp_singlesite(mpoH, psi1, -dt, 1, numiter_lanczos=10)
         psi2 = copy.deepcopy(psi)
-        ptn.integrate_local_twosite(mpoH, psi2,  dt, 1, numiter_lanczos=10, tol_split=1e-10)
-        ptn.integrate_local_twosite(mpoH, psi2, -dt, 1, numiter_lanczos=10, tol_split=1e-10)
+        ptn.tdvp_twosite(mpoH, psi2,  dt, 1, numiter_lanczos=10, tol_split=1e-10)
+        ptn.tdvp_twosite(mpoH, psi2, -dt, 1, numiter_lanczos=10, tol_split=1e-10)
 
         # compare
         self.assertTrue(np.allclose(psi1.as_vector(), psi_ref, atol=1e-10))

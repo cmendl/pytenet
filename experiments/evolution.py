@@ -100,7 +100,7 @@ def main():
         dt = t / n
 
         psi_t = copy.deepcopy(psi)
-        ptn.integrate_local_singlesite(mpoH, psi_t, dt, n, numiter_lanczos=10)
+        ptn.tdvp_singlesite(mpoH, psi_t, dt, n, numiter_lanczos=10)
 
         err[i] = np.linalg.norm(psi_t.as_vector() - psi_ref)
 

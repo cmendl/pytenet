@@ -153,7 +153,7 @@ def main():
         dt = t / n
 
         psi_t = copy.deepcopy(psi)
-        ptn.integrate_local_singlesite(mpoHcomm, psi_t, dt, n, numiter_lanczos=20)
+        ptn.tdvp_singlesite(mpoHcomm, psi_t, dt, n, numiter_lanczos=20)
         op_t = cast_to_mpo(psi_t, op.qd)
 
         err_op[i] = np.linalg.norm(op_t.as_matrix() - op_t_ref, ord=1)

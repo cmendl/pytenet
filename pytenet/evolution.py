@@ -11,10 +11,10 @@ from .krylov import expm_krylov
 from .qnumber import qnumber_flatten, is_qsparse
 from .bond_ops import qr
 
-__all__ = ['integrate_local_singlesite', 'integrate_local_twosite']
+__all__ = ['tdvp_singlesite', 'tdvp_twosite']
 
 
-def integrate_local_singlesite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanczos: int = 25):
+def tdvp_singlesite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanczos: int = 25):
     """
     Symmetric single-site TDVP integration.
     `psi` is overwritten in-place with the time-evolved state.
@@ -101,7 +101,7 @@ def integrate_local_singlesite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanc
     return nrm
 
 
-def integrate_local_twosite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanczos: int = 25, tol_split = 0):
+def tdvp_twosite(H: MPO, psi: MPS, dt, numsteps: int, numiter_lanczos: int = 25, tol_split = 0):
     """
     Symmetric two-site TDVP integration.
     `psi` is overwritten in-place with the time-evolved state.

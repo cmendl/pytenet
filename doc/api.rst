@@ -15,7 +15,7 @@ API documentation
     pytenet.bipartite_graph.BipartiteGraph
     pytenet.bipartite_graph.HopcroftKarp
     pytenet.krylov
-    pytenet.minimization
+    pytenet.dmrg
     pytenet.mpo
     pytenet.mpo.MPO
     pytenet.mps

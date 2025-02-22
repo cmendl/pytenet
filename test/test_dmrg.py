@@ -3,14 +3,14 @@ import numpy as np
 import pytenet as ptn
 
 
-class TestMinimization(unittest.TestCase):
+class TestDMRG(unittest.TestCase):
 
-    def test_single_site(self):
+    def test_dmrg_singlesite(self):
 
         rng = np.random.default_rng()
 
         # number of lattice sites
-        L = 10
+        nsites = 10
 
         # number of left and right sweeps
         numsweeps = 4
@@ -22,14 +22,14 @@ class TestMinimization(unittest.TestCase):
         J =  4.0/5
         D =  8.0/3
         h = -2.0/7
-        mpoH = ptn.heisenberg_xxz_mpo(L, J, D, h)
+        mpoH = ptn.heisenberg_xxz_mpo(nsites, J, D, h)
         mpoH.zero_qnumbers()
 
         # initial wavefunction as MPS with random entries
-        D = [1] + (L-1) * [28] + [1]
+        D = [1] + (nsites-1) * [28] + [1]
         psi = ptn.MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random', rng=rng)
 
-        en_min = ptn.calculate_ground_state_local_singlesite(mpoH, psi, numsweeps)
+        en_min = ptn.dmrg_singlesite(mpoH, psi, numsweeps)
         # value after last iteration
         e0 = en_min[-1]
 
@@ -55,12 +55,12 @@ class TestMinimization(unittest.TestCase):
             msg='ground state wavefunction obtained by single-site optimization must match reference')
 
 
-    def test_two_site(self):
+    def test_dmrg_twosite(self):
 
         rng = np.random.default_rng()
 
         # number of lattice sites
-        L = 10
+        nsites = 10
 
         # number of left and right sweeps
         numsweeps = 2
@@ -72,14 +72,14 @@ class TestMinimization(unittest.TestCase):
         J =  4.0/5
         D =  8.0/3
         h = -2.0/7
-        mpoH = ptn.heisenberg_xxz_mpo(L, J, D, h)
+        mpoH = ptn.heisenberg_xxz_mpo(nsites, J, D, h)
         mpoH.zero_qnumbers()
 
         # initial wavefunction as MPS with random entries
-        D = [1] + (L-1) * [28] + [1]
+        D = [1] + (nsites-1) * [28] + [1]
         psi = ptn.MPS(mpoH.qd, [np.zeros(Di, dtype=int) for Di in D], fill='random', rng=rng)
 
-        en_min = ptn.calculate_ground_state_local_twosite(mpoH, psi, numsweeps)
+        en_min = ptn.dmrg_twosite(mpoH, psi, numsweeps)
         # value after last iteration
         e0 = en_min[-1]
 

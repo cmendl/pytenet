@@ -44,7 +44,7 @@ Example usage for TDVP time evolution:
     numsteps = 100
 
     # run TDVP time evolution
-    ptn.integrate_local_singlesite(mpoH, psi, dt, numsteps, numiter_lanczos=5)
+    ptn.tdvp_singlesite(mpoH, psi, dt, numsteps, numiter_lanczos=5)
     # psi now stores the (approximated) time-evolved state exp(-dt*numsteps H) psi
 
 
@@ -110,15 +110,15 @@ if it's ever useful for a research project please consider citing it:
 
 .. code-block:: latex
 
-    @ARTICLE{pytenet,
-      author = {Mendl, C. B.},
-      title = {PyTeNet: A concise Python implementation of quantum tensor network algorithms},
+    @Article{pytenet,
+      author  = {Mendl, Christian B.},
+      title   = {{PyTeNet}: A concise {P}ython implementation of quantum tensor network algorithms},
       journal = {Journal of Open Source Software},
-      year = {2018},
-      volume = {3},
-      number = {30},
-      pages = {948},
-      doi = {10.21105/joss.00948},
+      year    = {2018},
+      volume  = {3},
+      number  = {30},
+      pages   = {948},
+      doi     = {10.21105/joss.00948},
     }
 
 

@@ -20,6 +20,6 @@ from .hamiltonian     import *
 from .thc             import *
 from .operation       import *
 from .krylov          import *
-from .minimization    import *
+from .dmrg            import *
 from .evolution       import *
 from .util            import *
