@@ -34,8 +34,8 @@ class MPS:
             rng: (optional) random number generator for drawing entries
         """
         # require NumPy arrays
-        self.qd = np.array(qd)
-        self.qD = [np.array(qDi) for qDi in qD]
+        self.qd = np.asarray(qd)
+        self.qD = [np.asarray(qDi) for qDi in qD]
         # create list of MPS tensors
         d = len(qd)
         D = [len(qb) for qb in qD]
@@ -48,15 +48,58 @@ class MPS:
             if rng is None:
                 rng = np.random.default_rng()
             self.A = [crandn((d, D[i], D[i+1]), rng) / np.sqrt(d*D[i]*D[i+1]) for i in range(len(D)-1)]
+        elif fill == 'random real':
+            # random real entries
+            if rng is None:
+                rng = np.random.default_rng()
+            self.A = [rng.normal(size=(d, D[i], D[i+1])) / np.sqrt(d*D[i]*D[i+1]) for i in range(len(D)-1)]
         elif fill == 'postpone':
             self.A = (len(D) - 1) * [None]
         else:
-            raise ValueError(f'fill = {fill} invalid; must be a number, "random" or "postpone".')
+            raise ValueError(f'fill = {fill} invalid; must be a number, "random", "random real" or "postpone".')
         if fill != 'postpone':
             # enforce block sparsity structure dictated by quantum numbers
             for i in range(len(self.A)):
                 mask = qnumber_outer_sum([self.qd, self.qD[i], -self.qD[i+1]])
                 self.A[i] = np.where(mask == 0, self.A[i], 0)
+
+    @classmethod
+    def construct_random(cls, nsites: int, qd: Sequence[int], qnum_sector: int, max_vdim: int=256, dtype='complex', rng: np.random.Generator=None):
+        """
+        Construct a matrix product state with random normal tensor entries,
+        given an overall quantum number sector and maximum virtual bond dimension.
+        """
+        assert nsites > 0
+        # require NumPy array
+        qd = np.asarray(qd)
+        if rng is None:
+            rng = np.random.default_rng()
+        qD = (nsites + 1) * [None]
+        # dummy left virtual bond; set quantum number to zero
+        qD[0] = [0]
+        # dummy right virtual bond; set quantum number to overall quantum number sector
+        qD[-1] = [qnum_sector]
+        # virtual bond quantum numbers on left half
+        for l in range(1, (nsites + 1) // 2):
+            # enumerate all combinations of left bond quantum numbers and local physical quantum numbers
+            qnums_full = qnumber_outer_sum([qD[l - 1], qd]).reshape(-1)
+            if len(qnums_full) <= max_vdim:
+                qD[l] = qnums_full
+            else:
+                # randomly select quantum numbers
+                idx = rng.choice(len(qnums_full), size=max_vdim, replace=False)
+                qD[l] = qnums_full[idx]
+        # virtual bond quantum numbers on right half
+        for l in reversed(range((nsites + 1) // 2, nsites)):
+            # enumerate all combinations of right bond quantum numbers and local physical quantum numbers
+            qnums_full = qnumber_outer_sum([qD[l + 1], -qd]).reshape(-1)
+            if len(qnums_full) <= max_vdim:
+                qD[l] = qnums_full
+            else:
+                # randomly select quantum numbers
+                idx = rng.choice(len(qnums_full), size=max_vdim, replace=False)
+                qD[l] = qnums_full[idx]
+        return cls(qd, qD, fill=('random' if (dtype == complex or dtype == 'complex') else 'random real'), rng=rng)
 
     @property
     def nsites(self) -> int:

@@ -20,6 +20,7 @@ def lanczos_iteration(Afunc, vstart, numiter):
           - beta:       off-diagonal real entries of Hessenberg matrix
           - V:          `len(vstart) x numiter` matrix containing the orthonormal Lanczos vectors
     """
+    vstart = np.asarray(vstart)
     # normalize starting vector
     nrmv = np.linalg.norm(vstart)
     assert nrmv > 0
@@ -28,7 +29,7 @@ def lanczos_iteration(Afunc, vstart, numiter):
     alpha = np.zeros(numiter)
     beta  = np.zeros(numiter-1)
 
-    V = np.zeros((numiter, len(vstart)), dtype=complex)
+    V = np.zeros((numiter, len(vstart)), dtype=vstart.dtype)
     V[0] = vstart
 
     for j in range(numiter-1):
@@ -66,13 +67,14 @@ def arnoldi_iteration(Afunc, vstart, numiter):
           - H:      `numiter x numiter` upper Hessenberg matrix
           - V:      `len(vstart) x numiter` matrix containing the orthonormal Arnoldi vectors
     """
+    vstart = np.asarray(vstart)
     # normalize starting vector
     nrmv = np.linalg.norm(vstart)
     assert nrmv > 0
     vstart = vstart / nrmv
 
-    H = np.zeros((numiter, numiter), dtype=complex)
-    V = np.zeros((numiter, len(vstart)), dtype=complex)
+    H = np.zeros((numiter, numiter), dtype=vstart.dtype)
+    V = np.zeros((numiter, len(vstart)), dtype=vstart.dtype)
     V[0] = vstart
 
     for j in range(numiter-1):

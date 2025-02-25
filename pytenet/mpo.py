@@ -49,10 +49,15 @@ class MPO:
             if rng is None:
                 rng = np.random.default_rng()
             self.A = [crandn((d, d, D[i], D[i+1]), rng) / np.sqrt(d*D[i]*D[i+1]) for i in range(len(D)-1)]
+        elif fill == 'random real':
+            # random real entries
+            if rng is None:
+                rng = np.random.default_rng()
+            self.A = [rng.normal(size=(d, d, D[i], D[i+1])) / np.sqrt(d*D[i]*D[i+1]) for i in range(len(D)-1)]
         elif fill == 'postpone':
             self.A = (len(D) - 1) * [None]
         else:
-            raise ValueError(f'fill = {fill} invalid; must be a number, "random" or "postpone".')
+            raise ValueError(f'fill = {fill} invalid; must be a number, "random", "random real" or "postpone".')
         if fill != 'postpone':
             # enforce block sparsity structure dictated by quantum numbers
             for i in range(len(self.A)):
@@ -60,7 +65,7 @@ class MPO:
                 self.A[i] = np.where(mask == 0, self.A[i], 0)
 
     @classmethod
-    def identity(cls, qd: Sequence[int], L: int, scale: float = 1, dtype=complex):
+    def identity(cls, qd: Sequence[int], L: int, scale: float = 1, dtype=float):
         """
         Construct MPO representation of the identity operation.
         """

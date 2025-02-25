@@ -18,7 +18,7 @@ def vdot(chi: MPS, psi: MPS):
         psi: wavefunction represented as MPS
 
     Returns:
-        complex: `<chi | psi>`
+        `<chi | psi>`
     """
     assert psi.nsites == chi.nsites
     if psi.nsites == 0:
@@ -126,7 +126,7 @@ def operator_average(psi: MPS, op: MPO):
         op:  operator represented as MPO
 
     Returns:
-        complex: `<psi | op | psi>`
+        `<psi | op | psi>`
     """
     assert psi.nsites == op.nsites
     if psi.nsites == 0:
@@ -151,7 +151,7 @@ def operator_inner_product(chi: MPS, op: MPO, psi: MPS):
         psi: wavefunction represented as MPS
 
     Returns:
-        complex: `<chi | op | psi>`
+        `<chi | op | psi>`
     """
     assert chi.nsites == op.nsites
     assert psi.nsites == op.nsites
@@ -177,7 +177,7 @@ def operator_density_average(rho: MPO, op: MPO):
         op:  operator represented as MPO
 
     Returns:
-        complex: `tr[op rho]`
+        `tr[op rho]`
     """
     assert rho.nsites == op.nsites
     if rho.nsites == 0:
@@ -342,7 +342,7 @@ def compute_right_operator_blocks(psi: MPS, op: MPO):
     assert L == op.nsites
     blocks = [None for _ in range(L)]
     # initialize rightmost dummy block
-    blocks[L-1] = np.array([[[1]]], dtype=complex)
+    blocks[L-1] = np.array([[[1]]])
     for i in reversed(range(L - 1)):
         blocks[i] = contraction_operator_step_right(psi.A[i+1], psi.A[i+1], op.A[i+1], blocks[i+1])
     return blocks
