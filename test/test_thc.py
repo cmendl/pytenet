@@ -2,7 +2,6 @@ import unittest
 import numpy as np
 from scipy import sparse
 import pytenet as ptn
-from pytenet.hamiltonian import _encode_quantum_number_pair
 from test_hamiltonian import construct_spin_molecular_hamiltonian
 
 
@@ -53,11 +52,11 @@ class TestTensorHypercontraction(unittest.TestCase):
         # physical particle number and spin quantum numbers (encoded as single integer)
         qN = [0,  1,  1,  2]
         qS = [0, -1,  1,  0]
-        qd = [_encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
+        qd = [ptn.encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
         D = [1, 15, 22, 33, 13, 1]
         # ensure that the MPS does not represent a zero vector
         while True:
-            qD = [[_encode_quantum_number_pair(rng.integers(-1, 2), rng.integers(-1, 2))
+            qD = [[ptn.encode_quantum_number_pair(rng.integers(-1, 2), rng.integers(-1, 2))
                    for _ in range(Di)]
                    for Di in D]
             psi = ptn.MPS(qd, qD, fill='random', rng=rng)

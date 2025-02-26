@@ -16,6 +16,7 @@ The following tutorials provide an introduction to the main concepts and feature
 
     basics
     hamiltonian_mpo
+    dmrg
 
 
 Indices and tables

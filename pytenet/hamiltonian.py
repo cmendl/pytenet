@@ -13,7 +13,8 @@ __all__ = ['ising_mpo', 'heisenberg_xxz_mpo', 'heisenberg_xxz_spin1_mpo',
            'linear_fermionic_mpo', 'linear_spin_fermionic_mpo',
            'quadratic_fermionic_mpo', 'quadratic_spin_fermionic_mpo',
            'molecular_hamiltonian_mpo', 'molecular_hamiltonian_orbital_gauge_transform',
-           'spin_molecular_hamiltonian_mpo']
+           'spin_molecular_hamiltonian_mpo',
+           'encode_quantum_number_pair', 'decode_quantum_number_pair']
 
 
 def ising_mpo(L: int, J: float, h: float, g: float) -> MPO:
@@ -197,13 +198,6 @@ def bose_hubbard_mpo(d: int, L: int, t: float, U: float, mu: float) -> MPO:
     return _local_opchains_to_mpo(qd, lopchains, L, opmap, OID.Id)
 
 
-def _encode_quantum_number_pair(qa: int, qb: int):
-    """
-    Encode a pair of quantum numbers into a single quantum number.
-    """
-    return (qa << 16) + qb
-
-
 def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
     """
     Construct Fermi-Hubbard Hamiltonian
@@ -223,7 +217,7 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
     # physical particle number and spin quantum numbers (encoded as single integer)
     qN = [0,  1,  1,  2]
     qS = [0, -1,  1,  0]
-    qd = [_encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
+    qd = [encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
     id2 = np.identity(2)
     # creation and annihilation operators for a single spin and lattice site
     a_dag = np.array([[0., 0.], [1., 0.]])
@@ -261,11 +255,11 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
     # local two-site and single-site terms
     lopchains = [
         # spin-up kinetic hopping
-        OpChain([OID.CZ, OID.AI], [0, _encode_quantum_number_pair( 1,  1), 0], -t, 0),
-        OpChain([OID.AZ, OID.CI], [0, _encode_quantum_number_pair(-1, -1), 0], -t, 0),
+        OpChain([OID.CZ, OID.AI], [0, encode_quantum_number_pair( 1,  1), 0], -t, 0),
+        OpChain([OID.AZ, OID.CI], [0, encode_quantum_number_pair(-1, -1), 0], -t, 0),
         # spin-down kinetic hopping
-        OpChain([OID.IC, OID.ZA], [0, _encode_quantum_number_pair( 1, -1), 0], -t, 0),
-        OpChain([OID.IA, OID.ZC], [0, _encode_quantum_number_pair(-1,  1), 0], -t, 0),
+        OpChain([OID.IC, OID.ZA], [0, encode_quantum_number_pair( 1, -1), 0], -t, 0),
+        OpChain([OID.IA, OID.ZC], [0, encode_quantum_number_pair(-1,  1), 0], -t, 0),
         # number operator - mu (n_up + n_dn)
         OpChain([OID.Nt], [0, 0], -mu, 0),
         # interaction U (n_up - 1/2) (n_dn - 1/2)
@@ -362,7 +356,7 @@ def linear_spin_fermionic_mpo(coeff, ftype: str, sigma: int) -> MPO:
     # physical particle number and spin quantum numbers (encoded as single integer)
     qN = [0,  1,  1,  2]
     qS = [0, -1,  1,  0]
-    qd = [_encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
+    qd = [encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
 
     id2 = np.identity(2)
     # creation and annihilation operators
@@ -396,7 +390,7 @@ def linear_spin_fermionic_mpo(coeff, ftype: str, sigma: int) -> MPO:
         identity_l[i] = OpGraphNode(nid_next, [], [], 0)
         nid_next += 1
     for i in range(1, L + 1):
-        qnum = _encode_quantum_number_pair(1 if use_creation_op else -1, sigma if use_creation_op else -sigma)
+        qnum = encode_quantum_number_pair(1 if use_creation_op else -1, sigma if use_creation_op else -sigma)
         z_string_r[i] = OpGraphNode(nid_next, [], [], qnum)
         nid_next += 1
     # initialize graph with nodes
@@ -556,7 +550,7 @@ def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
     # physical particle number and spin quantum numbers (encoded as single integer)
     qN = [0,  1,  1,  2]
     qS = [0, -1,  1,  0]
-    qd = [_encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
+    qd = [encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
 
     id2 = np.identity(2)
     # creation and annihilation operators
@@ -610,11 +604,11 @@ def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
     ca_nodes = {}
     ac_nodes = {}
     for i in range(1, L):
-        qnum = _encode_quantum_number_pair(1, sigma)
+        qnum = encode_quantum_number_pair(1, sigma)
         ca_nodes[i] = OpGraphNode(nid_next, [], [], qnum)
         nid_next += 1
     for i in range(1, L):
-        qnum = _encode_quantum_number_pair(-1, -sigma)
+        qnum = encode_quantum_number_pair(-1, -sigma)
         ac_nodes[i] = OpGraphNode(nid_next, [], [], qnum)
         nid_next += 1
     # initialize graph with nodes
@@ -1548,7 +1542,7 @@ class SpinOperatorConverter:
         for i in range(opchain_single.length // 2):
             # determine spin quantum number from particle quantum numbers
             qspin -= (opchain_single.qnums[2*i] - 2*opchain_single.qnums[2*i + 1] + opchain_single.qnums[2*i + 2])
-            qnums.append(_encode_quantum_number_pair(opchain_single.qnums[2*(i + 1)], qspin))
+            qnums.append(encode_quantum_number_pair(opchain_single.qnums[2*(i + 1)], qspin))
         assert qnums[-1] == 0
         return OpChain(oids, qnums, opchain_single.coeff, opchain_single.istart // 2)
 
@@ -1637,7 +1631,7 @@ class SpinMolecularOpGraphNodes:
             self.a_dag_l[i, sigma] = {}
             for j in range(i + 1, L):
                 self.a_dag_l[i, sigma][j] = OpGraphNode(
-                    nid_next, [], [], _encode_quantum_number_pair( 1, [1, -1][sigma]))
+                    nid_next, [], [], encode_quantum_number_pair( 1, [1, -1][sigma]))
                 nid_next += 1
         # a_{i,\sigma} operators connected to left terminal
         self.a_ann_l = {}
@@ -1645,7 +1639,7 @@ class SpinMolecularOpGraphNodes:
             self.a_ann_l[i, sigma] = {}
             for j in range(i + 1, L):
                 self.a_ann_l[i, sigma][j] = OpGraphNode(
-                    nid_next, [], [], _encode_quantum_number_pair(-1, [-1, 1][sigma]))
+                    nid_next, [], [], encode_quantum_number_pair(-1, [-1, 1][sigma]))
                 nid_next += 1
         # a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} operators connected to left terminal
         self.a_dag_a_dag_l = {}
@@ -1656,7 +1650,7 @@ class SpinMolecularOpGraphNodes:
                 self.a_dag_a_dag_l[i, sigma, j, tau] = {}
                 for k in range(j + 1, L//2 + 1):
                     self.a_dag_a_dag_l[i, sigma, j, tau][k] = OpGraphNode(
-                        nid_next, [], [], _encode_quantum_number_pair( 2, [1, -1][sigma] + [1, -1][tau]))
+                        nid_next, [], [], encode_quantum_number_pair( 2, [1, -1][sigma] + [1, -1][tau]))
                     nid_next += 1
         # a_{i,\sigma} a_{j,\tau} operators connected to left terminal
         self.a_ann_a_ann_l = {}
@@ -1667,7 +1661,7 @@ class SpinMolecularOpGraphNodes:
                 self.a_ann_a_ann_l[i, sigma, j, tau] = {}
                 for k in range(i + 1, L//2 + 1):
                     self.a_ann_a_ann_l[i, sigma, j, tau][k] = OpGraphNode(
-                        nid_next, [], [], _encode_quantum_number_pair(-2, [-1, 1][sigma] + [-1, 1][tau]))
+                        nid_next, [], [], encode_quantum_number_pair(-2, [-1, 1][sigma] + [-1, 1][tau]))
                     nid_next += 1
         # a^{\dagger}_{i,\sigma} a_{j,\tau} operators connected to left terminal
         self.a_dag_a_ann_l = {}
@@ -1676,7 +1670,7 @@ class SpinMolecularOpGraphNodes:
                 self.a_dag_a_ann_l[i, sigma, j, tau] = {}
                 for k in range(max(i, j) + 1, L//2 + 1):
                     self.a_dag_a_ann_l[i, sigma, j, tau][k] = OpGraphNode(
-                        nid_next, [], [], _encode_quantum_number_pair(0, [1, -1][sigma] + [-1, 1][tau]))
+                        nid_next, [], [], encode_quantum_number_pair(0, [1, -1][sigma] + [-1, 1][tau]))
                     nid_next += 1
         # a^{\dagger}_{i,\sigma} operators connected to right terminal
         self.a_dag_r = {}
@@ -1684,7 +1678,7 @@ class SpinMolecularOpGraphNodes:
             self.a_dag_r[i, sigma] = {}
             for j in range(1, i + 1):
                 self.a_dag_r[i, sigma][j] = OpGraphNode(
-                    nid_next, [], [], _encode_quantum_number_pair(-1, [-1, 1][sigma]))
+                    nid_next, [], [], encode_quantum_number_pair(-1, [-1, 1][sigma]))
                 nid_next += 1
         # a_{i,\sigma} operators connected to right terminal
         self.a_ann_r = {}
@@ -1692,7 +1686,7 @@ class SpinMolecularOpGraphNodes:
             self.a_ann_r[i, sigma] = {}
             for j in range(1, i + 1):
                 self.a_ann_r[i, sigma][j] = OpGraphNode(
-                    nid_next, [], [], _encode_quantum_number_pair( 1, [1, -1][sigma]))
+                    nid_next, [], [], encode_quantum_number_pair( 1, [1, -1][sigma]))
                 nid_next += 1
         # a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} operators connected to right terminal
         self.a_dag_a_dag_r = {}
@@ -1703,7 +1697,7 @@ class SpinMolecularOpGraphNodes:
                 self.a_dag_a_dag_r[i, sigma, j, tau] = {}
                 for k in range(L//2 + 1, i + 1):
                     self.a_dag_a_dag_r[i, sigma, j, tau][k] = OpGraphNode(
-                        nid_next, [], [], _encode_quantum_number_pair(-2, [-1, 1][sigma] + [-1, 1][tau]))
+                        nid_next, [], [], encode_quantum_number_pair(-2, [-1, 1][sigma] + [-1, 1][tau]))
                     nid_next += 1
         # a_{i,\sigma} a_{j,\tau} operators connected to right terminal
         self.a_ann_a_ann_r = {}
@@ -1714,7 +1708,7 @@ class SpinMolecularOpGraphNodes:
                 self.a_ann_a_ann_r[i, sigma, j, tau] = {}
                 for k in range(L//2 + 1, j + 1):
                     self.a_ann_a_ann_r[i, sigma, j, tau][k] = OpGraphNode(
-                        nid_next, [], [], _encode_quantum_number_pair( 2, [1, -1][sigma] + [1, -1][tau]))
+                        nid_next, [], [], encode_quantum_number_pair( 2, [1, -1][sigma] + [1, -1][tau]))
                     nid_next += 1
         # a^{\dagger}_{i,\sigma} a_{j,\tau} operators connected to right terminal
         self.a_dag_a_ann_r = {}
@@ -1723,7 +1717,7 @@ class SpinMolecularOpGraphNodes:
                 self.a_dag_a_ann_r[i, sigma, j, tau] = {}
                 for k in range(L//2 + 1, min(i, j) + 1):
                     self.a_dag_a_ann_r[i, sigma, j, tau][k] = OpGraphNode(
-                        nid_next, [], [], _encode_quantum_number_pair( 0, [-1, 1][sigma] + [1, -1][tau]))
+                        nid_next, [], [], encode_quantum_number_pair( 0, [-1, 1][sigma] + [1, -1][tau]))
                     nid_next += 1
 
     def get(self, oplist: Sequence[tuple], connection):
@@ -2140,7 +2134,7 @@ def spin_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
     # physical particle number and spin quantum numbers (encoded as single integer)
     qN = [0,  1,  1,  2]
     qS = [0, -1,  1,  0]
-    qd = [_encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
+    qd = [encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
 
     # interaction terms 1/2 \sum_{i,j,k,l,\sigma,\tau,\mu,\nu} v_{i,j,k,l} \delta_{\sigma,\mu} \delta_{\tau,\nu} a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{l,\nu} a_{k,\mu}:
     # can anti-commute fermionic operators such that (i,\sigma) < (j,\tau) and (k,\mu) < (l,\nu)
@@ -2253,6 +2247,26 @@ def spin_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
         nodes.copy_nids(mpo)
 
     return mpo
+
+
+def encode_quantum_number_pair(qa: int, qb: int):
+    """
+    Encode a pair of quantum numbers into a single quantum number.
+    """
+    return (qa << 16) + qb
+
+
+def decode_quantum_number_pair(qnum: int):
+    """
+    Decode a quantum number into two separate quantum numbers.
+    """
+    qb = qnum % (1 << 16)
+    if qb >= (1 << 15):
+        qb -= (1 << 16)
+    elif qb < -(1 << 15):
+        qb += (1 << 16)
+    qa = (qnum - qb) >> 16
+    return qa, qb
 
 
 def _local_opchains_to_mpo(qd: Sequence[int], lopchains: Sequence[OpChain], size: int, opmap: Mapping, oid_identity: int) -> MPO:
