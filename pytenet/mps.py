@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 import numpy as np
-from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
+from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse, enforce_qsparsity
 from .bond_ops import qr, eigh, retained_bond_indices, split_matrix_svd
 from .util import crandn
 
@@ -60,8 +60,7 @@ class MPS:
         if fill != 'postpone':
             # enforce block sparsity structure dictated by quantum numbers
             for i in range(len(self.A)):
-                mask = qnumber_outer_sum([self.qd, self.qD[i], -self.qD[i+1]])
-                self.A[i] = np.where(mask == 0, self.A[i], 0)
+                enforce_qsparsity(self.A[i], [self.qd, self.qD[i], -self.qD[i+1]])
 
     @classmethod
     def construct_random(cls, nsites: int, qd: Sequence[int], qnum_sector: int, max_vdim: int=256, dtype='complex', rng: np.random.Generator=None):

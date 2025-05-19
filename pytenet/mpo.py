@@ -1,7 +1,7 @@
 from collections.abc import Sequence, Mapping
 import numpy as np
 from scipy import sparse
-from .qnumber import qnumber_outer_sum, qnumber_flatten, is_qsparse
+from .qnumber import qnumber_flatten, is_qsparse, enforce_qsparsity
 from .bond_ops import qr
 from .opgraph import OpGraph
 from .util import crandn
@@ -61,8 +61,7 @@ class MPO:
         if fill != 'postpone':
             # enforce block sparsity structure dictated by quantum numbers
             for i in range(len(self.A)):
-                mask = qnumber_outer_sum([self.qd, -self.qd, self.qD[i], -self.qD[i+1]])
-                self.A[i] = np.where(mask == 0, self.A[i], 0)
+                enforce_qsparsity(self.A[i], [self.qd, -self.qd, self.qD[i], -self.qD[i+1]])
 
     @classmethod
     def identity(cls, qd: Sequence[int], L: int, scale: float = 1, dtype=float):

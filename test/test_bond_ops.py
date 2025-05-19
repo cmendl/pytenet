@@ -16,8 +16,7 @@ class TestBondOps(unittest.TestCase):
         q1 = rng.integers(-2, 3, size=A.shape[1])
 
         # enforce block sparsity structure dictated by quantum numbers
-        mask = ptn.qnumber_outer_sum([q0, -q1])
-        A = np.where(mask == 0, A, 0)
+        ptn.enforce_qsparsity(A, [q0, -q1])
 
         # perform QR decomposition, taking quantum numbers into account
         Q, R, qinterm = ptn.qr(A, q0, q1)
@@ -45,8 +44,7 @@ class TestBondOps(unittest.TestCase):
         q1 = rng.integers(-2, 3, size=A.shape[1])
 
         # enforce block sparsity structure dictated by quantum numbers
-        mask = ptn.qnumber_outer_sum([q0, -q1])
-        A = np.where(mask == 0, A, 0)
+        ptn.enforce_qsparsity(A, [q0, -q1])
 
         # perform SVD decomposition without truncation
         u, s, v, qinterm = ptn.split_matrix_svd(A, q0, q1, 0.)
@@ -90,8 +88,7 @@ class TestBondOps(unittest.TestCase):
         q0 = rng.integers(-2, 3, size=A.shape[0])
 
         # enforce block sparsity structure dictated by quantum numbers
-        mask = ptn.qnumber_outer_sum([q0, -q0])
-        A = np.where(mask == 0, A, 0)
+        ptn.enforce_qsparsity(A, [q0, -q0])
 
         # perform diagonalisation without truncation
         U, evals, qinterm = ptn.eigh(A, q0)

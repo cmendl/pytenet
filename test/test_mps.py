@@ -128,8 +128,7 @@ class TestMPS(unittest.TestCase):
         qD = [rng.integers(-2, 3, size=D0), rng.integers(-2, 3, size=D2)]
 
         # enforce block sparsity structure dictated by quantum numbers
-        mask = ptn.qnumber_outer_sum([ptn.qnumber_flatten([qd0, qd1]), qD[0], -qD[1]])
-        Apair = np.where(mask == 0, Apair, 0)
+        ptn.enforce_qsparsity(Apair, [ptn.qnumber_flatten([qd0, qd1]), qD[0], -qD[1]])
 
         for svd_distr in ['left', 'right', 'sqrt']:
             (A0, A1, qbond) = ptn.split_mps_tensor(Apair, qd0, qd1, qD, svd_distr=svd_distr, tol=0)
