@@ -1,4 +1,4 @@
-.. image:: https://github.com/cmendl/pytenet/actions/workflows/ci.yml/badge.svg?branch=master
+.. image:: https://github.com/cmendl/pytenet/actions/workflows/ci.yml/badge.svg
   :target: https://github.com/cmendl/pytenet/actions/workflows/ci.yml
 .. image:: http://joss.theoj.org/papers/10.21105/joss.00948/status.svg
   :target: https://doi.org/10.21105/joss.00948
