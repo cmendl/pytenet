@@ -1921,6 +1921,7 @@ class SpinMolecularOpGraphNodes:
                 for k in range(L//2 + 1, min(i, j)):
                     graph.add_connect_edge(
                         OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][k].nid, self.a_dag_a_ann_r[i, sigma, j, tau][k + 1].nid], [(SpinMolecularOID.Id, 1.)]))
+                    eid_next += 1
                 if i < j:
                     graph.add_connect_edge(
                         OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][i].nid, self.a_ann_r[j, tau][i + 1].nid], [([SpinMolecularOID.CZ, SpinMolecularOID.IC][sigma], 1.)]))
