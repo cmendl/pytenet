@@ -301,34 +301,34 @@ def linear_fermionic_mpo(coeff, ftype: str) -> MPO:
     # construct operator graph
     nid_next = 0
     # identity and Z strings from the left and right
-    identity_l = {}
-    z_string_r = {}
-    for i in range(L):
-        identity_l[i] = OpGraphNode(nid_next, [], [], 0)
-        nid_next += 1
+    identity_r = {}
+    z_string_l = {}
     for i in range(1, L + 1):
-        z_string_r[i] = OpGraphNode(nid_next, [], [], 1 if use_creation_op else -1)
+        identity_r[i] = OpGraphNode(nid_next, [], [], 0)
+        nid_next += 1
+    for i in range(L):
+        z_string_l[i] = OpGraphNode(nid_next, [], [], -1 if use_creation_op else 1)
         nid_next += 1
     # initialize graph with nodes
-    graph = OpGraph(list(identity_l.values()) +
-                    list(z_string_r.values()),
-                    [], [identity_l[0].nid, z_string_r[L].nid])
+    graph = OpGraph(list(identity_r.values()) +
+                    list(z_string_l.values()),
+                    [], [z_string_l[0].nid, identity_r[L].nid])
     # edges
     eid_next = 0
     # identities
-    for i in range(L - 1):
-        graph.add_connect_edge(
-            OpGraphEdge(eid_next, [identity_l[i].nid, identity_l[i + 1].nid], [(OID.I, 1.)]))
-        eid_next += 1
-    # Z strings
     for i in range(1, L):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [z_string_r[i].nid, z_string_r[i + 1].nid], [(OID.Z, 1.)]))
+            OpGraphEdge(eid_next, [identity_r[i].nid, identity_r[i + 1].nid], [(OID.I, 1.)]))
+        eid_next += 1
+    # Z strings
+    for i in range(L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [z_string_l[i].nid, z_string_l[i + 1].nid], [(OID.Z, 1.)]))
         eid_next += 1
     # creation or annihilation operators
     for i in range(L):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [identity_l[i].nid, z_string_r[i + 1].nid], [(OID.C if use_creation_op else OID.A, coeff[i])]))
+            OpGraphEdge(eid_next, [z_string_l[i].nid, identity_r[i + 1].nid], [(OID.C if use_creation_op else OID.A, coeff[i])]))
         eid_next += 1
     assert graph.is_consistent()
 
@@ -367,56 +367,56 @@ def linear_spin_fermionic_mpo(coeff, ftype: str, sigma: int) -> MPO:
     # operator map
     class OID(IntEnum):
         Id = 0
-        CZ = 1
-        AZ = 2
-        IC = 3
-        IA = 4
+        CI = 1
+        AI = 2
+        ZC = 3
+        ZA = 4
         ZZ = 5
     opmap = {
         OID.Id: np.identity(4),
-        OID.CZ: np.kron(a_dag, Z  ),
-        OID.AZ: np.kron(a_ann, Z  ),
-        OID.IC: np.kron(id2, a_dag),
-        OID.IA: np.kron(id2, a_ann),
+        OID.CI: np.kron(a_dag, id2),
+        OID.AI: np.kron(a_ann, id2),
+        OID.ZC: np.kron(Z,   a_dag),
+        OID.ZA: np.kron(Z,   a_ann),
         OID.ZZ: np.kron(Z,   Z    ),
     }
 
     # construct operator graph
     nid_next = 0
     # identity and Z strings from the left and right
-    identity_l = {}
-    z_string_r = {}
-    for i in range(L):
-        identity_l[i] = OpGraphNode(nid_next, [], [], 0)
-        nid_next += 1
+    identity_r = {}
+    z_string_l = {}
     for i in range(1, L + 1):
-        qnum = encode_quantum_number_pair(1 if use_creation_op else -1, sigma if use_creation_op else -sigma)
-        z_string_r[i] = OpGraphNode(nid_next, [], [], qnum)
+        identity_r[i] = OpGraphNode(nid_next, [], [], 0)
+        nid_next += 1
+    for i in range(L):
+        qnum = encode_quantum_number_pair(-1 if use_creation_op else 1, -sigma if use_creation_op else sigma)
+        z_string_l[i] = OpGraphNode(nid_next, [], [], qnum)
         nid_next += 1
     # initialize graph with nodes
-    graph = OpGraph(list(identity_l.values()) +
-                    list(z_string_r.values()),
-                    [], [identity_l[0].nid, z_string_r[L].nid])
+    graph = OpGraph(list(identity_r.values()) +
+                    list(z_string_l.values()),
+                    [], [z_string_l[0].nid, identity_r[L].nid])
     # edges
     eid_next = 0
     # identities
-    for i in range(L - 1):
-        graph.add_connect_edge(
-            OpGraphEdge(eid_next, [identity_l[i].nid, identity_l[i + 1].nid], [(OID.Id, 1.)]))
-        eid_next += 1
-    # Z strings
     for i in range(1, L):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [z_string_r[i].nid, z_string_r[i + 1].nid], [(OID.ZZ, 1.)]))
+            OpGraphEdge(eid_next, [identity_r[i].nid, identity_r[i + 1].nid], [(OID.Id, 1.)]))
+        eid_next += 1
+    # Z strings
+    for i in range(L - 1):
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [z_string_l[i].nid, z_string_l[i + 1].nid], [(OID.ZZ, 1.)]))
         eid_next += 1
     # creation or annihilation operators
     for i in range(L):
         if use_creation_op:
-            oid = (OID.CZ if sigma == 1 else OID.IC)
+            oid = (OID.CI if sigma == 1 else OID.ZC)
         else:
-            oid = (OID.AZ if sigma == 1 else OID.IA)
+            oid = (OID.AI if sigma == 1 else OID.ZA)
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [identity_l[i].nid, z_string_r[i + 1].nid], [(oid, coeff[i])]))
+            OpGraphEdge(eid_next, [z_string_l[i].nid, identity_r[i + 1].nid], [(oid, coeff[i])]))
         eid_next += 1
     assert graph.is_consistent()
 

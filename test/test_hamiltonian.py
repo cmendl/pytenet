@@ -435,11 +435,11 @@ def generate_fermi_operators(L: int):
         c = sparse.identity(1)
         for j in range(L):
             if j < i:
-                c = sparse.kron(c, I)
+                c = sparse.kron(c, Z)
             elif j == i:
                 c = sparse.kron(c, U)
             else:
-                c = sparse.kron(c, Z)
+                c = sparse.kron(c, I)
         clist.append(c)
     # corresponding annihilation operators
     alist = [c.conj().T for c in clist]
