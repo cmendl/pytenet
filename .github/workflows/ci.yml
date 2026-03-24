@@ -12,15 +12,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: '3.10' 
+          python-version: '3.10'
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install --editable .
+          python3 -m pip install --editable .[test]
       - name: Run tests
-        run: |
-          cd test
-          python3 -m unittest discover -s ./
+        run: pytest ./test/

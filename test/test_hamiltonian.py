@@ -1,328 +1,325 @@
-import unittest
 import numpy as np
 from scipy import sparse
 from scipy.stats import unitary_group
 import pytenet as ptn
 
 
-class TestHamiltonian(unittest.TestCase):
+def test_ising():
 
-    def test_ising(self):
+    # Hamiltonian parameters
+    J =  5.0/11
+    h = -2.0/7
+    g = 13.0/8
+    # number of lattice sites
+    L = 7
 
-        # Hamiltonian parameters
-        J =  5.0/11
-        h = -2.0/7
-        g = 13.0/8
-        # number of lattice sites
-        L = 7
+    # construct MPO
+    mpoH = ptn.ising_mpo(L, J, h, g)
+    # matrix representation, for comparison with reference
+    H = mpoH.as_matrix()
 
-        # construct MPO
-        mpoH = ptn.ising_mpo(L, J, h, g)
-        # matrix representation, for comparison with reference
-        H = mpoH.as_matrix()
+    # reference Hamiltonian
+    Href = construct_ising_hamiltonian(L, J, h, g)
 
-        # reference Hamiltonian
-        Href = construct_ising_hamiltonian(L, J, h, g)
-
-        # compare
-        self.assertTrue(np.allclose(H, Href.todense()),
-            msg='matrix representation of MPO and reference Hamiltonian must match')
+    # compare
+    assert np.allclose(H, Href.todense()), \
+        "matrix representation of MPO and reference Hamiltonian must match"
 
 
-    def test_heisenberg_xxz(self):
+def test_heisenberg_xxz():
 
-        # Hamiltonian parameters
-        J = 14.0/25
-        D = 13.0/8
-        h =  2.0/7
-        # number of lattice sites
-        L = 7
+    # Hamiltonian parameters
+    J = 14.0/25
+    D = 13.0/8
+    h =  2.0/7
+    # number of lattice sites
+    L = 7
 
-        # construct MPO
-        mpoH = ptn.heisenberg_xxz_mpo(L, J, D, h)
-        # matrix representation, for comparison with reference
-        H = mpoH.as_matrix()
+    # construct MPO
+    mpoH = ptn.heisenberg_xxz_mpo(L, J, D, h)
+    # matrix representation, for comparison with reference
+    H = mpoH.as_matrix()
 
-        # reference Hamiltonian
-        Href = construct_heisenberg_xxz_hamiltonian(L, J, D, h)
+    # reference Hamiltonian
+    Href = construct_heisenberg_xxz_hamiltonian(L, J, D, h)
 
-        # compare
-        self.assertTrue(np.allclose(H, Href.todense()),
-            msg='matrix representation of MPO and reference Hamiltonian must match')
-
-
-    def test_heisenberg_xxz_spin1(self):
-
-        # Hamiltonian parameters
-        J =  1.2
-        D = -0.9
-        h =  1.0/7
-        # number of lattice sites
-        L = 6
-
-        # construct MPO
-        mpoH = ptn.heisenberg_xxz_spin1_mpo(L, J, D, h)
-        # matrix representation, for comparison with reference
-        H = mpoH.as_matrix()
-
-        # reference Hamiltonian
-        Href = construct_heisenberg_xxz_spin1_hamiltonian(L, J, D, h)
-
-        # compare
-        self.assertTrue(np.allclose(H, Href.todense()),
-            msg='matrix representation of MPO and reference Hamiltonian must match')
+    # compare
+    assert np.allclose(H, Href.todense()), \
+        "matrix representation of MPO and reference Hamiltonian must match"
 
 
-    def test_bose_hubbard(self):
+def test_heisenberg_xxz_spin1():
 
-        # physical dimension per site (maximal occupancy is d - 1)
-        d = 4
-        # number of lattice sites
-        L = 5
-        # Hamiltonian parameters
-        t  = 0.7
-        U  = 3.2
-        mu = 1.3
+    # Hamiltonian parameters
+    J =  1.2
+    D = -0.9
+    h =  1.0/7
+    # number of lattice sites
+    L = 6
 
-        # construct MPO
-        mpoH = ptn.bose_hubbard_mpo(d, L, t, U, mu)
-        # matrix representation, for comparison with reference
-        H = mpoH.as_matrix()
+    # construct MPO
+    mpoH = ptn.heisenberg_xxz_spin1_mpo(L, J, D, h)
+    # matrix representation, for comparison with reference
+    H = mpoH.as_matrix()
 
-        # reference Hamiltonian
-        Href = construct_bose_hubbard_hamiltonian(d, L, t, U, mu)
+    # reference Hamiltonian
+    Href = construct_heisenberg_xxz_spin1_hamiltonian(L, J, D, h)
 
-        # compare
-        self.assertTrue(np.allclose(H, Href.todense()),
-            msg='matrix representation of MPO and reference Hamiltonian must match')
+    # compare
+    assert np.allclose(H, Href.todense()), \
+        "matrix representation of MPO and reference Hamiltonian must match"
 
 
-    def test_fermi_hubbard(self):
+def test_bose_hubbard():
 
-        # number of lattice sites
-        L = 5
-        # Hamiltonian parameters
-        t  = 1.2
-        U  = 2.7
-        mu = 0.3
+    # physical dimension per site (maximal occupancy is d - 1)
+    d = 4
+    # number of lattice sites
+    L = 5
+    # Hamiltonian parameters
+    t  = 0.7
+    U  = 3.2
+    mu = 1.3
 
-        # construct MPO
-        mpoH = ptn.fermi_hubbard_mpo(L, t, U, mu)
-        # matrix representation, for comparison with reference
-        H = mpoH.as_matrix()
+    # construct MPO
+    mpoH = ptn.bose_hubbard_mpo(d, L, t, U, mu)
+    # matrix representation, for comparison with reference
+    H = mpoH.as_matrix()
 
-        # reference Hamiltonian
-        Href = construct_fermi_hubbard_hamiltonian(L, t, U, mu)
+    # reference Hamiltonian
+    Href = construct_bose_hubbard_hamiltonian(d, L, t, U, mu)
 
-        # compare
-        self.assertTrue(np.allclose(H, Href.todense()),
-            msg='matrix representation of MPO and reference Hamiltonian must match')
-
-
-    def test_linear_fermionic_operator(self):
-
-        rng = np.random.default_rng()
-
-        # number of lattice sites
-        L = 6
-        # coefficients
-        coeff = ptn.crandn(L, rng)
-
-        for ftype in ('c', 'a'):
-            # construct the MPO
-            mpo = ptn.linear_fermionic_mpo(coeff, ftype)
-            self.assertEqual(mpo.bond_dims, [1] + (L - 1)*[2] + [1],
-                msg='virtual bond dimensions must match theoretical prediction')
-            # matrix representation, for comparison with reference
-            op = mpo.as_matrix()
-            # reference operator
-            clist, alist = generate_fermi_operators(L)
-            op_ref = sum(coeff[i] * (clist[i] if ftype == 'c' else alist[i]) for i in range(L))
-            # compare
-            self.assertTrue(np.allclose(op, op_ref.todense()),
-                msg='matrix representation of MPO and reference operator must match')
+    # compare
+    assert np.allclose(H, Href.todense()), \
+        "matrix representation of MPO and reference Hamiltonian must match"
 
 
-    def test_linear_spin_fermionic_operator(self):
+def test_fermi_hubbard():
 
-        rng = np.random.default_rng()
+    # number of lattice sites
+    L = 5
+    # Hamiltonian parameters
+    t  = 1.2
+    U  = 2.7
+    mu = 0.3
 
-        # number of lattice sites
-        L = 5
-        # coefficients
-        coeff = ptn.crandn(L, rng)
+    # construct MPO
+    mpoH = ptn.fermi_hubbard_mpo(L, t, U, mu)
+    # matrix representation, for comparison with reference
+    H = mpoH.as_matrix()
 
-        for ftype in ('c', 'a'):
-            for sigma in (1, -1):
-                # construct the MPO
-                mpo = ptn.linear_spin_fermionic_mpo(coeff, ftype, sigma)
-                self.assertEqual(mpo.bond_dims, [1] + (L - 1)*[2] + [1],
-                    msg='virtual bond dimensions must match theoretical prediction')
-                # matrix representation, for comparison with reference
-                op = mpo.as_matrix()
-                # reference operator
-                clist, alist = generate_fermi_operators(2*L)
-                offset = (0 if sigma == 1 else 1)
-                op_ref = sum(coeff[i] * (clist[2*i+offset] if ftype == 'c' else alist[2*i+offset]) for i in range(L))
-                # compare
-                self.assertTrue(np.allclose(op, op_ref.todense()),
-                    msg='matrix representation of MPO and reference operator must match')
+    # reference Hamiltonian
+    Href = construct_fermi_hubbard_hamiltonian(L, t, U, mu)
+
+    # compare
+    assert np.allclose(H, Href.todense()), \
+        "matrix representation of MPO and reference Hamiltonian must match"
 
 
-    def test_quadratic_fermionic_operator(self):
+def test_linear_fermionic_operator():
 
-        rng = np.random.default_rng()
+    rng = np.random.default_rng()
 
-        # number of lattice sites
-        L = 6
-        # coefficients
-        coeffc = ptn.crandn(L, rng)
-        coeffa = ptn.crandn(L, rng)
+    # number of lattice sites
+    L = 6
+    # coefficients
+    coeff = ptn.crandn(L, rng)
 
+    for ftype in ('c', 'a'):
         # construct the MPO
-        mpo = ptn.quadratic_fermionic_mpo(coeffc, coeffa)
-        self.assertEqual(mpo.bond_dims, [1] + (L - 1)*[4] + [1],
-            msg='virtual bond dimensions must match theoretical prediction')
+        mpo = ptn.linear_fermionic_mpo(coeff, ftype)
+        assert mpo.bond_dims == [1] + (L - 1)*[2] + [1], \
+            "virtual bond dimensions must match theoretical prediction"
         # matrix representation, for comparison with reference
         op = mpo.as_matrix()
         # reference operator
         clist, alist = generate_fermi_operators(L)
-        op_ref = sum(coeffc[i] * clist[i] for i in range(L)) @ sum(coeffa[i] * alist[i] for i in range(L))
+        op_ref = sum(coeff[i] * (clist[i] if ftype == 'c' else alist[i]) for i in range(L))
         # compare
-        self.assertTrue(np.allclose(op, op_ref.todense()),
-            msg='matrix representation of MPO and reference operator must match')
+        assert np.allclose(op, op_ref.todense()), \
+            "matrix representation of MPO and reference operator must match"
 
 
-    def test_quadratic_spin_fermionic_operator(self):
+def test_linear_spin_fermionic_operator():
 
-        rng = np.random.default_rng()
+    rng = np.random.default_rng()
 
-        # number of lattice sites
-        L = 5
-        # coefficients
-        coeffc = ptn.crandn(L, rng)
-        coeffa = ptn.crandn(L, rng)
+    # number of lattice sites
+    L = 5
+    # coefficients
+    coeff = ptn.crandn(L, rng)
 
+    for ftype in ('c', 'a'):
         for sigma in (1, -1):
             # construct the MPO
-            mpo = ptn.quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma)
-            self.assertEqual(mpo.bond_dims, [1] + (L - 1)*[4] + [1],
-                msg='virtual bond dimensions must match theoretical prediction')
+            mpo = ptn.linear_spin_fermionic_mpo(coeff, ftype, sigma)
+            assert mpo.bond_dims == [1] + (L - 1)*[2] + [1], \
+                "virtual bond dimensions must match theoretical prediction"
             # matrix representation, for comparison with reference
             op = mpo.as_matrix()
             # reference operator
             clist, alist = generate_fermi_operators(2*L)
             offset = (0 if sigma == 1 else 1)
-            op_ref = sum(coeffc[i] * clist[2*i+offset] for i in range(L)) @ sum(coeffa[i] * alist[2*i+offset] for i in range(L))
+            op_ref = sum(coeff[i] * (clist[2*i+offset] if ftype == 'c' else alist[2*i+offset]) for i in range(L))
             # compare
-            self.assertTrue(np.allclose(op, op_ref.todense()),
-                msg='matrix representation of MPO and reference operator must match')
+            assert np.allclose(op, op_ref.todense()), \
+                "matrix representation of MPO and reference operator must match"
 
 
-    def test_molecular_hamiltonian_construction(self):
+def test_quadratic_fermionic_operator():
 
-        rng = np.random.default_rng()
+    rng = np.random.default_rng()
 
-        # number of fermionic modes
-        L = 7
-        # Hamiltonian parameters
-        tkin = ptn.crandn(2 * (L,), rng)
-        vint = ptn.crandn(4 * (L,), rng)
+    # number of lattice sites
+    L = 6
+    # coefficients
+    coeffc = ptn.crandn(L, rng)
+    coeffa = ptn.crandn(L, rng)
 
-        # reference Hamiltonian
-        Href = construct_molecular_hamiltonian(tkin, vint)
-
-        for opt in (True, False):
-            mpoH = ptn.molecular_hamiltonian_mpo(tkin, vint, opt)
-
-            # theoretically predicted virtual bond dimensions
-            D_theo = []
-            for i in range(L + 1):
-                nl = i
-                nr = L - i
-                n = min(nl, nr)
-                # identity chains
-                if opt:
-                    D1 = 2 if 1 < i < L - 1 else 1
-                else:
-                    # slightly sub-optimal
-                    D1 = 2 if 1 <= i <= L - 1 else 1
-                # a^{\dagger}_i and a_i chains, reaching (almost) from one boundary to the other
-                if opt:
-                    D2 = 2 * min(nl**2 * (nl - 1) // 2, nr) + 2 * min(nl, nr**2 * (nr - 1) // 2)
-                else:
-                    # slightly sub-optimal
-                    D2 = 2 * ((nl if i < L - 1 else 0) + (nr if i > 1 else 0))
-                # a^{\dagger}_i a^{\dagger}_j (for i < j), a_i a_j (for i > j) and a^{\dagger}_i a_j chains, extending from boundary to center
-                D3 = 2 * n * (n - 1) // 2 + n**2
-                D_theo.append(D1 + D2 + D3)
-            self.assertEqual(mpoH.bond_dims, D_theo)
-
-            # compare matrix representations
-            self.assertTrue(np.allclose(mpoH.as_matrix(), Href.todense()),
-                msg='matrix representation of MPO and reference Hamiltonian must match')
+    # construct the MPO
+    mpo = ptn.quadratic_fermionic_mpo(coeffc, coeffa)
+    assert mpo.bond_dims == [1] + (L - 1)*[4] + [1], \
+        "virtual bond dimensions must match theoretical prediction"
+    # matrix representation, for comparison with reference
+    op = mpo.as_matrix()
+    # reference operator
+    clist, alist = generate_fermi_operators(L)
+    op_ref = sum(coeffc[i] * clist[i] for i in range(L)) @ sum(coeffa[i] * alist[i] for i in range(L))
+    # compare
+    assert np.allclose(op, op_ref.todense()), \
+        "matrix representation of MPO and reference operator must match"
 
 
-    def test_molecular_hamiltonian_orbital_rotation(self):
+def test_quadratic_spin_fermionic_operator():
 
-        rng = np.random.default_rng()
+    rng = np.random.default_rng()
 
-        # number of fermionic modes
-        L = 6
-        # Hamiltonian coefficients
-        tkin = ptn.crandn(2 * (L,), rng)
-        vint = ptn.crandn(4 * (L,), rng)
+    # number of lattice sites
+    L = 5
+    # coefficients
+    coeffc = ptn.crandn(L, rng)
+    coeffa = ptn.crandn(L, rng)
 
-        for i in range(L - 1):
-
-            mpoH = ptn.molecular_hamiltonian_mpo(tkin, vint, optimize=False)
-
-            # random rotation matrix for two orbitals
-            u2 = unitary_group.rvs(2, random_state=rng)
-
-            # extend to overall orbital rotation matrix
-            u = np.identity(L, dtype=u2.dtype)
-            u[i:i+2, i:i+2] = u2
-
-            # apply transposed single-orbital rotation matrix to Hamiltonian coefficients
-            tkin_rotorb = np.einsum(u, (2, 0), u.conj(), (3, 1), tkin, (2, 3), (0, 1))
-            vint_rotorb = np.einsum(u, (4, 0), u, (5, 1), u.conj(), (6, 2), u.conj(), (7, 3), vint, (4, 5, 6, 7), (0, 1, 2, 3))
-
-            # rotated reference MPO
-            mpoH_rotorb = ptn.molecular_hamiltonian_mpo(tkin_rotorb, vint_rotorb, optimize=False)
-
-            # copy transformed MPO tensors at sites `i` and `i + 1`
-            mpoH.A[i    ] = np.copy(mpoH_rotorb.A[i    ])
-            mpoH.A[i + 1] = np.copy(mpoH_rotorb.A[i + 1])
-            # apply left and right gauge transformations
-            v_l, v_r = ptn.molecular_hamiltonian_orbital_gauge_transform(mpoH, u2, i)
-            mpoH.A[i    ] = np.einsum(v_l, (2, 4), mpoH.A[i    ], (0, 1, 4, 3), (0, 1, 2, 3))
-            mpoH.A[i + 1] = np.einsum(v_r, (3, 4), mpoH.A[i + 1], (0, 1, 2, 4), (0, 1, 2, 3))
-
-            # compare matrix representations
-            self.assertTrue(np.allclose(mpoH.as_matrix(), mpoH_rotorb.as_matrix()),
-                msg='matrix representation of MPO after orbital rotation and reference Hamiltonian must match')
+    for sigma in (1, -1):
+        # construct the MPO
+        mpo = ptn.quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma)
+        assert mpo.bond_dims == [1] + (L - 1)*[4] + [1], \
+            "virtual bond dimensions must match theoretical prediction"
+        # matrix representation, for comparison with reference
+        op = mpo.as_matrix()
+        # reference operator
+        clist, alist = generate_fermi_operators(2*L)
+        offset = (0 if sigma == 1 else 1)
+        op_ref = sum(coeffc[i] * clist[2*i+offset] for i in range(L)) @ sum(coeffa[i] * alist[2*i+offset] for i in range(L))
+        # compare
+        assert np.allclose(op, op_ref.todense()), \
+            "matrix representation of MPO and reference operator must match"
 
 
-    def test_spin_molecular_hamiltonian_construction(self):
+def test_molecular_hamiltonian_construction():
 
-        rng = np.random.default_rng()
+    rng = np.random.default_rng()
 
-        # number of spin-endowed lattice sites
-        L = 4
-        # Hamiltonian parameters
-        tkin = ptn.crandn(2 * (L,), rng)
-        vint = ptn.crandn(4 * (L,), rng)
+    # number of fermionic modes
+    L = 7
+    # Hamiltonian parameters
+    tkin = ptn.crandn(2 * (L,), rng)
+    vint = ptn.crandn(4 * (L,), rng)
 
-        # reference Hamiltonian
-        Href = construct_spin_molecular_hamiltonian(tkin, vint)
+    # reference Hamiltonian
+    Href = construct_molecular_hamiltonian(tkin, vint)
 
-        for opt in (True, False):
-            mpoH = ptn.spin_molecular_hamiltonian_mpo(tkin, vint, opt)
+    for opt in (True, False):
+        mpoH = ptn.molecular_hamiltonian_mpo(tkin, vint, opt)
 
-            # compare matrix representations
-            self.assertTrue(np.allclose(mpoH.as_matrix(), Href.todense()),
-                msg='matrix representation of MPO and reference Hamiltonian must match')
+        # theoretically predicted virtual bond dimensions
+        D_theo = []
+        for i in range(L + 1):
+            nl = i
+            nr = L - i
+            n = min(nl, nr)
+            # identity chains
+            if opt:
+                D1 = 2 if 1 < i < L - 1 else 1
+            else:
+                # slightly sub-optimal
+                D1 = 2 if 1 <= i <= L - 1 else 1
+            # a^{\dagger}_i and a_i chains, reaching (almost) from one boundary to the other
+            if opt:
+                D2 = 2 * min(nl**2 * (nl - 1) // 2, nr) + 2 * min(nl, nr**2 * (nr - 1) // 2)
+            else:
+                # slightly sub-optimal
+                D2 = 2 * ((nl if i < L - 1 else 0) + (nr if i > 1 else 0))
+            # a^{\dagger}_i a^{\dagger}_j (for i < j), a_i a_j (for i > j) and a^{\dagger}_i a_j chains, extending from boundary to center
+            D3 = 2 * n * (n - 1) // 2 + n**2
+            D_theo.append(D1 + D2 + D3)
+        assert mpoH.bond_dims == D_theo
+
+        # compare matrix representations
+        assert np.allclose(mpoH.as_matrix(), Href.todense()), \
+            "matrix representation of MPO and reference Hamiltonian must match"
+
+
+def test_molecular_hamiltonian_orbital_rotation():
+
+    rng = np.random.default_rng()
+
+    # number of fermionic modes
+    L = 6
+    # Hamiltonian coefficients
+    tkin = ptn.crandn(2 * (L,), rng)
+    vint = ptn.crandn(4 * (L,), rng)
+
+    for i in range(L - 1):
+
+        mpoH = ptn.molecular_hamiltonian_mpo(tkin, vint, optimize=False)
+
+        # random rotation matrix for two orbitals
+        u2 = unitary_group.rvs(2, random_state=rng)
+
+        # extend to overall orbital rotation matrix
+        u = np.identity(L, dtype=u2.dtype)
+        u[i:i+2, i:i+2] = u2
+
+        # apply transposed single-orbital rotation matrix to Hamiltonian coefficients
+        tkin_rotorb = np.einsum(u, (2, 0), u.conj(), (3, 1), tkin, (2, 3), (0, 1))
+        vint_rotorb = np.einsum(u, (4, 0), u, (5, 1), u.conj(), (6, 2), u.conj(), (7, 3), vint, (4, 5, 6, 7), (0, 1, 2, 3))
+
+        # rotated reference MPO
+        mpoH_rotorb = ptn.molecular_hamiltonian_mpo(tkin_rotorb, vint_rotorb, optimize=False)
+
+        # copy transformed MPO tensors at sites `i` and `i + 1`
+        mpoH.A[i    ] = np.copy(mpoH_rotorb.A[i    ])
+        mpoH.A[i + 1] = np.copy(mpoH_rotorb.A[i + 1])
+        # apply left and right gauge transformations
+        v_l, v_r = ptn.molecular_hamiltonian_orbital_gauge_transform(mpoH, u2, i)
+        mpoH.A[i    ] = np.einsum(v_l, (2, 4), mpoH.A[i    ], (0, 1, 4, 3), (0, 1, 2, 3))
+        mpoH.A[i + 1] = np.einsum(v_r, (3, 4), mpoH.A[i + 1], (0, 1, 2, 4), (0, 1, 2, 3))
+
+        # compare matrix representations
+        assert np.allclose(mpoH.as_matrix(), mpoH_rotorb.as_matrix()), \
+            "matrix representation of MPO after orbital rotation and reference Hamiltonian must match"
+
+
+def test_spin_molecular_hamiltonian_construction():
+
+    rng = np.random.default_rng()
+
+    # number of spin-endowed lattice sites
+    L = 4
+    # Hamiltonian parameters
+    tkin = ptn.crandn(2 * (L,), rng)
+    vint = ptn.crandn(4 * (L,), rng)
+
+    # reference Hamiltonian
+    Href = construct_spin_molecular_hamiltonian(tkin, vint)
+
+    for opt in (True, False):
+        mpoH = ptn.spin_molecular_hamiltonian_mpo(tkin, vint, opt)
+
+        # compare matrix representations
+        assert np.allclose(mpoH.as_matrix(), Href.todense()), \
+            "matrix representation of MPO and reference Hamiltonian must match"
 
 
 def construct_ising_hamiltonian(L: int, J: float, h: float, g: float):
@@ -518,7 +515,3 @@ def construct_spin_molecular_hamiltonian(tkin, vint):
             vint_spin[i, :, j, :] = np.kron(tmp[i, :, j, :], np.eye(2))
 
     return construct_molecular_hamiltonian(tkin_spin, vint_spin)
-
-
-if __name__ == '__main__':
-    unittest.main()

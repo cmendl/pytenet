@@ -21,7 +21,7 @@ class MPS:
     tensor entry must be equal to the right virtual bond quantum number.
     """
 
-    def __init__(self, qd: Sequence[int], qD: Sequence[Sequence[int]], fill=0.0, rng: np.random.Generator=None):
+    def __init__(self, qd, qD, fill=0.0, rng: np.random.Generator=None):
         """
         Create a matrix product state.
 

@@ -16,5 +16,12 @@ dependencies = [
 ]
 dynamic = ["optional-dependencies"]
 
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+
 [project.urls]
-Homepage = "https://github.com/cmendl/pytenet"
+homepage = "https://github.com/cmendl/pytenet"
+repository = "https://github.com/cmendl/pytenet"
+issues = "https://github.com/cmendl/pytenet/issues"
