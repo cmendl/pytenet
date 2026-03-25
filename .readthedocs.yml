@@ -12,9 +12,10 @@ build:
 # Python requirements to build the docs
 python:
   install:
-    - requirements: doc/requirements.txt
     - method: pip
       path: .
+      extra_requirements:
+        - doc
 
 # Build documentation in the doc/ directory with Sphinx
 sphinx:
