@@ -19,7 +19,6 @@ import pytenet
 import os
 import sys
 import inspect
-import pkg_resources
 
 
 # -- Project information -----------------------------------------------------
@@ -99,11 +98,7 @@ def linkcode_resolve(domain, info):
     if domain != "py" or not info["module"]:
         return None
 
-    modname = info["module"]
-    topmodulename = modname.split('.')[0]
-    modpath = pkg_resources.require(topmodulename)[0].location
-
-    module = sys.modules.get(modname)
+    module = sys.modules.get(info["module"])
     if module is None:
         return None
 
@@ -113,7 +108,8 @@ def linkcode_resolve(domain, info):
         obj = getattr(obj, part)
 
     try:
-        filepath = os.path.relpath(inspect.getsourcefile(obj), modpath)
+        filepath = os.path.relpath(inspect.getsourcefile(obj),
+                                   pytenet.__path__[0] + "../../")
         if filepath is None:
             return None
     except Exception:
@@ -126,7 +122,7 @@ def linkcode_resolve(domain, info):
     else:
         linestart, linestop = linenum, linenum + len(source) - 1
 
-    return f"https://github.com/cmendl/pytenet/tree/main/{filepath}#L{linestart}-L{linestop}"
+    return f"https://github.com/cmendl/pytenet/blob/main/{filepath}#L{linestart}-L{linestop}"
 
 
 # -- Options for HTML output -------------------------------------------------
