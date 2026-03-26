@@ -20,23 +20,23 @@ Example usage for TDVP time evolution:
     import pytenet as ptn
 
     # number of lattice sites (1D with open boundary conditions)
-    L = 10
+    nsites = 10
 
-    # construct matrix product operator representation of
-    # Heisenberg XXZ Hamiltonian (arguments are L, J, \Delta, h)
-    mpoH = ptn.heisenberg_xxz_mpo(L, 1.0, 0.8, -0.1)
-    mpoH.zero_qnumbers()
+    # construct matrix product operator representation of the
+    # Heisenberg XXZ Hamiltonian (arguments are nsites, J, \Delta, h)
+    h_mpo = ptn.heisenberg_xxz_mpo(nsites, 1.0, 0.8, -0.1)
+    h_mpo.zero_qnumbers()
 
     # initial wavefunction as MPS with random entries
     # maximally allowed virtual bond dimensions
-    D = [1, 2, 4, 8, 16, 28, 16, 8, 4, 2, 1]
-    psi = ptn.MPS(mpoH.qd, [Di*[0] for Di in D], fill='random')
+    b = [1, 2, 4, 8, 16, 28, 16, 8, 4, 2, 1]
+    psi = ptn.MPS(h_mpo.qsite, [bi*[0] for bi in b], fill="random")
     # effectively clamp virtual bond dimension of initial state
-    Dinit = 8
-    for i in range(L):
-        psi.A[i][:, Dinit:, :] = 0
-        psi.A[i][:, :, Dinit:] = 0
-    psi.orthonormalize(mode='left')
+    b_init = 8
+    for i in range(nsites):
+        psi.a[i][:, b_init:, :] = 0
+        psi.a[i][:, :, b_init:] = 0
+    psi.orthonormalize(mode="left")
 
     # time step can have both real and imaginary parts;
     # for real time evolution use purely imaginary dt!
@@ -44,7 +44,7 @@ Example usage for TDVP time evolution:
     numsteps = 100
 
     # run TDVP time evolution
-    ptn.tdvp_singlesite(mpoH, psi, dt, numsteps, numiter_lanczos=5)
+    ptn.tdvp_singlesite(h_mpo, psi, dt, numsteps, numiter_lanczos=5)
     # psi now stores the (approximated) time-evolved state exp(-dt*numsteps H) psi
 
 

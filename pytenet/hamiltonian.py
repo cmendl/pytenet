@@ -1,3 +1,7 @@
+"""
+Construction of common quantum Hamiltonians as matrix product operators (MPOs).
+"""
+
 import copy
 import itertools
 from collections.abc import Sequence, Mapping
@@ -8,31 +12,31 @@ from .opchain import OpChain
 from .autop import AutOpNode, AutOpEdge, AutOp
 from .opgraph import OpGraphNode, OpGraphEdge, OpGraph
 
-__all__ = ['ising_mpo', 'heisenberg_xxz_mpo', 'heisenberg_xxz_spin1_mpo',
-           'bose_hubbard_mpo', 'fermi_hubbard_mpo',
-           'linear_fermionic_mpo', 'linear_spin_fermionic_mpo',
-           'quadratic_fermionic_mpo', 'quadratic_spin_fermionic_mpo',
-           'molecular_hamiltonian_mpo', 'molecular_hamiltonian_orbital_gauge_transform',
-           'spin_molecular_hamiltonian_mpo',
-           'encode_quantum_number_pair', 'decode_quantum_number_pair']
+__all__ = ["ising_mpo", "heisenberg_xxz_mpo", "heisenberg_xxz_spin1_mpo",
+           "bose_hubbard_mpo", "fermi_hubbard_mpo",
+           "linear_fermionic_mpo", "linear_spin_fermionic_mpo",
+           "quadratic_fermionic_mpo", "quadratic_spin_fermionic_mpo",
+           "molecular_hamiltonian_mpo", "molecular_hamiltonian_orbital_gauge_transform",
+           "spin_molecular_hamiltonian_mpo",
+           "encode_quantum_number_pair", "decode_quantum_number_pair"]
 
 
-def ising_mpo(L: int, J: float, h: float, g: float) -> MPO:
+def ising_mpo(nsites: int, J: float, h: float, g: float) -> MPO:
     """
     Construct Ising Hamiltonian `sum J sz sz + h sz + g sx`
     on a 1D lattice as MPO.
 
     Args:
-        L:  number of lattice sites
-        J:  interaction parameter
-        h:  longitudinal-field strength
-        g:  transverse-field strength
+        nsites: number of lattice sites
+        J:      interaction parameter
+        h:      longitudinal-field strength
+        g:      transverse-field strength
 
     Returns:
         MPO: Ising Hamiltonian
     """
     # set physical quantum numbers to zero
-    qd = [0, 0]
+    qsite = [0, 0]
     # Pauli matrices
     sigma_x = np.array([[0., 1.], [1.,  0.]])
     sigma_z = np.array([[1., 0.], [0., -1.]])
@@ -68,57 +72,57 @@ def ising_mpo(L: int, J: float, h: float, g: float) -> MPO:
     autop.add_connect_edge(AutOpEdge(5, [node_term0.nid, node_term1.nid], [(OID.X, g )]))
     assert autop.is_consistent()
     # convert to a graph and then to an MPO
-    graph = OpGraph.from_automaton(autop, L)
-    return MPO.from_opgraph(qd, graph, opmap)
+    graph = OpGraph.from_automaton(autop, nsites)
+    return MPO.from_opgraph(qsite, graph, opmap)
 
 
-def heisenberg_xxz_mpo(L: int, J: float, D: float, h: float) -> MPO:
+def heisenberg_xxz_mpo(nsites: int, J: float, D: float, h: float) -> MPO:
     """
     Construct XXZ Heisenberg Hamiltonian `sum J X X + J Y Y + D Z Z - h Z`
     on a 1D lattice as MPO.
 
     Args:
-        L:  number of lattice sites
-        J:  J parameter
-        D:  Delta parameter
-        h:  field strength
+        nsites: number of lattice sites
+        J:      J parameter
+        D:      Delta parameter
+        h:      field strength
 
     Returns:
         MPO: XXZ Heisenberg Hamiltonian
     """
     # physical quantum numbers (multiplied by 2)
-    qd = [1, -1]
+    qsite = [1, -1]
     # spin operators
-    Sup = np.array([[0.,  1.], [0.,  0. ]])
-    Sdn = np.array([[0.,  0.], [1.,  0. ]])
-    Sz  = np.array([[0.5, 0.], [0., -0.5]])
+    sup = np.array([[0.,  1.], [0.,  0. ]])
+    sdn = np.array([[0.,  0.], [1.,  0. ]])
+    sz  = np.array([[0.5, 0.], [0., -0.5]])
     # operator map
     class OID(IntEnum):
-        Sd = -1
-        Id =  0
-        Su =  1
-        Sz =  2
+        SD = -1
+        I  =  0
+        SU =  1
+        SZ =  2
     opmap = {
-        OID.Sd: Sdn,
-        OID.Id: np.identity(2),
-        OID.Su: Sup,
-        OID.Sz: Sz }
+        OID.SD: sdn,
+        OID.I:  np.identity(2),
+        OID.SU: sup,
+        OID.SZ: sz }
     # local two-site and single-site terms
-    lopchains = [OpChain([OID.Su, OID.Sd], [0,  2, 0], 0.5*J, 0),
-                 OpChain([OID.Sd, OID.Su], [0, -2, 0], 0.5*J, 0),
-                 OpChain([OID.Sz, OID.Sz], [0,  0, 0],   D,   0),
-                 OpChain([OID.Sz        ], [0,  0   ],  -h,   0)]
+    lopchains = [OpChain([OID.SU, OID.SD], [0,  2, 0], 0.5*J, 0),
+                 OpChain([OID.SD, OID.SU], [0, -2, 0], 0.5*J, 0),
+                 OpChain([OID.SZ, OID.SZ], [0,  0, 0],   D,   0),
+                 OpChain([OID.SZ        ], [0,  0   ],  -h,   0)]
     # convert to MPO
-    return _local_opchains_to_mpo(qd, lopchains, L, opmap, OID.Id)
+    return _local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I)
 
 
-def heisenberg_xxz_spin1_mpo(L: int, J: float, D: float, h: float) -> MPO:
+def heisenberg_xxz_spin1_mpo(nsites: int, J: float, D: float, h: float) -> MPO:
     """
     Construct spin-1 XXZ Heisenberg Hamiltonian `sum J X X + J Y Y + D Z Z - h Z`
     on a 1D lattice as MPO.
 
     Args:
-        L:  number of lattice sites
+        nsites:  number of lattice sites
         J:  J parameter
         D:  Delta parameter
         h:  field strength
@@ -127,50 +131,50 @@ def heisenberg_xxz_spin1_mpo(L: int, J: float, D: float, h: float) -> MPO:
         MPO: spin-1 XXZ Heisenberg Hamiltonian
     """
     # physical quantum numbers
-    qd = [1, 0, -1]
+    qsite = [1, 0, -1]
     # spin operators
     sq2 = np.sqrt(2.)
-    Sup = np.array([[0.,  sq2, 0.], [0.,  0.,  sq2], [0.,  0.,  0.]])
-    Sdn = np.array([[0.,  0.,  0.], [sq2, 0.,  0. ], [0.,  sq2, 0.]])
-    Sz  = np.array([[1.,  0.,  0.], [0.,  0.,  0. ], [0.,  0., -1.]])
+    sup = np.array([[0.,  sq2, 0.], [0.,  0.,  sq2], [0.,  0.,  0.]])
+    sdn = np.array([[0.,  0.,  0.], [sq2, 0.,  0. ], [0.,  sq2, 0.]])
+    sz  = np.array([[1.,  0.,  0.], [0.,  0.,  0. ], [0.,  0., -1.]])
     # operator map
     class OID(IntEnum):
-        Sd = -1
-        Id =  0
-        Su =  1
-        Sz =  2
+        SD = -1
+        I  =  0
+        SU =  1
+        SZ =  2
     opmap = {
-        OID.Sd: Sdn,
-        OID.Id: np.identity(3),
-        OID.Su: Sup,
-        OID.Sz: Sz }
+        OID.SD: sdn,
+        OID.I:  np.identity(3),
+        OID.SU: sup,
+        OID.SZ: sz }
     # local two-site and single-site terms
-    lopchains = [OpChain([OID.Su, OID.Sd], [0,  1, 0], 0.5*J, 0),
-                 OpChain([OID.Sd, OID.Su], [0, -1, 0], 0.5*J, 0),
-                 OpChain([OID.Sz, OID.Sz], [0,  0, 0],   D,   0),
-                 OpChain([OID.Sz        ], [0,  0   ],  -h,   0)]
+    lopchains = [OpChain([OID.SU, OID.SD], [0,  1, 0], 0.5*J, 0),
+                 OpChain([OID.SD, OID.SU], [0, -1, 0], 0.5*J, 0),
+                 OpChain([OID.SZ, OID.SZ], [0,  0, 0],   D,   0),
+                 OpChain([OID.SZ        ], [0,  0   ],  -h,   0)]
     # convert to MPO
-    return _local_opchains_to_mpo(qd, lopchains, L, opmap, OID.Id)
+    return _local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I)
 
 
-def bose_hubbard_mpo(d: int, L: int, t: float, U: float, mu: float) -> MPO:
+def bose_hubbard_mpo(d: int, nsites: int, t: float, u: float, mu: float) -> MPO:
     """
     Construct Bose-Hubbard Hamiltonian
     with nearest-neighbor hopping on a 1D lattice as MPO.
 
     Args:
-        d:  physical dimension per site
-            (allowed local occupancies are 0, 1, ..., d - 1)
-        L:  number of lattice sites
-        t:  kinetic hopping parameter
-        U:  interaction strength
-        mu: chemical potential
+        d:      physical dimension per site
+                (allowed local occupancies are 0, 1, ..., d - 1)
+        nsites: number of lattice sites
+        t:      kinetic hopping parameter
+        u:      interaction strength
+        mu:     chemical potential
 
     Returns:
         MPO: Bose-Hubbard Hamiltonian
     """
     # physical quantum numbers (particle number)
-    qd = np.arange(d)
+    qsite = np.arange(d)
     # bosonic creation and annihilation operators
     b_dag = np.diag(np.sqrt(np.arange(1, d, dtype=float)), -1)
     b_ann = np.diag(np.sqrt(np.arange(1, d, dtype=float)),  1)
@@ -179,26 +183,26 @@ def bose_hubbard_mpo(d: int, L: int, t: float, U: float, mu: float) -> MPO:
     # operator map
     class OID(IntEnum):
         B  = -1
-        Id =  0
-        Bd =  1
+        I  =  0
+        BD =  1
         N  =  2
         NI =  3
     opmap = {
         OID.B:  b_ann,
-        OID.Id: np.identity(d),
-        OID.Bd: b_dag,
+        OID.I: np.identity(d),
+        OID.BD: b_dag,
         OID.N:  numop,
         OID.NI: numop @ (numop - np.identity(d)) / 2 }
     # local two-site and single-site terms
-    lopchains = [OpChain([OID.Bd, OID.B ], [0,  1, 0], -t,  0),
-                 OpChain([OID.B,  OID.Bd], [0, -1, 0], -t,  0),
+    lopchains = [OpChain([OID.BD, OID.B ], [0,  1, 0], -t,  0),
+                 OpChain([OID.B,  OID.BD], [0, -1, 0], -t,  0),
                  OpChain([OID.N         ], [0,  0   ], -mu, 0),
-                 OpChain([OID.NI        ], [0,  0   ],  U,  0)]
+                 OpChain([OID.NI        ], [0,  0   ],  u,  0)]
     # convert to MPO
-    return _local_opchains_to_mpo(qd, lopchains, L, opmap, OID.Id)
+    return _local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I)
 
 
-def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
+def fermi_hubbard_mpo(nsites: int, t: float, u: float, mu: float) -> MPO:
     """
     Construct Fermi-Hubbard Hamiltonian
     with nearest-neighbor hopping on a 1D lattice as MPO.
@@ -206,18 +210,18 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
     States for each spin and site are `|0>` and `|1>`.
 
     Args:
-        L:  number of lattice sites
-        t:  kinetic hopping parameter
-        U:  Hubbard interaction strength
-        mu: chemical potential (mu = 0 corresponds to half-filling)
+        nsites: number of lattice sites
+        t:      kinetic hopping parameter
+        u:      Hubbard interaction strength
+        mu:     chemical potential (mu = 0 corresponds to half-filling)
 
     Returns:
         MPO: Fermi-Hubbard Hamiltonian
     """
     # physical particle number and spin quantum numbers (encoded as single integer)
-    qN = [0,  1,  1,  2]
-    qS = [0, -1,  1,  0]
-    qd = [encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
+    qn = [0,  1,  1,  2]
+    qs = [0, -1,  1,  0]
+    qsite = [encode_quantum_number_pair(q[0], q[1]) for q in zip(qn, qs)]
     id2 = np.identity(2)
     # creation and annihilation operators for a single spin and lattice site
     a_dag = np.array([[0., 0.], [1., 0.]])
@@ -225,10 +229,10 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
     # number operator
     numop = np.array([[0., 0.], [0., 1.]])
     # Pauli-Z matrix required for Jordan-Wigner transformation
-    Z = np.array([[1., 0.], [0., -1.]])
+    z = np.array([[1., 0.], [0., -1.]])
     # operator map
     class OID(IntEnum):
-        Id =  0
+        I  =  0
         CI =  1
         AI =  2
         CZ =  3
@@ -237,19 +241,19 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
         IA =  6
         ZC =  7
         ZA =  8
-        Nt =  9
+        NT =  9
         NI = 10
     opmap = {
-        OID.Id: np.identity(4),
+        OID.I:  np.identity(4),
         OID.CI: np.kron(a_dag, id2),
         OID.AI: np.kron(a_ann, id2),
-        OID.CZ: np.kron(a_dag, Z  ),
-        OID.AZ: np.kron(a_ann, Z  ),
+        OID.CZ: np.kron(a_dag, z  ),
+        OID.AZ: np.kron(a_ann, z  ),
         OID.IC: np.kron(id2, a_dag),
         OID.IA: np.kron(id2, a_ann),
-        OID.ZC: np.kron(Z,   a_dag),
-        OID.ZA: np.kron(Z,   a_ann),
-        OID.Nt: np.kron(numop, id2) + np.kron(id2, numop),  # n_up + n_dn
+        OID.ZC: np.kron(z,   a_dag),
+        OID.ZA: np.kron(z,   a_ann),
+        OID.NT: np.kron(numop, id2) + np.kron(id2, numop),  # n_up + n_dn
         OID.NI: np.diag([0.25, -0.25, -0.25, 0.25])         # (n_up - 1/2) (n_dn - 1/2)
     }
     # local two-site and single-site terms
@@ -261,11 +265,11 @@ def fermi_hubbard_mpo(L: int, t: float, U: float, mu: float) -> MPO:
         OpChain([OID.IC, OID.ZA], [0, encode_quantum_number_pair( 1, -1), 0], -t, 0),
         OpChain([OID.IA, OID.ZC], [0, encode_quantum_number_pair(-1,  1), 0], -t, 0),
         # number operator - mu (n_up + n_dn)
-        OpChain([OID.Nt], [0, 0], -mu, 0),
-        # interaction U (n_up - 1/2) (n_dn - 1/2)
-        OpChain([OID.NI], [0, 0],  U,  0)]
+        OpChain([OID.NT], [0, 0], -mu, 0),
+        # interaction u (n_up - 1/2) (n_dn - 1/2)
+        OpChain([OID.NI], [0, 0],  u,  0)]
     # convert to MPO
-    return _local_opchains_to_mpo(qd, lopchains, L, opmap, OID.Id)
+    return _local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I)
 
 
 def linear_fermionic_mpo(coeff, ftype: str) -> MPO:
@@ -274,17 +278,17 @@ def linear_fermionic_mpo(coeff, ftype: str) -> MPO:
 
     .. math::
 
-        op = \sum_{i=1}^L coeff_i a^{\dagger}_i \text{ or } op = \sum_{i=1}^L coeff_i a_i
+        op = \sum_{i=1}^nsites coeff_i a^{\dagger}_i \text{ or } op = \sum_{i=1}^nsites coeff_i a_i
     """
-    L = len(coeff)
+    nsites = len(coeff)
 
-    use_creation_op = (ftype in ['c', 'create', 'creation'])
+    use_creation_op = (ftype in ["c", "create", "creation"])
 
     # creation and annihilation operators
     a_ann = np.array([[0., 1.], [0., 0.]])
     a_dag = np.array([[0., 0.], [1., 0.]])
     # Pauli-Z matrix required for Jordan-Wigner transformation
-    Z = np.array([[1., 0.], [0., -1.]])
+    z = np.array([[1., 0.], [0., -1.]])
     # operator map
     class OID(IntEnum):
         A = -1
@@ -295,7 +299,7 @@ def linear_fermionic_mpo(coeff, ftype: str) -> MPO:
         OID.A: a_ann,
         OID.I: np.identity(2),
         OID.C: a_dag,
-        OID.Z: Z
+        OID.Z: z
     }
 
     # construct operator graph
@@ -303,32 +307,33 @@ def linear_fermionic_mpo(coeff, ftype: str) -> MPO:
     # identity and Z strings from the left and right
     identity_r = {}
     z_string_l = {}
-    for i in range(1, L + 1):
+    for i in range(1, nsites + 1):
         identity_r[i] = OpGraphNode(nid_next, [], [], 0)
         nid_next += 1
-    for i in range(L):
+    for i in range(nsites):
         z_string_l[i] = OpGraphNode(nid_next, [], [], -1 if use_creation_op else 1)
         nid_next += 1
     # initialize graph with nodes
     graph = OpGraph(list(identity_r.values()) +
                     list(z_string_l.values()),
-                    [], [z_string_l[0].nid, identity_r[L].nid])
+                    [], [z_string_l[0].nid, identity_r[nsites].nid])
     # edges
     eid_next = 0
     # identities
-    for i in range(1, L):
+    for i in range(1, nsites):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [identity_r[i].nid, identity_r[i + 1].nid], [(OID.I, 1.)]))
         eid_next += 1
     # Z strings
-    for i in range(L - 1):
+    for i in range(nsites - 1):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [z_string_l[i].nid, z_string_l[i + 1].nid], [(OID.Z, 1.)]))
         eid_next += 1
     # creation or annihilation operators
-    for i in range(L):
+    for i in range(nsites):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [z_string_l[i].nid, identity_r[i + 1].nid], [(OID.C if use_creation_op else OID.A, coeff[i])]))
+            OpGraphEdge(eid_next, [z_string_l[i].nid, identity_r[i + 1].nid],
+                        [(OID.C if use_creation_op else OID.A, coeff[i])]))
         eid_next += 1
     assert graph.is_consistent()
 
@@ -343,42 +348,43 @@ def linear_spin_fermionic_mpo(coeff, ftype: str, sigma: int) -> MPO:
 
     .. math::
 
-        op = \sum_{i=1}^L coeff_i a^{\dagger}_{i,\sigma} \text{ or } op = \sum_{i=1}^L coeff_i a_{i,\sigma}
+        op = \sum_{i=1}^nsites coeff_i a^{\dagger}_{i,\sigma} \text{ or }
+        op = \sum_{i=1}^nsites coeff_i a_{i,\sigma}
     """
-    L = len(coeff)
-    assert L >= 1
+    nsites = len(coeff)
+    assert nsites >= 1
 
     if sigma not in (1, -1):
-        raise ValueError("'sigma' argument must be 1 (spin-up) or -1 (spin-down)")
+        raise ValueError("`sigma` argument must be 1 (spin-up) or -1 (spin-down)")
 
-    use_creation_op = (ftype in ['c', 'create', 'creation'])
+    use_creation_op = (ftype in ["c", "create", "creation"])
 
     # physical particle number and spin quantum numbers (encoded as single integer)
-    qN = [0,  1,  1,  2]
-    qS = [0, -1,  1,  0]
-    qd = [encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
+    qn = [0,  1,  1,  2]
+    qs = [0, -1,  1,  0]
+    qsite = [encode_quantum_number_pair(q[0], q[1]) for q in zip(qn, qs)]
 
     id2 = np.identity(2)
     # creation and annihilation operators
     a_ann = np.array([[0., 1.], [0., 0.]])
     a_dag = np.array([[0., 0.], [1., 0.]])
     # Pauli-Z matrix required for Jordan-Wigner transformation
-    Z = np.array([[1., 0.], [0., -1.]])
+    z = np.array([[1., 0.], [0., -1.]])
     # operator map
     class OID(IntEnum):
-        Id = 0
+        I  = 0
         CI = 1
         AI = 2
         ZC = 3
         ZA = 4
         ZZ = 5
     opmap = {
-        OID.Id: np.identity(4),
+        OID.I:  np.identity(4),
         OID.CI: np.kron(a_dag, id2),
         OID.AI: np.kron(a_ann, id2),
-        OID.ZC: np.kron(Z,   a_dag),
-        OID.ZA: np.kron(Z,   a_ann),
-        OID.ZZ: np.kron(Z,   Z    ),
+        OID.ZC: np.kron(z,   a_dag),
+        OID.ZA: np.kron(z,   a_ann),
+        OID.ZZ: np.kron(z,   z    ),
     }
 
     # construct operator graph
@@ -386,31 +392,32 @@ def linear_spin_fermionic_mpo(coeff, ftype: str, sigma: int) -> MPO:
     # identity and Z strings from the left and right
     identity_r = {}
     z_string_l = {}
-    for i in range(1, L + 1):
+    for i in range(1, nsites + 1):
         identity_r[i] = OpGraphNode(nid_next, [], [], 0)
         nid_next += 1
-    for i in range(L):
-        qnum = encode_quantum_number_pair(-1 if use_creation_op else 1, -sigma if use_creation_op else sigma)
+    for i in range(nsites):
+        qnum = encode_quantum_number_pair(-1 if use_creation_op else 1,
+                                          -sigma if use_creation_op else sigma)
         z_string_l[i] = OpGraphNode(nid_next, [], [], qnum)
         nid_next += 1
     # initialize graph with nodes
     graph = OpGraph(list(identity_r.values()) +
                     list(z_string_l.values()),
-                    [], [z_string_l[0].nid, identity_r[L].nid])
+                    [], [z_string_l[0].nid, identity_r[nsites].nid])
     # edges
     eid_next = 0
     # identities
-    for i in range(1, L):
+    for i in range(1, nsites):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [identity_r[i].nid, identity_r[i + 1].nid], [(OID.Id, 1.)]))
+            OpGraphEdge(eid_next, [identity_r[i].nid, identity_r[i + 1].nid], [(OID.I, 1.)]))
         eid_next += 1
     # Z strings
-    for i in range(L - 1):
+    for i in range(nsites - 1):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [z_string_l[i].nid, z_string_l[i + 1].nid], [(OID.ZZ, 1.)]))
         eid_next += 1
     # creation or annihilation operators
-    for i in range(L):
+    for i in range(nsites):
         if use_creation_op:
             oid = (OID.CI if sigma == 1 else OID.ZC)
         else:
@@ -421,19 +428,20 @@ def linear_spin_fermionic_mpo(coeff, ftype: str, sigma: int) -> MPO:
     assert graph.is_consistent()
 
     # convert to MPO
-    return MPO.from_opgraph(qd, graph, opmap)
+    return MPO.from_opgraph(qsite, graph, opmap)
 
 
 def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
     r"""
-    Represent a product of sums of fermionic creation and annihilation operators of the following form as MPO:
+    Represent a product of sums of fermionic creation and
+    annihilation operators of the following form as MPO:
 
     .. math::
 
-        op = (\sum_{i=1}^L coeffc_i a^{\dagger}_i) (\sum_{j=1}^L coeffa_j a_j)
+        op = (\sum_{i=1}^nsites coeffc_i a^{\dagger}_i) (\sum_{j=1}^nsites coeffa_j a_j)
     """
     assert len(coeffc) == len(coeffa)
-    L = len(coeffc)
+    nsites = len(coeffc)
 
     # creation and annihilation operators
     a_ann = np.array([[0., 1.], [0., 0.]])
@@ -441,7 +449,7 @@ def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
     # number operator
     numop = np.array([[0., 0.], [0., 1.]])
     # Pauli-Z matrix required for Jordan-Wigner transformation
-    Z = np.array([[1., 0.], [0., -1.]])
+    z = np.array([[1., 0.], [0., -1.]])
     # operator map
     class OID(IntEnum):
         A = -1
@@ -454,7 +462,7 @@ def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
         OID.I: np.identity(2),
         OID.C: a_dag,
         OID.N: numop,
-        OID.Z: Z
+        OID.Z: z
     }
 
     # construct operator graph
@@ -462,19 +470,19 @@ def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
     # identity chains from the left and right
     identity_l = {}
     identity_r = {}
-    for i in range(L):
+    for i in range(nsites):
         identity_l[i] = OpGraphNode(nid_next, [], [], 0)
         nid_next += 1
-    for i in range(1, L + 1):
+    for i in range(1, nsites + 1):
         identity_r[i] = OpGraphNode(nid_next, [], [], 0)
         nid_next += 1
     # nodes connecting creation and annihilation operators
     ca_nodes = {}
     ac_nodes = {}
-    for i in range(1, L):
+    for i in range(1, nsites):
         ca_nodes[i] = OpGraphNode(nid_next, [], [], 1)
         nid_next += 1
-    for i in range(1, L):
+    for i in range(1, nsites):
         ac_nodes[i] = OpGraphNode(nid_next, [], [], -1)
         nid_next += 1
     # initialize graph with nodes
@@ -482,46 +490,47 @@ def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
                     list(identity_r.values()) +
                     list(ca_nodes.values()) +
                     list(ac_nodes.values()),
-                    [], [identity_l[0].nid, identity_r[L].nid])
+                    [], [identity_l[0].nid, identity_r[nsites].nid])
     # edges
     eid_next = 0
     # identities
-    for i in range(L - 1):
+    for i in range(nsites - 1):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [identity_l[i].nid, identity_l[i + 1].nid], [(OID.I, 1.)]))
         eid_next += 1
-    for i in range(1, L):
+    for i in range(1, nsites):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [identity_r[i].nid, identity_r[i + 1].nid], [(OID.I, 1.)]))
         eid_next += 1
     # Z strings
-    for i in range(1, L - 1):
+    for i in range(1, nsites - 1):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [ca_nodes[i].nid, ca_nodes[i + 1].nid], [(OID.Z, 1.)]))
         eid_next += 1
-    for i in range(1, L - 1):
+    for i in range(1, nsites - 1):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [ac_nodes[i].nid, ac_nodes[i + 1].nid], [(OID.Z, 1.)]))
         eid_next += 1
     # number operators
-    for i in range(L):
+    for i in range(nsites):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [identity_l[i].nid, identity_r[i + 1].nid], [(OID.N, coeffc[i]*coeffa[i])]))
+            OpGraphEdge(eid_next, [identity_l[i].nid, identity_r[i + 1].nid],
+                        [(OID.N, coeffc[i]*coeffa[i])]))
         eid_next += 1
     # creation and annihilation operators
-    for i in range(L - 1):
+    for i in range(nsites - 1):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [identity_l[i].nid, ca_nodes[i + 1].nid], [(OID.C, coeffc[i])]))
         eid_next += 1
-    for i in range(1, L):
+    for i in range(1, nsites):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [ca_nodes[i].nid, identity_r[i + 1].nid], [(OID.A, coeffa[i])]))
         eid_next += 1
-    for i in range(L - 1):
+    for i in range(nsites - 1):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [identity_l[i].nid, ac_nodes[i + 1].nid], [(OID.A, coeffa[i])]))
         eid_next += 1
-    for i in range(1, L):
+    for i in range(1, nsites):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [ac_nodes[i].nid, identity_r[i + 1].nid], [(OID.C, coeffc[i])]))
         eid_next += 1
@@ -533,24 +542,26 @@ def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
 
 def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
     r"""
-    Represent a product of sums of fermionic creation and annihilation operators of the following form as MPO,
+    Represent a product of sums of fermionic creation and
+    annihilation operators of the following form as MPO,
     where sigma = 1 indicates spin-up and sigma = -1 indicates spin-down:
 
     .. math::
 
-        op = (\sum_{i=1}^L coeffc_i a^{\dagger}_{i,\sigma}) (\sum_{j=1}^L coeffa_j a_{j,\sigma})
+        op = (\sum_{i=1}^nsites coeffc_i a^{\dagger}_{i,\sigma})
+             (\sum_{j=1}^nsites coeffa_j a_{j,\sigma})
     """
     assert len(coeffc) == len(coeffa)
-    L = len(coeffc)
-    assert L >= 1
+    nsites = len(coeffc)
+    assert nsites >= 1
 
     if sigma not in (1, -1):
-        raise ValueError("'sigma' argument must be 1 (spin-up) or -1 (spin-down)")
+        raise ValueError("`sigma` argument must be 1 (spin-up) or -1 (spin-down)")
 
     # physical particle number and spin quantum numbers (encoded as single integer)
-    qN = [0,  1,  1,  2]
-    qS = [0, -1,  1,  0]
-    qd = [encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
+    qn = [0,  1,  1,  2]
+    qs = [0, -1,  1,  0]
+    qsite = [encode_quantum_number_pair(q[0], q[1]) for q in zip(qn, qs)]
 
     id2 = np.identity(2)
     # creation and annihilation operators
@@ -562,7 +573,7 @@ def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
     Z = np.array([[1., 0.], [0., -1.]])
     # operator map
     class OID(IntEnum):
-        Id =  0
+        I  =  0
         IC =  1
         IA =  2
         IN =  3
@@ -575,7 +586,7 @@ def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
         AZ = 10
         ZZ = 11
     opmap = {
-        OID.Id: np.identity(4),
+        OID.I:  np.identity(4),
         OID.IC: np.kron(id2, a_dag),
         OID.IA: np.kron(id2, a_ann),
         OID.IN: np.kron(id2, numop),
@@ -594,20 +605,20 @@ def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
     # identity chains from the left and right
     identity_l = {}
     identity_r = {}
-    for i in range(L):
+    for i in range(nsites):
         identity_l[i] = OpGraphNode(nid_next, [], [], 0)
         nid_next += 1
-    for i in range(1, L + 1):
+    for i in range(1, nsites + 1):
         identity_r[i] = OpGraphNode(nid_next, [], [], 0)
         nid_next += 1
     # nodes connecting creation and annihilation operators
     ca_nodes = {}
     ac_nodes = {}
-    for i in range(1, L):
+    for i in range(1, nsites):
         qnum = encode_quantum_number_pair(1, sigma)
         ca_nodes[i] = OpGraphNode(nid_next, [], [], qnum)
         nid_next += 1
-    for i in range(1, L):
+    for i in range(1, nsites):
         qnum = encode_quantum_number_pair(-1, -sigma)
         ac_nodes[i] = OpGraphNode(nid_next, [], [], qnum)
         nid_next += 1
@@ -616,53 +627,58 @@ def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
                     list(identity_r.values()) +
                     list(ca_nodes.values()) +
                     list(ac_nodes.values()),
-                    [], [identity_l[0].nid, identity_r[L].nid])
+                    [], [identity_l[0].nid, identity_r[nsites].nid])
     # edges
     eid_next = 0
     # identities
-    for i in range(L - 1):
+    for i in range(nsites - 1):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [identity_l[i].nid, identity_l[i + 1].nid], [(OID.Id, 1.)]))
+            OpGraphEdge(eid_next, [identity_l[i].nid, identity_l[i + 1].nid], [(OID.I, 1.)]))
         eid_next += 1
-    for i in range(1, L):
+    for i in range(1, nsites):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [identity_r[i].nid, identity_r[i + 1].nid], [(OID.Id, 1.)]))
+            OpGraphEdge(eid_next, [identity_r[i].nid, identity_r[i + 1].nid], [(OID.I, 1.)]))
         eid_next += 1
     # Z strings
-    for i in range(1, L - 1):
+    for i in range(1, nsites - 1):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [ca_nodes[i].nid, ca_nodes[i + 1].nid], [(OID.ZZ, 1.)]))
         eid_next += 1
-    for i in range(1, L - 1):
+    for i in range(1, nsites - 1):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [ac_nodes[i].nid, ac_nodes[i + 1].nid], [(OID.ZZ, 1.)]))
         eid_next += 1
     # number operators
-    for i in range(L):
+    for i in range(nsites):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [identity_l[i].nid, identity_r[i + 1].nid], [(OID.NI if sigma == 1 else OID.IN, coeffc[i]*coeffa[i])]))
+            OpGraphEdge(eid_next, [identity_l[i].nid, identity_r[i + 1].nid],
+                        [(OID.NI if sigma == 1 else OID.IN, coeffc[i]*coeffa[i])]))
         eid_next += 1
     # creation and annihilation operators
-    for i in range(L - 1):
+    for i in range(nsites - 1):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [identity_l[i].nid, ca_nodes[i + 1].nid], [(OID.CZ if sigma == 1 else OID.IC, coeffc[i])]))
+            OpGraphEdge(eid_next, [identity_l[i].nid, ca_nodes[i + 1].nid],
+                        [(OID.CZ if sigma == 1 else OID.IC, coeffc[i])]))
         eid_next += 1
-    for i in range(1, L):
+    for i in range(1, nsites):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [ca_nodes[i].nid, identity_r[i + 1].nid], [(OID.AI if sigma == 1 else OID.ZA, coeffa[i])]))
+            OpGraphEdge(eid_next, [ca_nodes[i].nid, identity_r[i + 1].nid],
+                        [(OID.AI if sigma == 1 else OID.ZA, coeffa[i])]))
         eid_next += 1
-    for i in range(L - 1):
+    for i in range(nsites - 1):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [identity_l[i].nid, ac_nodes[i + 1].nid], [(OID.AZ if sigma == 1 else OID.IA, coeffa[i])]))
+            OpGraphEdge(eid_next, [identity_l[i].nid, ac_nodes[i + 1].nid],
+                        [(OID.AZ if sigma == 1 else OID.IA, coeffa[i])]))
         eid_next += 1
-    for i in range(1, L):
+    for i in range(1, nsites):
         graph.add_connect_edge(
-            OpGraphEdge(eid_next, [ac_nodes[i].nid, identity_r[i + 1].nid], [(OID.CI if sigma == 1 else OID.ZC, coeffc[i])]))
+            OpGraphEdge(eid_next, [ac_nodes[i].nid, identity_r[i + 1].nid],
+                        [(OID.CI if sigma == 1 else OID.ZC, coeffc[i])]))
         eid_next += 1
     assert graph.is_consistent()
 
     # convert to MPO
-    return MPO.from_opgraph(qd, graph, opmap)
+    return MPO.from_opgraph(qsite, graph, opmap)
 
 
 class MolecularOID(IntEnum):
@@ -686,14 +702,14 @@ def _molecular_hamiltonian_generate_operator_map():
     # number operator
     numop = np.array([[0., 0.], [0., 1.]])
     # Pauli-Z matrix required for Jordan-Wigner transformation
-    Z = np.array([[1., 0.], [0., -1.]])
+    z = np.array([[1., 0.], [0., -1.]])
     # operator map
     opmap = {
         MolecularOID.A: a_ann,
         MolecularOID.I: np.identity(2),
         MolecularOID.C: a_dag,
         MolecularOID.N: numop,
-        MolecularOID.Z: Z
+        MolecularOID.Z: z
     }
     return opmap
 
@@ -702,94 +718,94 @@ class MolecularOpGraphNodes:
     """
     Operator graph nodes used for molecular Hamiltonian construction.
     """
-    def __init__(self, L):
+    def __init__(self, nsites):
 
-        self.L = L
+        self.nsites = nsites
 
         nid_next = 0
         # identity chains from the left and right
         self.identity_l = {}
         self.identity_r = {}
-        for i in range(L):
+        for i in range(nsites):
             self.identity_l[i] = OpGraphNode(nid_next, [], [], 0)
             nid_next += 1
-        for i in range(1, L + 1):
+        for i in range(1, nsites + 1):
             self.identity_r[i] = OpGraphNode(nid_next, [], [], 0)
             nid_next += 1
         # a^{\dagger}_i operators connected to left terminal
         self.a_dag_l = {}
-        for i in range(L - 2):
+        for i in range(nsites - 2):
             self.a_dag_l[i] = {}
-            for j in range(i + 1, L - 1):
+            for j in range(i + 1, nsites - 1):
                 self.a_dag_l[i][j] = OpGraphNode(nid_next, [], [], 1)
                 nid_next += 1
         # a_i operators connected to left terminal
         self.a_ann_l = {}
-        for i in range(L - 2):
+        for i in range(nsites - 2):
             self.a_ann_l[i] = {}
-            for j in range(i + 1, L - 1):
+            for j in range(i + 1, nsites - 1):
                 self.a_ann_l[i][j] = OpGraphNode(nid_next, [], [], -1)
                 nid_next += 1
         # a^{\dagger}_i a^{\dagger}_j operators connected to left terminal
         self.a_dag_a_dag_l = {}
-        for i in range(L//2 - 1):
-            for j in range(i + 1, L//2):
+        for i in range(nsites//2 - 1):
+            for j in range(i + 1, nsites//2):
                 self.a_dag_a_dag_l[i, j] = {}
-                for k in range(j + 1, L//2 + 1):
+                for k in range(j + 1, nsites//2 + 1):
                     self.a_dag_a_dag_l[i, j][k] = OpGraphNode(nid_next, [], [], 2)
                     nid_next += 1
         # a_i a_j operators connected to left terminal
         self.a_ann_a_ann_l = {}
-        for i in range(L//2):
+        for i in range(nsites//2):
             for j in range(i):
                 self.a_ann_a_ann_l[i, j] = {}
-                for k in range(i + 1, L//2 + 1):
+                for k in range(i + 1, nsites//2 + 1):
                     self.a_ann_a_ann_l[i, j][k] = OpGraphNode(nid_next, [], [], -2)
                     nid_next += 1
         # a^{\dagger}_i a_j operators connected to left terminal
         self.a_dag_a_ann_l = {}
-        for i in range(L//2):
-            for j in range(L//2):
+        for i in range(nsites//2):
+            for j in range(nsites//2):
                 self.a_dag_a_ann_l[i, j] = {}
-                for k in range(max(i, j) + 1, L//2 + 1):
+                for k in range(max(i, j) + 1, nsites//2 + 1):
                     self.a_dag_a_ann_l[i, j][k] = OpGraphNode(nid_next, [], [], 0)
                     nid_next += 1
         # a^{\dagger}_i operators connected to right terminal
         self.a_dag_r = {}
-        for i in range(2, L):
+        for i in range(2, nsites):
             self.a_dag_r[i] = {}
             for j in range(2, i + 1):
                 self.a_dag_r[i][j] = OpGraphNode(nid_next, [], [], -1)
                 nid_next += 1
         # a_i operators connected to right terminal
         self.a_ann_r = {}
-        for i in range(2, L):
+        for i in range(2, nsites):
             self.a_ann_r[i] = {}
             for j in range(2, i + 1):
                 self.a_ann_r[i][j] = OpGraphNode(nid_next, [], [], 1)
                 nid_next += 1
         # a^{\dagger}_i a^{\dagger}_j operators connected to right terminal
         self.a_dag_a_dag_r = {}
-        for i in range(L//2 + 1, L - 1):
-            for j in range(i + 1, L):
+        for i in range(nsites//2 + 1, nsites - 1):
+            for j in range(i + 1, nsites):
                 self.a_dag_a_dag_r[i, j] = {}
-                for k in range(L//2 + 1, i + 1):
+                for k in range(nsites//2 + 1, i + 1):
                     self.a_dag_a_dag_r[i, j][k] = OpGraphNode(nid_next, [], [], -2)
                     nid_next += 1
         # a_i a_j operators connected to right terminal
         self.a_ann_a_ann_r = {}
-        for i in range(L//2 + 1, L):
-            for j in range(L//2 + 1, i):
+        for i in range(nsites//2 + 1, nsites):
+            for j in range(nsites//2 + 1, i):
                 self.a_ann_a_ann_r[i, j] = {}
-                for k in range(L//2 + 1, j + 1):
+                for k in range(nsites//2 + 1, j + 1):
                     self.a_ann_a_ann_r[i, j][k] = OpGraphNode(nid_next, [], [], 2)
                     nid_next += 1
         # a^{\dagger}_i a_j operators connected to right terminal
         self.a_dag_a_ann_r = {}
-        for i in range(L//2 + 1, L):
-            for j in range(L//2 + 1, L):
+        for i in range(nsites//2 + 1, nsites):
+            for j in range(nsites//2 + 1, nsites):
                 self.a_dag_a_ann_r[i, j] = {}
-                for k in range(L//2 + 1, min(i, j) + 1):
+                for k in range(nsites//2 + 1, min(i, j) + 1):
                     self.a_dag_a_ann_r[i, j][k] = OpGraphNode(nid_next, [], [], 0)
                     nid_next += 1
 
@@ -808,14 +824,18 @@ class MolecularOpGraphNodes:
             (i, oid0), (j, oid1) = oplist
             if (oid0, oid1) == (MolecularOID.C, MolecularOID.C):
                 i, j = sorted((i, j))
-                return self.a_dag_a_dag_l[i, j] if connection == "left" else self.a_dag_a_dag_r[i, j]
+                return self.a_dag_a_dag_l[i, j] if connection == "left" \
+                    else self.a_dag_a_dag_r[i, j]
             if (oid0, oid1) == (MolecularOID.A, MolecularOID.A):
                 i, j = sorted((i, j), reverse=True)
-                return self.a_ann_a_ann_l[i, j] if connection == "left" else self.a_ann_a_ann_r[i, j]
+                return self.a_ann_a_ann_l[i, j] if connection == "left" \
+                    else self.a_ann_a_ann_r[i, j]
             if (oid0, oid1) == (MolecularOID.C, MolecularOID.A):
-                return self.a_dag_a_ann_l[i, j] if connection == "left" else self.a_dag_a_ann_r[i, j]
+                return self.a_dag_a_ann_l[i, j] if connection == "left" \
+                    else self.a_dag_a_ann_r[i, j]
             if (oid0, oid1) == (MolecularOID.A, MolecularOID.C):
-                return self.a_dag_a_ann_l[j, i] if connection == "left" else self.a_dag_a_ann_r[j, i]
+                return self.a_dag_a_ann_l[j, i] if connection == "left" \
+                    else self.a_dag_a_ann_r[j, i]
             raise KeyError(f"nodes for OIDs ({oid0}, {oid1}) and (i, j) == ({i}, {j}) do not exist")
         raise KeyError(f"nodes for operator list of length {len(oplist)} do not exist")
 
@@ -823,7 +843,7 @@ class MolecularOpGraphNodes:
         """
         Create and initialize an operator graph with corresponding nodes and edges.
         """
-        L = self.L
+        nsites = self.nsites
 
         # initialize graph with nodes
         graph = OpGraph(list(self.identity_l.values()) +
@@ -838,141 +858,169 @@ class MolecularOpGraphNodes:
                         [node for nodes in self.a_dag_a_dag_r.values() for node in nodes.values()] +
                         [node for nodes in self.a_ann_a_ann_r.values() for node in nodes.values()] +
                         [node for nodes in self.a_dag_a_ann_r.values() for node in nodes.values()],
-                        [], [self.identity_l[0].nid, self.identity_r[L].nid])
+                        [], [self.identity_l[0].nid, self.identity_r[nsites].nid])
         # edges
         eid_next = 0
         # identities connected to left and right terminals
-        for i in range(L - 1):
+        for i in range(nsites - 1):
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [self.identity_l[i].nid, self.identity_l[i + 1].nid], [(MolecularOID.I, 1.)]))
+                OpGraphEdge(eid_next, [self.identity_l[i].nid, self.identity_l[i + 1].nid],
+                            [(MolecularOID.I, 1.)]))
             eid_next += 1
-        for i in range(1, L):
+        for i in range(1, nsites):
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [self.identity_r[i].nid, self.identity_r[i + 1].nid], [(MolecularOID.I, 1.)]))
+                OpGraphEdge(eid_next, [self.identity_r[i].nid, self.identity_r[i + 1].nid],
+                            [(MolecularOID.I, 1.)]))
             eid_next += 1
         # a^{\dagger}_i operators connected to left terminal
-        for i in range(L - 2):
+        for i in range(nsites - 2):
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_dag_l[i][i + 1].nid], [(MolecularOID.C, 1.)]))
+                OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_dag_l[i][i + 1].nid],
+                            [(MolecularOID.C, 1.)]))
             eid_next += 1
             # Z operator from Jordan-Wigner transformation
-            for j in range(i + 1, L - 2):
+            for j in range(i + 1, nsites - 2):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [self.a_dag_l[i][j].nid, self.a_dag_l[i][j + 1].nid], [(MolecularOID.Z, 1.)]))
+                    OpGraphEdge(eid_next, [self.a_dag_l[i][j].nid, self.a_dag_l[i][j + 1].nid],
+                                [(MolecularOID.Z, 1.)]))
                 eid_next += 1
         # a_i operators connected to left terminal
-        for i in range(L - 2):
+        for i in range(nsites - 2):
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_ann_l[i][i + 1].nid], [(MolecularOID.A, 1.)]))
+                OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_ann_l[i][i + 1].nid],
+                            [(MolecularOID.A, 1.)]))
             eid_next += 1
             # Z operator from Jordan-Wigner transformation
-            for j in range(i + 1, L - 2):
+            for j in range(i + 1, nsites - 2):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [self.a_ann_l[i][j].nid, self.a_ann_l[i][j + 1].nid], [(MolecularOID.Z, 1.)]))
+                    OpGraphEdge(eid_next, [self.a_ann_l[i][j].nid, self.a_ann_l[i][j + 1].nid],
+                                [(MolecularOID.Z, 1.)]))
                 eid_next += 1
         # a^{\dagger}_i a^{\dagger}_j operators connected to left terminal
-        for i in range(L//2 - 1):
-            for j in range(i + 1, L//2):
+        for i in range(nsites//2 - 1):
+            for j in range(i + 1, nsites//2):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [self.a_dag_l[i][j].nid, self.a_dag_a_dag_l[i, j][j + 1].nid], [(MolecularOID.C, 1.)]))
+                    OpGraphEdge(eid_next, [self.a_dag_l[i][j].nid,
+                                           self.a_dag_a_dag_l[i, j][j + 1].nid],
+                                [(MolecularOID.C, 1.)]))
                 eid_next += 1
                 # identities for transition to next site
-                for k in range(j + 1, L//2):
+                for k in range(j + 1, nsites//2):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_dag_l[i, j][k].nid, self.a_dag_a_dag_l[i, j][k + 1].nid], [(MolecularOID.I, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_dag_l[i, j][k].nid,
+                                               self.a_dag_a_dag_l[i, j][k + 1].nid],
+                                    [(MolecularOID.I, 1.)]))
                     eid_next += 1
         # a_i a_j operators connected to left terminal
-        for i in range(L//2):
+        for i in range(nsites//2):
             for j in range(i):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [self.a_ann_l[j][i].nid, self.a_ann_a_ann_l[i, j][i + 1].nid], [(MolecularOID.A, 1.)]))
+                    OpGraphEdge(eid_next, [self.a_ann_l[j][i].nid, self.a_ann_a_ann_l[i, j][i + 1].nid],
+                                [(MolecularOID.A, 1.)]))
                 eid_next += 1
                 # identities for transition to next site
-                for k in range(i + 1, L//2):
+                for k in range(i + 1, nsites//2):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_ann_a_ann_l[i, j][k].nid, self.a_ann_a_ann_l[i, j][k + 1].nid], [(MolecularOID.I, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_ann_a_ann_l[i, j][k].nid, self.a_ann_a_ann_l[i, j][k + 1].nid],
+                                    [(MolecularOID.I, 1.)]))
                     eid_next += 1
         # a^{\dagger}_i a_j operators connected to left terminal
-        for i in range(L//2):
-            for j in range(L//2):
+        for i in range(nsites//2):
+            for j in range(nsites//2):
                 if i < j:
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_l[i][j].nid, self.a_dag_a_ann_l[i, j][j + 1].nid], [(MolecularOID.A, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_l[i][j].nid, self.a_dag_a_ann_l[i, j][j + 1].nid],
+                                    [(MolecularOID.A, 1.)]))
                     eid_next += 1
                 elif i == j:
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_dag_a_ann_l[i, j][i + 1].nid], [(MolecularOID.N, 1.)]))
+                        OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_dag_a_ann_l[i, j][i + 1].nid],
+                                    [(MolecularOID.N, 1.)]))
                     eid_next += 1
                 else:  # i > j
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_ann_l[j][i].nid, self.a_dag_a_ann_l[i, j][i + 1].nid], [(MolecularOID.C, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_ann_l[j][i].nid, self.a_dag_a_ann_l[i, j][i + 1].nid],
+                                    [(MolecularOID.C, 1.)]))
                     eid_next += 1
                 # identities for transition to next site
-                for k in range(max(i, j) + 1, L//2):
+                for k in range(max(i, j) + 1, nsites//2):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_ann_l[i, j][k].nid, self.a_dag_a_ann_l[i, j][k + 1].nid], [(MolecularOID.I, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_ann_l[i, j][k].nid, self.a_dag_a_ann_l[i, j][k + 1].nid],
+                                    [(MolecularOID.I, 1.)]))
                     eid_next += 1
         # a^{\dagger}_i operators connected to right terminal
-        for i in range(2, L):
+        for i in range(2, nsites):
             # Z operator from Jordan-Wigner transformation
             for j in range(2, i):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [self.a_dag_r[i][j].nid, self.a_dag_r[i][j + 1].nid], [(MolecularOID.Z, 1.)]))
+                    OpGraphEdge(eid_next, [self.a_dag_r[i][j].nid, self.a_dag_r[i][j + 1].nid],
+                                [(MolecularOID.Z, 1.)]))
                 eid_next += 1
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [self.a_dag_r[i][i].nid, self.identity_r[i + 1].nid], [(MolecularOID.C, 1.)]))
+                OpGraphEdge(eid_next, [self.a_dag_r[i][i].nid, self.identity_r[i + 1].nid],
+                            [(MolecularOID.C, 1.)]))
             eid_next += 1
         # a_i operators connected to right terminal
-        for i in range(2, L):
+        for i in range(2, nsites):
             # Z operator from Jordan-Wigner transformation
             for j in range(2, i):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [self.a_ann_r[i][j].nid, self.a_ann_r[i][j + 1].nid], [(MolecularOID.Z, 1.)]))
+                    OpGraphEdge(eid_next, [self.a_ann_r[i][j].nid, self.a_ann_r[i][j + 1].nid],
+                                [(MolecularOID.Z, 1.)]))
                 eid_next += 1
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [self.a_ann_r[i][i].nid, self.identity_r[i + 1].nid], [(MolecularOID.A, 1.)]))
+                OpGraphEdge(eid_next, [self.a_ann_r[i][i].nid, self.identity_r[i + 1].nid],
+                            [(MolecularOID.A, 1.)]))
             eid_next += 1
         # a^{\dagger}_i a^{\dagger}_j operators connected to right terminal
-        for i in range(L//2 + 1, L - 1):
-            for j in range(i + 1, L):
+        for i in range(nsites//2 + 1, nsites - 1):
+            for j in range(i + 1, nsites):
                 # identities for transition to next site
-                for k in range(L//2 + 1, i):
+                for k in range(nsites//2 + 1, i):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_dag_r[i, j][k].nid, self.a_dag_a_dag_r[i, j][k + 1].nid], [(MolecularOID.I, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_dag_r[i, j][k].nid, self.a_dag_a_dag_r[i, j][k + 1].nid],
+                                    [(MolecularOID.I, 1.)]))
                     eid_next += 1
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [self.a_dag_a_dag_r[i, j][i].nid, self.a_dag_r[j][i + 1].nid], [(MolecularOID.C, 1.)]))
+                    OpGraphEdge(eid_next, [self.a_dag_a_dag_r[i, j][i].nid, self.a_dag_r[j][i + 1].nid],
+                                [(MolecularOID.C, 1.)]))
                 eid_next += 1
         # a_i a_j operators connected to right terminal
-        for i in range(L//2 + 1, L):
-            for j in range(L//2 + 1, i):
+        for i in range(nsites//2 + 1, nsites):
+            for j in range(nsites//2 + 1, i):
                 # identities for transition to next site
-                for k in range(L//2 + 1, j):
+                for k in range(nsites//2 + 1, j):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_ann_a_ann_r[i, j][k].nid, self.a_ann_a_ann_r[i, j][k + 1].nid], [(MolecularOID.I, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_ann_a_ann_r[i, j][k].nid, self.a_ann_a_ann_r[i, j][k + 1].nid],
+                                    [(MolecularOID.I, 1.)]))
                     eid_next += 1
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [self.a_ann_a_ann_r[i, j][j].nid, self.a_ann_r[i][j + 1].nid], [(MolecularOID.A, 1.)]))
+                    OpGraphEdge(eid_next, [self.a_ann_a_ann_r[i, j][j].nid, self.a_ann_r[i][j + 1].nid],
+                                [(MolecularOID.A, 1.)]))
                 eid_next += 1
         # a^{\dagger}_i a_j operators connected to right terminal
-        for i in range(L//2 + 1, L):
-            for j in range(L//2 + 1, L):
+        for i in range(nsites//2 + 1, nsites):
+            for j in range(nsites//2 + 1, nsites):
                 # identities for transition to next site
-                for k in range(L//2 + 1, min(i, j)):
+                for k in range(nsites//2 + 1, min(i, j)):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, j][k].nid, self.a_dag_a_ann_r[i, j][k + 1].nid], [(MolecularOID.I, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, j][k].nid, self.a_dag_a_ann_r[i, j][k + 1].nid],
+                                    [(MolecularOID.I, 1.)]))
                     eid_next += 1
                 if i < j:
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, j][i].nid, self.a_ann_r[j][i + 1].nid], [(MolecularOID.C, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, j][i].nid, self.a_ann_r[j][i + 1].nid],
+                                    [(MolecularOID.C, 1.)]))
                     eid_next += 1
                 elif i == j:
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, j][i].nid, self.identity_r[i + 1].nid], [(MolecularOID.N, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, j][i].nid, self.identity_r[i + 1].nid],
+                                    [(MolecularOID.N, 1.)]))
                     eid_next += 1
                 else:  # i > j
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, j][j].nid, self.a_dag_r[i][j + 1].nid], [(MolecularOID.A, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, j][j].nid, self.a_dag_r[i][j + 1].nid],
+                                    [(MolecularOID.A, 1.)]))
                     eid_next += 1
 
         return graph
@@ -981,90 +1029,91 @@ class MolecularOpGraphNodes:
         """
         Transfer and store the node IDs in the target object.
         """
-        L = self.L
+        nsites = self.nsites
         # identity chains from the left and right
         target.nids_identity_l = {}
         target.nids_identity_r = {}
-        for i in range(L):
+        for i in range(nsites):
             target.nids_identity_l[i] = self.identity_l[i].nid
-        for i in range(1, L + 1):
+        for i in range(1, nsites + 1):
             target.nids_identity_r[i] = self.identity_r[i].nid
         # a^{\dagger}_i operators connected to left terminal
         target.nids_a_dag_l = {}
-        for i in range(L - 2):
+        for i in range(nsites - 2):
             target.nids_a_dag_l[i] = {}
-            for j in range(i + 1, L - 1):
+            for j in range(i + 1, nsites - 1):
                 target.nids_a_dag_l[i][j] = self.a_dag_l[i][j].nid
         # a_i operators connected to left terminal
         target.nids_a_ann_l = {}
-        for i in range(L - 2):
+        for i in range(nsites - 2):
             target.nids_a_ann_l[i] = {}
-            for j in range(i + 1, L - 1):
+            for j in range(i + 1, nsites - 1):
                 target.nids_a_ann_l[i][j] = self.a_ann_l[i][j].nid
         # a^{\dagger}_i a^{\dagger}_j operators connected to left terminal
         target.nids_a_dag_a_dag_l = {}
-        for i in range(L//2 - 1):
-            for j in range(i + 1, L//2):
+        for i in range(nsites//2 - 1):
+            for j in range(i + 1, nsites//2):
                 target.nids_a_dag_a_dag_l[i, j] = {}
-                for k in range(j + 1, L//2 + 1):
+                for k in range(j + 1, nsites//2 + 1):
                     target.nids_a_dag_a_dag_l[i, j][k] = self.a_dag_a_dag_l[i, j][k].nid
         # a_i a_j operators connected to left terminal
         target.nids_a_ann_a_ann_l = {}
-        for i in range(L//2):
+        for i in range(nsites//2):
             for j in range(i):
                 target.nids_a_ann_a_ann_l[i, j] = {}
-                for k in range(i + 1, L//2 + 1):
+                for k in range(i + 1, nsites//2 + 1):
                     target.nids_a_ann_a_ann_l[i, j][k] = self.a_ann_a_ann_l[i, j][k].nid
         # a^{\dagger}_i a_j operators connected to left terminal
         target.nids_a_dag_a_ann_l = {}
-        for i in range(L//2):
-            for j in range(L//2):
+        for i in range(nsites//2):
+            for j in range(nsites//2):
                 target.nids_a_dag_a_ann_l[i, j] = {}
-                for k in range(max(i, j) + 1, L//2 + 1):
+                for k in range(max(i, j) + 1, nsites//2 + 1):
                     target.nids_a_dag_a_ann_l[i, j][k] = self.a_dag_a_ann_l[i, j][k].nid
         # a^{\dagger}_i operators connected to right terminal
         target.nids_a_dag_r = {}
-        for i in range(2, L):
+        for i in range(2, nsites):
             target.nids_a_dag_r[i] = {}
             for j in range(2, i + 1):
                 target.nids_a_dag_r[i][j] = self.a_dag_r[i][j].nid
         # a_i operators connected to right terminal
         target.nids_a_ann_r = {}
-        for i in range(2, L):
+        for i in range(2, nsites):
             target.nids_a_ann_r[i] = {}
             for j in range(2, i + 1):
                 target.nids_a_ann_r[i][j] = self.a_ann_r[i][j].nid
         # a^{\dagger}_i a^{\dagger}_j operators connected to right terminal
         target.nids_a_dag_a_dag_r = {}
-        for i in range(L//2 + 1, L - 1):
-            for j in range(i + 1, L):
+        for i in range(nsites//2 + 1, nsites - 1):
+            for j in range(i + 1, nsites):
                 target.nids_a_dag_a_dag_r[i, j] = {}
-                for k in range(L//2 + 1, i + 1):
+                for k in range(nsites//2 + 1, i + 1):
                     target.nids_a_dag_a_dag_r[i, j][k] = self.a_dag_a_dag_r[i, j][k].nid
         # a_i a_j operators connected to right terminal
         target.nids_a_ann_a_ann_r = {}
-        for i in range(L//2 + 1, L):
-            for j in range(L//2 + 1, i):
+        for i in range(nsites//2 + 1, nsites):
+            for j in range(nsites//2 + 1, i):
                 target.nids_a_ann_a_ann_r[i, j] = {}
-                for k in range(L//2 + 1, j + 1):
+                for k in range(nsites//2 + 1, j + 1):
                     target.nids_a_ann_a_ann_r[i, j][k] = self.a_ann_a_ann_r[i, j][k].nid
         # a^{\dagger}_i a_j operators connected to right terminal
         target.nids_a_dag_a_ann_r = {}
-        for i in range(L//2 + 1, L):
-            for j in range(L//2 + 1, L):
+        for i in range(nsites//2 + 1, nsites):
+            for j in range(nsites//2 + 1, nsites):
                 target.nids_a_dag_a_ann_r[i, j] = {}
-                for k in range(L//2 + 1, min(i, j) + 1):
+                for k in range(nsites//2 + 1, min(i, j) + 1):
                     target.nids_a_dag_a_ann_r[i, j][k] = self.a_dag_a_ann_r[i, j][k].nid
 
 
-def _molecular_hamiltonian_graph_add_term(graph: OpGraph, nodes: MolecularOpGraphNodes, oplist: Sequence[tuple], coeff: float):
+def _molecular_hamiltonian_graph_add_term(graph: OpGraph, nodes: MolecularOpGraphNodes,
+                                          oplist: Sequence[tuple], coeff: float):
     """
     Add an operator term (operator string of creation and annihilation operators)
     to the operator graph describing a molecular Hamiltonian.
     """
     eid_next = max(graph.edges.keys()) + 1
 
-    L = nodes.L
+    nsites = nodes.nsites
 
     # sort by site (orbital) index
     oplist = sorted(oplist)
@@ -1075,22 +1124,26 @@ def _molecular_hamiltonian_graph_add_term(graph: OpGraph, nodes: MolecularOpGrap
             # expecting number operator
             assert (oid0, oid1) == (MolecularOID.A, MolecularOID.C)
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes.identity_r[i + 1].nid], [(MolecularOID.N, coeff)]))
+                OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes.identity_r[i + 1].nid],
+                            [(MolecularOID.N, coeff)]))
         else:
             assert i < j
-            if j <= L//2:
+            if j <= nsites//2:
                 nodes_l = nodes.get([(i, oid0)], "left")
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_l[j].nid, nodes.identity_r[j + 1].nid], [(oid1, coeff)]))
-            elif i >= L//2:
+                    OpGraphEdge(eid_next, [nodes_l[j].nid, nodes.identity_r[j + 1].nid],
+                                [(oid1, coeff)]))
+            elif i >= nsites//2:
                 nodes_r = nodes.get([(j, oid1)], "right")
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes_r[i + 1].nid], [(oid0, coeff)]))
+                    OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes_r[i + 1].nid],
+                                [(oid0, coeff)]))
             else:
                 nodes_l = nodes.get([(i, oid0)], "left")
                 nodes_r = nodes.get([(j, oid1)], "right")
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_l[L//2].nid, nodes_r[L//2 + 1].nid], [(MolecularOID.Z, coeff)]))
+                    OpGraphEdge(eid_next, [nodes_l[nsites//2].nid, nodes_r[nsites//2 + 1].nid],
+                                [(MolecularOID.Z, coeff)]))
     elif len(oplist) == 4:
         (i, oid0), (j, oid1), (k, oid2), (l, oid3) = oplist
         if j == k:
@@ -1099,25 +1152,28 @@ def _molecular_hamiltonian_graph_add_term(graph: OpGraph, nodes: MolecularOpGrap
             nodes_l = nodes.get([(i, oid0)], "left")
             nodes_r = nodes.get([(l, oid3)], "right")
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_l[j].nid, nodes_r[j + 1].nid], [(MolecularOID.N, coeff)]))
-        elif k <= L//2:
+                OpGraphEdge(eid_next, [nodes_l[j].nid, nodes_r[j + 1].nid],
+                            [(MolecularOID.N, coeff)]))
+        elif k <= nsites//2:
             nodes_l = nodes.get([(i, oid0), (j, oid1)], "left")
             if k == l:
                 # expecting number operator
                 assert (oid2, oid3) == (MolecularOID.A, MolecularOID.C)
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_l[k].nid, nodes.identity_r[k + 1].nid], [(MolecularOID.N, coeff)]))
+                    OpGraphEdge(eid_next, [nodes_l[k].nid, nodes.identity_r[k + 1].nid],
+                                [(MolecularOID.N, coeff)]))
             else:
                 nodes_r = nodes.get([(l, oid3)], "right")
                 graph.add_connect_edge(
                     OpGraphEdge(eid_next, [nodes_l[k].nid, nodes_r[k + 1].nid], [(oid2, coeff)]))
-        elif j >= L//2:
+        elif j >= nsites//2:
             nodes_r = nodes.get([(k, oid2), (l, oid3)], "right")
             if i == j:
                 # expecting number operator
                 assert (oid0, oid1) == (MolecularOID.A, MolecularOID.C)
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes.identity_l[j].nid, nodes_r[j + 1].nid], [(MolecularOID.N, coeff)]))
+                    OpGraphEdge(eid_next, [nodes.identity_l[j].nid, nodes_r[j + 1].nid],
+                                [(MolecularOID.N, coeff)]))
             else:
                 nodes_l = nodes.get([(i, oid0)], "left")
                 graph.add_connect_edge(
@@ -1126,7 +1182,8 @@ def _molecular_hamiltonian_graph_add_term(graph: OpGraph, nodes: MolecularOpGrap
             nodes_l = nodes.get([(i, oid0), (j, oid1)], "left")
             nodes_r = nodes.get([(k, oid2), (l, oid3)], "right")
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_l[L//2].nid, nodes_r[L//2 + 1].nid], [(MolecularOID.I, coeff)]))
+                OpGraphEdge(eid_next, [nodes_l[nsites//2].nid, nodes_r[nsites//2 + 1].nid],
+                            [(MolecularOID.I, coeff)]))
     else:
         raise NotImplementedError
 
@@ -1138,24 +1195,29 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
 
     .. math::
 
-        H = \sum_{i,j} t_{i,j} a^{\dagger}_i a_j + \frac{1}{2} \sum_{i,j,k,\ell} v_{i,j,k,\ell} a^{\dagger}_i a^{\dagger}_j a_{\ell} a_k
+        H = \sum_{i,j} t_{i,j} a^{\dagger}_i a_j
+            + \frac{1}{2} \sum_{i,j,k,\ell} v_{i,j,k,\ell}
+              a^{\dagger}_i a^{\dagger}_j a_{\ell} a_k
     """
     tkin = np.asarray(tkin)
     vint = np.asarray(vint)
-    L = tkin.shape[0]
-    assert tkin.shape == (L, L)
-    assert vint.shape == (L, L, L, L)
+    nsites = tkin.shape[0]
+    assert tkin.shape == (nsites, nsites)
+    assert vint.shape == (nsites, nsites, nsites, nsites)
 
     # interaction terms 1/2 \sum_{i,j,k,l} v_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k:
     # can anti-commute fermionic operators such that i < j and k < l
-    gint = 0.5 * (vint - np.transpose(vint, (1, 0, 2, 3)) - np.transpose(vint, (0, 1, 3, 2)) + np.transpose(vint, (1, 0, 3, 2)))
+    gint = 0.5 * (vint
+                  - np.transpose(vint, (1, 0, 2, 3))
+                  - np.transpose(vint, (0, 1, 3, 2))
+                  + np.transpose(vint, (1, 0, 3, 2)))
 
     if optimize:
         # optimize MPO bond dimensions based on bipartite graph theory
         opchains = []
         # kinetic hopping terms \sum_{i,j} t_{i,j} a^{\dagger}_i a_j
-        for i in range(L):
-            for j in range(L):
+        for i in range(nsites):
+            for j in range(nsites):
                 if i == j:
                     # diagonal hopping term
                     opchains.append(OpChain([MolecularOID.N], [0, 0], tkin[i, i], i))
@@ -1164,11 +1226,14 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                     opchains.append(OpChain([p] + (b - a - 1)*[MolecularOID.Z] + [q],
                                             [0] + (b - a)*[int(p)] + [0], tkin[i, j], a))
         # interaction terms 1/2 \sum_{i,j,k,l} v_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k
-        for i in range(L):
-            for j in range(i + 1, L):  # i < j
-                for k in range(L):
-                    for l in range(k + 1, L):  # k < l
-                        (a, p), (b, q), (c, r), (d, s) = sorted([(i, MolecularOID.C), (j, MolecularOID.C), (l, MolecularOID.A), (k, MolecularOID.A)])
+        for i in range(nsites):
+            for j in range(i + 1, nsites):  # i < j
+                for k in range(nsites):
+                    for l in range(k + 1, nsites):  # k < l
+                        (a, p), (b, q), (c, r), (d, s) = sorted([(i, MolecularOID.C),
+                                                                 (j, MolecularOID.C),
+                                                                 (l, MolecularOID.A),
+                                                                 (k, MolecularOID.A)])
                         if a == b:
                             assert b < c
                             if c == d:
@@ -1192,24 +1257,24 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                             oids  = [p] + (b - a - 1)*[MolecularOID.Z] + [q] + (c - b - 1)*[MolecularOID.I] + [r] + (d - c - 1)*[MolecularOID.Z] + [s]
                             qnums = [0] + (b - a)*[int(p)] + (c - b)*[int(p) + int(q)] + (d - c)*[-int(s)] + [0]
                         opchains.append(OpChain(oids, qnums, gint[i, j, k, l], a))
-        graph = OpGraph.from_opchains(opchains, L, 0)
+        graph = OpGraph.from_opchains(opchains, nsites, 0)
 
     else:
         # explicit construction (typically faster, but does not optimize cases
         # of zero coefficients, and is slightly sub-optimal close to boundary)
-        assert L >= 4
-        nodes = MolecularOpGraphNodes(L)
+        assert nsites >= 4
+        nodes = MolecularOpGraphNodes(nsites)
         graph = nodes.generate_graph()
         # kinetic hopping terms \sum_{i,j} t_{i,j} a^{\dagger}_i a_j
-        for i in range(L):
-            for j in range(L):
+        for i in range(nsites):
+            for j in range(nsites):
                 _molecular_hamiltonian_graph_add_term(
                     graph, nodes, [(i, MolecularOID.C), (j, MolecularOID.A)], tkin[i, j])
         # interaction terms 1/2 \sum_{i,j,k,l} v_{i,j,k,l} a^{\dagger}_i a^{\dagger}_j a_l a_k
-        for i in range(L):
-            for j in range(i + 1, L):  # i < j
-                for k in range(L):
-                    for l in range(k + 1, L):  # k < l
+        for i in range(nsites):
+            for j in range(i + 1, nsites):  # i < j
+                for k in range(nsites):
+                    for l in range(k + 1, nsites):  # k < l
                         oplist = [(i, MolecularOID.C),
                                   (j, MolecularOID.C),
                                   (l, MolecularOID.A),
@@ -1217,13 +1282,14 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                         _molecular_hamiltonian_graph_add_term(
                             graph, nodes, oplist, gint[i, j, k, l])
 
-    # skip consistency check for larger L (would take very long)
-    if L <= 12:
+    # skip consistency check for larger nsites (would take very long)
+    if nsites <= 12:
         assert graph.is_consistent()
     opmap = _molecular_hamiltonian_generate_operator_map()
     # convert to MPO
     mpo = MPO.from_opgraph([0, 1], graph, opmap, compute_nid_map=(not optimize))
-    # store node information in MPO, to identify virtual bonds by creation and annihilation operators
+    # store node information in MPO, to identify virtual
+    # bonds by creation and annihilation operators
     if not optimize:
         nodes.copy_nids(mpo)
 
@@ -1462,7 +1528,7 @@ class SpinMolecularOID(IntEnum):
     """
     Local operator IDs for a molecular Hamiltonian using a spin orbital basis.
     """
-    Id =  0
+    I  =  0
     IC =  1
     IA =  2
     IN =  3
@@ -1494,7 +1560,7 @@ class SpinOperatorConverter:
 
     # map a single OID pair to a combined OID
     oid_single_pair_map = {
-        (MolecularOID.I, MolecularOID.I): SpinMolecularOID.Id,
+        (MolecularOID.I, MolecularOID.I): SpinMolecularOID.I,
         (MolecularOID.I, MolecularOID.C): SpinMolecularOID.IC,
         (MolecularOID.I, MolecularOID.A): SpinMolecularOID.IA,
         (MolecularOID.I, MolecularOID.N): SpinMolecularOID.IN,
@@ -1547,9 +1613,11 @@ class SpinOperatorConverter:
         return OpChain(oids, qnums, opchain_single.coeff, opchain_single.istart // 2)
 
     @classmethod
-    def to_spin_operator(cls, oplist: Sequence[tuple], even_parity_left: bool, even_parity_right: bool) -> SpinMolecularOID:
+    def to_spin_operator(cls, oplist: Sequence[tuple],
+                         even_parity_left: bool, even_parity_right: bool) -> SpinMolecularOID:
         """
-        Convert a list of local creation and annihilation operators of the form [(spin_a, oid_a), ...]
+        Convert a list of local creation and annihilation operators
+        of the form [(spin_a, oid_a), ...]
         to the corresponding operator using a spin orbital basis.
         """
         oplist = sorted(oplist)
@@ -1561,7 +1629,7 @@ class SpinOperatorConverter:
             if spin == 1:
                 transfer = MolecularOID.I if even_parity_left else MolecularOID.Z
                 return cls.oid_single_pair_map[transfer, oid]
-            raise ValueError("'spin' must either be 0 (spin-up) or 1 (spin-down)")
+            raise ValueError("`spin` must either be 0 (spin-up) or 1 (spin-down)")
         if len(oplist) == 2:
             (spin_a, oid_a), (spin_b, oid_b) = oplist
             if spin_a == spin_b:
@@ -1571,7 +1639,7 @@ class SpinOperatorConverter:
                     return SpinMolecularOID.NI if even_parity_right else SpinMolecularOID.NZ
                 if spin_a == 1:
                     return SpinMolecularOID.IN if even_parity_left else SpinMolecularOID.ZN
-                raise ValueError("'spin' must either be 0 (spin-up) or 1 (spin-down)")
+                raise ValueError("`spin` must either be 0 (spin-up) or 1 (spin-down)")
             assert (spin_a, spin_b) == (0, 1)  # must be sorted
             return cls.oid_single_pair_map[oid_a, oid_b]
         if len(oplist) == 3:
@@ -1585,7 +1653,7 @@ class SpinOperatorConverter:
                 assert ((oid_b, oid_c) == (MolecularOID.C, MolecularOID.A)
                      or (oid_b, oid_c) == (MolecularOID.A, MolecularOID.C))
                 return cls.oid_single_pair_map[oid_a, MolecularOID.N]
-            raise ValueError("'spin' must either be 0 (spin-up) or 1 (spin-down)")
+            raise ValueError("`spin` must either be 0 (spin-up) or 1 (spin-down)")
         if len(oplist) == 4:
             # note: oplist is sorted
             (spin_a, oid_a), (spin_b, oid_b), (spin_c, oid_c), (spin_d, oid_d) = oplist
@@ -1595,7 +1663,7 @@ class SpinOperatorConverter:
             assert ((oid_c, oid_d) == (MolecularOID.C, MolecularOID.A)
                  or (oid_c, oid_d) == (MolecularOID.A, MolecularOID.C))
             return SpinMolecularOID.NN
-        raise ValueError(f"'oplist' of length {len(oplist)} is invalid")
+        raise ValueError(f"`oplist` of length {len(oplist)} is invalid")
 
 
 def _spin_molecular_hamiltonian_generate_operator_map():
@@ -1611,70 +1679,70 @@ class SpinMolecularOpGraphNodes:
     """
     Operator graph nodes used for molecular Hamiltonian construction, assuming a spin orbital basis.
     """
-    def __init__(self, L):
+    def __init__(self, nsites):
 
-        self.L = L
+        self.nsites = nsites
 
         nid_next = 0
         # identity chains from the left and right
         self.identity_l = {}
         self.identity_r = {}
-        for i in range(L):
+        for i in range(nsites):
             self.identity_l[i] = OpGraphNode(nid_next, [], [], 0)
             nid_next += 1
-        for i in range(1, L + 1):
+        for i in range(1, nsites + 1):
             self.identity_r[i] = OpGraphNode(nid_next, [], [], 0)
             nid_next += 1
         # a^{\dagger}_{i,\sigma} operators connected to left terminal
         self.a_dag_l = {}
-        for i, sigma in itertools.product(range(L - 1), (0, 1)):
+        for i, sigma in itertools.product(range(nsites - 1), (0, 1)):
             self.a_dag_l[i, sigma] = {}
-            for j in range(i + 1, L):
+            for j in range(i + 1, nsites):
                 self.a_dag_l[i, sigma][j] = OpGraphNode(
                     nid_next, [], [], encode_quantum_number_pair( 1, [1, -1][sigma]))
                 nid_next += 1
         # a_{i,\sigma} operators connected to left terminal
         self.a_ann_l = {}
-        for i, sigma in itertools.product(range(L - 1), (0, 1)):
+        for i, sigma in itertools.product(range(nsites - 1), (0, 1)):
             self.a_ann_l[i, sigma] = {}
-            for j in range(i + 1, L):
+            for j in range(i + 1, nsites):
                 self.a_ann_l[i, sigma][j] = OpGraphNode(
                     nid_next, [], [], encode_quantum_number_pair(-1, [-1, 1][sigma]))
                 nid_next += 1
         # a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} operators connected to left terminal
         self.a_dag_a_dag_l = {}
-        for i, sigma in itertools.product(range(L//2), (0, 1)):
-            for j, tau in itertools.product(range(i, L//2), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2), (0, 1)):
+            for j, tau in itertools.product(range(i, nsites//2), (0, 1)):
                 if (i, sigma) >= (j, tau):
                     continue
                 self.a_dag_a_dag_l[i, sigma, j, tau] = {}
-                for k in range(j + 1, L//2 + 1):
+                for k in range(j + 1, nsites//2 + 1):
                     self.a_dag_a_dag_l[i, sigma, j, tau][k] = OpGraphNode(
                         nid_next, [], [], encode_quantum_number_pair( 2, [1, -1][sigma] + [1, -1][tau]))
                     nid_next += 1
         # a_{i,\sigma} a_{j,\tau} operators connected to left terminal
         self.a_ann_a_ann_l = {}
-        for i, sigma in itertools.product(range(L//2), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2), (0, 1)):
             for j, tau in itertools.product(range(i + 1), (0, 1)):
                 if (i, sigma) <= (j, tau):
                     continue
                 self.a_ann_a_ann_l[i, sigma, j, tau] = {}
-                for k in range(i + 1, L//2 + 1):
+                for k in range(i + 1, nsites//2 + 1):
                     self.a_ann_a_ann_l[i, sigma, j, tau][k] = OpGraphNode(
                         nid_next, [], [], encode_quantum_number_pair(-2, [-1, 1][sigma] + [-1, 1][tau]))
                     nid_next += 1
         # a^{\dagger}_{i,\sigma} a_{j,\tau} operators connected to left terminal
         self.a_dag_a_ann_l = {}
-        for i, sigma in itertools.product(range(L//2), (0, 1)):
-            for j, tau in itertools.product(range(L//2), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2), (0, 1)):
+            for j, tau in itertools.product(range(nsites//2), (0, 1)):
                 self.a_dag_a_ann_l[i, sigma, j, tau] = {}
-                for k in range(max(i, j) + 1, L//2 + 1):
+                for k in range(max(i, j) + 1, nsites//2 + 1):
                     self.a_dag_a_ann_l[i, sigma, j, tau][k] = OpGraphNode(
                         nid_next, [], [], encode_quantum_number_pair(0, [1, -1][sigma] + [-1, 1][tau]))
                     nid_next += 1
         # a^{\dagger}_{i,\sigma} operators connected to right terminal
         self.a_dag_r = {}
-        for i, sigma in itertools.product(range(1, L), (0, 1)):
+        for i, sigma in itertools.product(range(1, nsites), (0, 1)):
             self.a_dag_r[i, sigma] = {}
             for j in range(1, i + 1):
                 self.a_dag_r[i, sigma][j] = OpGraphNode(
@@ -1682,7 +1750,7 @@ class SpinMolecularOpGraphNodes:
                 nid_next += 1
         # a_{i,\sigma} operators connected to right terminal
         self.a_ann_r = {}
-        for i, sigma in itertools.product(range(1, L), (0, 1)):
+        for i, sigma in itertools.product(range(1, nsites), (0, 1)):
             self.a_ann_r[i, sigma] = {}
             for j in range(1, i + 1):
                 self.a_ann_r[i, sigma][j] = OpGraphNode(
@@ -1690,32 +1758,32 @@ class SpinMolecularOpGraphNodes:
                 nid_next += 1
         # a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} operators connected to right terminal
         self.a_dag_a_dag_r = {}
-        for i, sigma in itertools.product(range(L//2 + 1, L), (0, 1)):
-            for j, tau in itertools.product(range(i, L), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2 + 1, nsites), (0, 1)):
+            for j, tau in itertools.product(range(i, nsites), (0, 1)):
                 if (i, sigma) >= (j, tau):
                     continue
                 self.a_dag_a_dag_r[i, sigma, j, tau] = {}
-                for k in range(L//2 + 1, i + 1):
+                for k in range(nsites//2 + 1, i + 1):
                     self.a_dag_a_dag_r[i, sigma, j, tau][k] = OpGraphNode(
                         nid_next, [], [], encode_quantum_number_pair(-2, [-1, 1][sigma] + [-1, 1][tau]))
                     nid_next += 1
         # a_{i,\sigma} a_{j,\tau} operators connected to right terminal
         self.a_ann_a_ann_r = {}
-        for i, sigma in itertools.product(range(L//2 + 1, L), (0, 1)):
-            for j, tau in itertools.product(range(L//2 + 1, i + 1), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2 + 1, nsites), (0, 1)):
+            for j, tau in itertools.product(range(nsites//2 + 1, i + 1), (0, 1)):
                 if (i, sigma) <= (j, tau):
                     continue
                 self.a_ann_a_ann_r[i, sigma, j, tau] = {}
-                for k in range(L//2 + 1, j + 1):
+                for k in range(nsites//2 + 1, j + 1):
                     self.a_ann_a_ann_r[i, sigma, j, tau][k] = OpGraphNode(
                         nid_next, [], [], encode_quantum_number_pair( 2, [1, -1][sigma] + [1, -1][tau]))
                     nid_next += 1
         # a^{\dagger}_{i,\sigma} a_{j,\tau} operators connected to right terminal
         self.a_dag_a_ann_r = {}
-        for i, sigma in itertools.product(range(L//2 + 1, L), (0, 1)):
-            for j, tau in itertools.product(range(L//2 + 1, L), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2 + 1, nsites), (0, 1)):
+            for j, tau in itertools.product(range(nsites//2 + 1, nsites), (0, 1)):
                 self.a_dag_a_ann_r[i, sigma, j, tau] = {}
-                for k in range(L//2 + 1, min(i, j) + 1):
+                for k in range(nsites//2 + 1, min(i, j) + 1):
                     self.a_dag_a_ann_r[i, sigma, j, tau][k] = OpGraphNode(
                         nid_next, [], [], encode_quantum_number_pair( 0, [-1, 1][sigma] + [1, -1][tau]))
                     nid_next += 1
@@ -1750,7 +1818,7 @@ class SpinMolecularOpGraphNodes:
         """
         Create and initialize an operator graph with corresponding nodes and edges.
         """
-        L = self.L
+        nsites = self.nsites
 
         # initialize graph with nodes
         graph = OpGraph(list(self.identity_l.values()) +
@@ -1765,81 +1833,94 @@ class SpinMolecularOpGraphNodes:
                         [node for nodes in self.a_dag_a_dag_r.values() for node in nodes.values()] +
                         [node for nodes in self.a_ann_a_ann_r.values() for node in nodes.values()] +
                         [node for nodes in self.a_dag_a_ann_r.values() for node in nodes.values()],
-                        [], [self.identity_l[0].nid, self.identity_r[L].nid])
+                        [], [self.identity_l[0].nid, self.identity_r[nsites].nid])
 
         # edges
         eid_next = 0
         # identities connected to left and right terminals
-        for i in range(L - 1):
+        for i in range(nsites - 1):
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [self.identity_l[i].nid, self.identity_l[i + 1].nid], [(SpinMolecularOID.Id, 1.)]))
+                OpGraphEdge(eid_next, [self.identity_l[i].nid, self.identity_l[i + 1].nid],
+                            [(SpinMolecularOID.I, 1.)]))
             eid_next += 1
-        for i in range(1, L):
+        for i in range(1, nsites):
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [self.identity_r[i].nid, self.identity_r[i + 1].nid], [(SpinMolecularOID.Id, 1.)]))
+                OpGraphEdge(eid_next, [self.identity_r[i].nid, self.identity_r[i + 1].nid],
+                            [(SpinMolecularOID.I, 1.)]))
             eid_next += 1
         # a^{\dagger}_{i,\sigma} operators connected to left terminal
-        for i, sigma in itertools.product(range(L - 1), (0, 1)):
+        for i, sigma in itertools.product(range(nsites - 1), (0, 1)):
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_dag_l[i, sigma][i + 1].nid], [([SpinMolecularOID.CZ, SpinMolecularOID.IC][sigma], 1.)]))
+                OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_dag_l[i, sigma][i + 1].nid],
+                            [([SpinMolecularOID.CZ, SpinMolecularOID.IC][sigma], 1.)]))
             eid_next += 1
             # Z operators from Jordan-Wigner transformation
-            for j in range(i + 1, L - 1):
+            for j in range(i + 1, nsites - 1):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [self.a_dag_l[i, sigma][j].nid, self.a_dag_l[i, sigma][j + 1].nid], [(SpinMolecularOID.ZZ, 1.)]))
+                    OpGraphEdge(eid_next, [self.a_dag_l[i, sigma][j].nid, self.a_dag_l[i, sigma][j + 1].nid],
+                                [(SpinMolecularOID.ZZ, 1.)]))
                 eid_next += 1
         # a_{i,\sigma} operators connected to left terminal
-        for i, sigma in itertools.product(range(L - 1), (0, 1)):
+        for i, sigma in itertools.product(range(nsites - 1), (0, 1)):
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_ann_l[i, sigma][i + 1].nid], [([SpinMolecularOID.AZ, SpinMolecularOID.IA][sigma], 1.)]))
+                OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_ann_l[i, sigma][i + 1].nid],
+                            [([SpinMolecularOID.AZ, SpinMolecularOID.IA][sigma], 1.)]))
             eid_next += 1
             # Z operators from Jordan-Wigner transformation
-            for j in range(i + 1, L - 1):
+            for j in range(i + 1, nsites - 1):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [self.a_ann_l[i, sigma][j].nid, self.a_ann_l[i, sigma][j + 1].nid], [(SpinMolecularOID.ZZ, 1.)]))
+                    OpGraphEdge(eid_next, [self.a_ann_l[i, sigma][j].nid, self.a_ann_l[i, sigma][j + 1].nid],
+                                [(SpinMolecularOID.ZZ, 1.)]))
                 eid_next += 1
         # a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} operators connected to left terminal
-        for i, sigma in itertools.product(range(L//2), (0, 1)):
-            for j, tau in itertools.product(range(i, L//2), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2), (0, 1)):
+            for j, tau in itertools.product(range(i, nsites//2), (0, 1)):
                 if (i, sigma) >= (j, tau):
                     continue
                 if i < j:
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_l[i, sigma][j].nid, self.a_dag_a_dag_l[i, sigma, j, tau][j + 1].nid], [([SpinMolecularOID.CI, SpinMolecularOID.ZC][tau], 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_l[i, sigma][j].nid, self.a_dag_a_dag_l[i, sigma, j, tau][j + 1].nid],
+                                    [([SpinMolecularOID.CI, SpinMolecularOID.ZC][tau], 1.)]))
                 else:
                     assert sigma == 0 and tau == 1
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.identity_l[j].nid, self.a_dag_a_dag_l[i, sigma, j, tau][j + 1].nid], [(SpinMolecularOID.CC, 1.)]))
+                        OpGraphEdge(eid_next, [self.identity_l[j].nid, self.a_dag_a_dag_l[i, sigma, j, tau][j + 1].nid],
+                                    [(SpinMolecularOID.CC, 1.)]))
                 eid_next += 1
                 # identities for transition to next site
-                for k in range(j + 1, L//2):
+                for k in range(j + 1, nsites//2):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_dag_l[i, sigma, j, tau][k].nid, self.a_dag_a_dag_l[i, sigma, j, tau][k + 1].nid], [(SpinMolecularOID.Id, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_dag_l[i, sigma, j, tau][k].nid, self.a_dag_a_dag_l[i, sigma, j, tau][k + 1].nid],
+                                    [(SpinMolecularOID.I, 1.)]))
                     eid_next += 1
         # a_{i,\sigma} a_{j,\tau} operators connected to left terminal
-        for i, sigma in itertools.product(range(L//2), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2), (0, 1)):
             for j, tau in itertools.product(range(i + 1), (0, 1)):
                 if (i, sigma) <= (j, tau):
                     continue
                 if i > j:
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_ann_l[j, tau][i].nid, self.a_ann_a_ann_l[i, sigma, j, tau][i + 1].nid], [([SpinMolecularOID.AI, SpinMolecularOID.ZA][sigma], 1.)]))
+                        OpGraphEdge(eid_next, [self.a_ann_l[j, tau][i].nid, self.a_ann_a_ann_l[i, sigma, j, tau][i + 1].nid],
+                                    [([SpinMolecularOID.AI, SpinMolecularOID.ZA][sigma], 1.)]))
                 else:
                     assert sigma == 1 and tau == 0
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_ann_a_ann_l[i, sigma, j, tau][i + 1].nid], [(SpinMolecularOID.AA, 1.)]))
+                        OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_ann_a_ann_l[i, sigma, j, tau][i + 1].nid],
+                                    [(SpinMolecularOID.AA, 1.)]))
                 eid_next += 1
                 # identities for transition to next site
-                for k in range(i + 1, L//2):
+                for k in range(i + 1, nsites//2):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_ann_a_ann_l[i, sigma, j, tau][k].nid, self.a_ann_a_ann_l[i, sigma, j, tau][k + 1].nid], [(SpinMolecularOID.Id, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_ann_a_ann_l[i, sigma, j, tau][k].nid, self.a_ann_a_ann_l[i, sigma, j, tau][k + 1].nid],
+                                    [(SpinMolecularOID.I, 1.)]))
                     eid_next += 1
         # a^{\dagger}_{i,\sigma} a_{j,\tau} operators connected to left terminal
-        for i, sigma in itertools.product(range(L//2), (0, 1)):
-            for j, tau in itertools.product(range(L//2), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2), (0, 1)):
+            for j, tau in itertools.product(range(nsites//2), (0, 1)):
                 if i < j:
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_l[i, sigma][j].nid, self.a_dag_a_ann_l[i, sigma, j, tau][j + 1].nid], [([SpinMolecularOID.AI, SpinMolecularOID.ZA][tau], 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_l[i, sigma][j].nid, self.a_dag_a_ann_l[i, sigma, j, tau][j + 1].nid],
+                                    [([SpinMolecularOID.AI, SpinMolecularOID.ZA][tau], 1.)]))
                 elif i == j:
                     if sigma < tau:
                         oid = SpinMolecularOID.CA
@@ -1848,83 +1929,98 @@ class SpinMolecularOpGraphNodes:
                     else:  # sigma > tau
                         oid = SpinMolecularOID.AC
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_dag_a_ann_l[i, sigma, j, tau][i + 1].nid], [(oid, 1.)]))
+                        OpGraphEdge(eid_next, [self.identity_l[i].nid, self.a_dag_a_ann_l[i, sigma, j, tau][i + 1].nid],
+                                    [(oid, 1.)]))
                 else:  # i > j
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_ann_l[j, tau][i].nid, self.a_dag_a_ann_l[i, sigma, j, tau][i + 1].nid], [([SpinMolecularOID.CI, SpinMolecularOID.ZC][sigma], 1.)]))
+                        OpGraphEdge(eid_next, [self.a_ann_l[j, tau][i].nid, self.a_dag_a_ann_l[i, sigma, j, tau][i + 1].nid],
+                                    [([SpinMolecularOID.CI, SpinMolecularOID.ZC][sigma], 1.)]))
                 eid_next += 1
                 # identities for transition to next site
-                for k in range(max(i, j) + 1, L//2):
+                for k in range(max(i, j) + 1, nsites//2):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_ann_l[i, sigma, j, tau][k].nid, self.a_dag_a_ann_l[i, sigma, j, tau][k + 1].nid], [(SpinMolecularOID.Id, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_ann_l[i, sigma, j, tau][k].nid, self.a_dag_a_ann_l[i, sigma, j, tau][k + 1].nid],
+                                    [(SpinMolecularOID.I, 1.)]))
                     eid_next += 1
         # a^{\dagger}_{i,\sigma} operators connected to right terminal
-        for i, sigma in itertools.product(range(1, L), (0, 1)):
+        for i, sigma in itertools.product(range(1, nsites), (0, 1)):
             # Z operators from Jordan-Wigner transformation
             for j in range(1, i):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [self.a_dag_r[i, sigma][j].nid, self.a_dag_r[i, sigma][j + 1].nid], [(SpinMolecularOID.ZZ, 1.)]))
+                    OpGraphEdge(eid_next, [self.a_dag_r[i, sigma][j].nid, self.a_dag_r[i, sigma][j + 1].nid],
+                                [(SpinMolecularOID.ZZ, 1.)]))
                 eid_next += 1
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [self.a_dag_r[i, sigma][i].nid, self.identity_r[i + 1].nid], [([SpinMolecularOID.CI, SpinMolecularOID.ZC][sigma], 1.)]))
+                OpGraphEdge(eid_next, [self.a_dag_r[i, sigma][i].nid, self.identity_r[i + 1].nid],
+                            [([SpinMolecularOID.CI, SpinMolecularOID.ZC][sigma], 1.)]))
             eid_next += 1
         # a_{i,\sigma} operators connected to right terminal
-        for i, sigma in itertools.product(range(1, L), (0, 1)):
+        for i, sigma in itertools.product(range(1, nsites), (0, 1)):
             # Z operators from Jordan-Wigner transformation
             for j in range(1, i):
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [self.a_ann_r[i, sigma][j].nid, self.a_ann_r[i, sigma][j + 1].nid], [(SpinMolecularOID.ZZ, 1.)]))
+                    OpGraphEdge(eid_next, [self.a_ann_r[i, sigma][j].nid, self.a_ann_r[i, sigma][j + 1].nid],
+                                [(SpinMolecularOID.ZZ, 1.)]))
                 eid_next += 1
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [self.a_ann_r[i, sigma][i].nid, self.identity_r[i + 1].nid], [([SpinMolecularOID.AI, SpinMolecularOID.ZA][sigma], 1.)]))
+                OpGraphEdge(eid_next, [self.a_ann_r[i, sigma][i].nid, self.identity_r[i + 1].nid],
+                            [([SpinMolecularOID.AI, SpinMolecularOID.ZA][sigma], 1.)]))
             eid_next += 1
         # a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} operators connected to right terminal
-        for i, sigma in itertools.product(range(L//2 + 1, L), (0, 1)):
-            for j, tau in itertools.product(range(i, L), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2 + 1, nsites), (0, 1)):
+            for j, tau in itertools.product(range(i, nsites), (0, 1)):
                 if (i, sigma) >= (j, tau):
                     continue
                 # identities for transition to next site
-                for k in range(L//2 + 1, i):
+                for k in range(nsites//2 + 1, i):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_dag_r[i, sigma, j, tau][k].nid, self.a_dag_a_dag_r[i, sigma, j, tau][k + 1].nid], [(SpinMolecularOID.Id, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_dag_r[i, sigma, j, tau][k].nid, self.a_dag_a_dag_r[i, sigma, j, tau][k + 1].nid],
+                                    [(SpinMolecularOID.I, 1.)]))
                     eid_next += 1
                 if i < j:
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_dag_r[i, sigma, j, tau][i].nid, self.a_dag_r[j, tau][i + 1].nid], [([SpinMolecularOID.CZ, SpinMolecularOID.IC][sigma], 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_dag_r[i, sigma, j, tau][i].nid, self.a_dag_r[j, tau][i + 1].nid],
+                                    [([SpinMolecularOID.CZ, SpinMolecularOID.IC][sigma], 1.)]))
                 else:
                     assert sigma == 0 and tau == 1
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_dag_r[i, sigma, j, tau][i].nid, self.identity_r[i + 1].nid], [(SpinMolecularOID.CC, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_dag_r[i, sigma, j, tau][i].nid, self.identity_r[i + 1].nid],
+                                    [(SpinMolecularOID.CC, 1.)]))
                 eid_next += 1
         # a_{i,\sigma} a_{j,\tau} operators connected to right terminal
-        for i, sigma in itertools.product(range(L//2 + 1, L), (0, 1)):
-            for j, tau in itertools.product(range(L//2 + 1, i + 1), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2 + 1, nsites), (0, 1)):
+            for j, tau in itertools.product(range(nsites//2 + 1, i + 1), (0, 1)):
                 if (i, sigma) <= (j, tau):
                     continue
                 # identities for transition to next site
-                for k in range(L//2 + 1, j):
+                for k in range(nsites//2 + 1, j):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_ann_a_ann_r[i, sigma, j, tau][k].nid, self.a_ann_a_ann_r[i, sigma, j, tau][k + 1].nid], [(SpinMolecularOID.Id, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_ann_a_ann_r[i, sigma, j, tau][k].nid, self.a_ann_a_ann_r[i, sigma, j, tau][k + 1].nid],
+                                    [(SpinMolecularOID.I, 1.)]))
                     eid_next += 1
                 if i > j:
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_ann_a_ann_r[i, sigma, j, tau][j].nid, self.a_ann_r[i, sigma][j + 1].nid], [([SpinMolecularOID.AZ, SpinMolecularOID.IA][tau], 1.)]))
+                        OpGraphEdge(eid_next, [self.a_ann_a_ann_r[i, sigma, j, tau][j].nid, self.a_ann_r[i, sigma][j + 1].nid],
+                                    [([SpinMolecularOID.AZ, SpinMolecularOID.IA][tau], 1.)]))
                 else:
                     assert sigma == 1 and tau == 0
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_ann_a_ann_r[i, sigma, j, tau][j].nid, self.identity_r[j + 1].nid], [(SpinMolecularOID.AA, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_ann_a_ann_r[i, sigma, j, tau][j].nid, self.identity_r[j + 1].nid],
+                                    [(SpinMolecularOID.AA, 1.)]))
                 eid_next += 1
         # a^{\dagger}_{i,\sigma} a_{j,\tau} operators connected to right terminal
-        for i, sigma in itertools.product(range(L//2 + 1, L), (0, 1)):
-            for j, tau in itertools.product(range(L//2 + 1, L), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2 + 1, nsites), (0, 1)):
+            for j, tau in itertools.product(range(nsites//2 + 1, nsites), (0, 1)):
                 # identities for transition to next site
-                for k in range(L//2 + 1, min(i, j)):
+                for k in range(nsites//2 + 1, min(i, j)):
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][k].nid, self.a_dag_a_ann_r[i, sigma, j, tau][k + 1].nid], [(SpinMolecularOID.Id, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][k].nid, self.a_dag_a_ann_r[i, sigma, j, tau][k + 1].nid],
+                                    [(SpinMolecularOID.I, 1.)]))
                     eid_next += 1
                 if i < j:
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][i].nid, self.a_ann_r[j, tau][i + 1].nid], [([SpinMolecularOID.CZ, SpinMolecularOID.IC][sigma], 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][i].nid, self.a_ann_r[j, tau][i + 1].nid],
+                                    [([SpinMolecularOID.CZ, SpinMolecularOID.IC][sigma], 1.)]))
                 elif i == j:
                     if sigma < tau:
                         oid = SpinMolecularOID.CA
@@ -1933,10 +2029,12 @@ class SpinMolecularOpGraphNodes:
                     else:  # sigma > tau
                         oid = SpinMolecularOID.AC
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][i].nid, self.identity_r[i + 1].nid], [(oid, 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][i].nid, self.identity_r[i + 1].nid],
+                                    [(oid, 1.)]))
                 else:  # i > j
                     graph.add_connect_edge(
-                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][j].nid, self.a_dag_r[i, sigma][j + 1].nid], [([SpinMolecularOID.AZ, SpinMolecularOID.IA][tau], 1.)]))
+                        OpGraphEdge(eid_next, [self.a_dag_a_ann_r[i, sigma, j, tau][j].nid, self.a_dag_r[i, sigma][j + 1].nid],
+                                    [([SpinMolecularOID.AZ, SpinMolecularOID.IA][tau], 1.)]))
                 eid_next += 1
 
         return graph
@@ -1945,98 +2043,99 @@ class SpinMolecularOpGraphNodes:
         """
         Transfer and store the node IDs in the target object.
         """
-        L = self.L
+        nsites = self.nsites
         # identity chains from the left and right
         target.nids_identity_l = {}
         target.nids_identity_r = {}
-        for i in range(L):
+        for i in range(nsites):
             target.nids_identity_l[i] = self.identity_l[i].nid
-        for i in range(1, L + 1):
+        for i in range(1, nsites + 1):
             target.nids_identity_r[i] = self.identity_r[i].nid
         # a^{\dagger}_{i,\sigma} operators connected to left terminal
         target.nids_a_dag_l = {}
-        for i, sigma in itertools.product(range(L - 1), (0, 1)):
+        for i, sigma in itertools.product(range(nsites - 1), (0, 1)):
             target.nids_a_dag_l[i, sigma] = {}
-            for j in range(i + 1, L):
+            for j in range(i + 1, nsites):
                 target.nids_a_dag_l[i, sigma][j] = self.a_dag_l[i, sigma][j].nid
         # a_{i,\sigma} operators connected to left terminal
         target.nids_a_ann_l = {}
-        for i, sigma in itertools.product(range(L - 1), (0, 1)):
+        for i, sigma in itertools.product(range(nsites - 1), (0, 1)):
             target.nids_a_ann_l[i, sigma] = {}
-            for j in range(i + 1, L):
+            for j in range(i + 1, nsites):
                 target.nids_a_ann_l[i, sigma][j] = self.a_ann_l[i, sigma][j].nid
         # a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} operators connected to left terminal
         target.nids_a_dag_a_dag_l = {}
-        for i, sigma in itertools.product(range(L//2), (0, 1)):
-            for j, tau in itertools.product(range(i, L//2), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2), (0, 1)):
+            for j, tau in itertools.product(range(i, nsites//2), (0, 1)):
                 if (i, sigma) >= (j, tau):
                     continue
                 target.nids_a_dag_a_dag_l[i, sigma, j, tau] = {}
-                for k in range(j + 1, L//2 + 1):
+                for k in range(j + 1, nsites//2 + 1):
                     target.nids_a_dag_a_dag_l[i, sigma, j, tau][k] = self.a_dag_a_dag_l[i, sigma, j, tau][k].nid
         # a_{i,\sigma} a_{j,\tau} operators connected to left terminal
         target.nids_a_ann_a_ann_l = {}
-        for i, sigma in itertools.product(range(L//2), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2), (0, 1)):
             for j, tau in itertools.product(range(i + 1), (0, 1)):
                 if (i, sigma) <= (j, tau):
                     continue
                 target.nids_a_ann_a_ann_l[i, sigma, j, tau] = {}
-                for k in range(i + 1, L//2 + 1):
+                for k in range(i + 1, nsites//2 + 1):
                     target.nids_a_ann_a_ann_l[i, sigma, j, tau][k] = self.a_ann_a_ann_l[i, sigma, j, tau][k].nid
         # a^{\dagger}_{i,\sigma} a_{j,\tau} operators connected to left terminal
         target.nids_a_dag_a_ann_l = {}
-        for i, sigma in itertools.product(range(L//2), (0, 1)):
-            for j, tau in itertools.product(range(L//2), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2), (0, 1)):
+            for j, tau in itertools.product(range(nsites//2), (0, 1)):
                 target.nids_a_dag_a_ann_l[i, sigma, j, tau] = {}
-                for k in range(max(i, j) + 1, L//2 + 1):
+                for k in range(max(i, j) + 1, nsites//2 + 1):
                     target.nids_a_dag_a_ann_l[i, sigma, j, tau][k] = self.a_dag_a_ann_l[i, sigma, j, tau][k].nid
         # a^{\dagger}_{i,\sigma} operators connected to right terminal
         target.nids_a_dag_r = {}
-        for i, sigma in itertools.product(range(1, L), (0, 1)):
+        for i, sigma in itertools.product(range(1, nsites), (0, 1)):
             target.nids_a_dag_r[i, sigma] = {}
             for j in range(1, i + 1):
                 target.nids_a_dag_r[i, sigma][j] = self.a_dag_r[i, sigma][j].nid
         # a_{i,\sigma} operators connected to right terminal
         target.nids_a_ann_r = {}
-        for i, sigma in itertools.product(range(1, L), (0, 1)):
+        for i, sigma in itertools.product(range(1, nsites), (0, 1)):
             target.nids_a_ann_r[i, sigma] = {}
             for j in range(1, i + 1):
                 target.nids_a_ann_r[i, sigma][j] = self.a_ann_r[i, sigma][j].nid
         # a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} operators connected to right terminal
         target.nids_a_dag_a_dag_r = {}
-        for i, sigma in itertools.product(range(L//2 + 1, L), (0, 1)):
-            for j, tau in itertools.product(range(i, L), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2 + 1, nsites), (0, 1)):
+            for j, tau in itertools.product(range(i, nsites), (0, 1)):
                 if (i, sigma) >= (j, tau):
                     continue
                 target.nids_a_dag_a_dag_r[i, sigma, j, tau] = {}
-                for k in range(L//2 + 1, i + 1):
+                for k in range(nsites//2 + 1, i + 1):
                     target.nids_a_dag_a_dag_r[i, sigma, j, tau][k] = self.a_dag_a_dag_r[i, sigma, j, tau][k].nid
         # a_{i,\sigma} a_{j,\tau} operators connected to right terminal
         target.nids_a_ann_a_ann_r = {}
-        for i, sigma in itertools.product(range(L//2 + 1, L), (0, 1)):
-            for j, tau in itertools.product(range(L//2 + 1, i + 1), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2 + 1, nsites), (0, 1)):
+            for j, tau in itertools.product(range(nsites//2 + 1, i + 1), (0, 1)):
                 if (i, sigma) <= (j, tau):
                     continue
                 target.nids_a_ann_a_ann_r[i, sigma, j, tau] = {}
-                for k in range(L//2 + 1, j + 1):
+                for k in range(nsites//2 + 1, j + 1):
                     target.nids_a_ann_a_ann_r[i, sigma, j, tau][k] = self.a_ann_a_ann_r[i, sigma, j, tau][k].nid
         # a^{\dagger}_{i,\sigma} a_{j,\tau} operators connected to right terminal
         target.nids_a_dag_a_ann_r = {}
-        for i, sigma in itertools.product(range(L//2 + 1, L), (0, 1)):
-            for j, tau in itertools.product(range(L//2 + 1, L), (0, 1)):
+        for i, sigma in itertools.product(range(nsites//2 + 1, nsites), (0, 1)):
+            for j, tau in itertools.product(range(nsites//2 + 1, nsites), (0, 1)):
                 target.nids_a_dag_a_ann_r[i, sigma, j, tau] = {}
-                for k in range(L//2 + 1, min(i, j) + 1):
+                for k in range(nsites//2 + 1, min(i, j) + 1):
                     target.nids_a_dag_a_ann_r[i, sigma, j, tau][k] = self.a_dag_a_ann_r[i, sigma, j, tau][k].nid
 
 
-def _spin_molecular_hamiltonian_graph_add_term(graph: OpGraph, nodes: SpinMolecularOpGraphNodes, oplist: Sequence[tuple], coeff: float):
+def _spin_molecular_hamiltonian_graph_add_term(graph: OpGraph, nodes: SpinMolecularOpGraphNodes,
+                                               oplist: Sequence[tuple], coeff: float):
     """
     Add an operator term (operator string of creation and annihilation operators)
     to the operator graph describing a molecular Hamiltonian, assuming a spin orbital basis.
     """
     eid_next = max(graph.edges.keys()) + 1
 
-    L = nodes.L
+    nsites = nodes.nsites
 
     # sort by site (orbital) and spin index
     oplist = sorted(oplist)
@@ -2044,75 +2143,95 @@ def _spin_molecular_hamiltonian_graph_add_term(graph: OpGraph, nodes: SpinMolecu
     if len(oplist) == 2:
         (i, sigma, oid0), (j, tau, oid1) = oplist
         if i == j:
-            spin_oid = SpinOperatorConverter.to_spin_operator([(sigma, oid0), (tau, oid1)], True, True)
+            spin_oid = SpinOperatorConverter.to_spin_operator(
+                [(sigma, oid0), (tau, oid1)], True, True)
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes.identity_r[i + 1].nid], [(spin_oid, coeff)]))
+                OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes.identity_r[i + 1].nid],
+                            [(spin_oid, coeff)]))
         else:
             assert i < j
-            if j <= L//2:
+            if j <= nsites//2:
                 nodes_l = nodes.get([oplist[0]], "left")
                 spin_oid = SpinOperatorConverter.to_spin_operator([(tau, oid1)], False, True)
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_l[j].nid, nodes.identity_r[j + 1].nid], [(spin_oid, coeff)]))
-            elif i >= L//2:
+                    OpGraphEdge(eid_next, [nodes_l[j].nid, nodes.identity_r[j + 1].nid],
+                                [(spin_oid, coeff)]))
+            elif i >= nsites//2:
                 nodes_r = nodes.get([oplist[1]], "right")
                 spin_oid = SpinOperatorConverter.to_spin_operator([(sigma, oid0)], True, False)
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes_r[i + 1].nid], [(spin_oid, coeff)]))
+                    OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes_r[i + 1].nid],
+                                [(spin_oid, coeff)]))
             else:
                 nodes_l = nodes.get([oplist[0]], "left")
                 nodes_r = nodes.get([oplist[1]], "right")
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_l[L//2].nid, nodes_r[L//2 + 1].nid], [(SpinMolecularOID.ZZ, coeff)]))
+                    OpGraphEdge(eid_next, [nodes_l[nsites//2].nid, nodes_r[nsites//2 + 1].nid],
+                                [(SpinMolecularOID.ZZ, coeff)]))
     elif len(oplist) == 4:
         (i, sigma, oid0), (j, tau, oid1), (k, mu, oid2), (l, nu, oid3) = oplist
         if i == j == k == l:
-            spin_oid = SpinOperatorConverter.to_spin_operator([(sigma, oid0), (tau, oid1), (mu, oid2), (nu, oid3)], True, True)
+            spin_oid = SpinOperatorConverter.to_spin_operator(
+                [(sigma, oid0), (tau, oid1), (mu, oid2), (nu, oid3)], True, True)
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes.identity_r[i + 1].nid], [(spin_oid, coeff)]))
+                OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes.identity_r[i + 1].nid],
+                            [(spin_oid, coeff)]))
         elif i == j == k:
             nodes_r = nodes.get([oplist[3]], "right")
-            spin_oid = SpinOperatorConverter.to_spin_operator([(sigma, oid0), (tau, oid1), (mu, oid2)], True, False)
+            spin_oid = SpinOperatorConverter.to_spin_operator(
+                [(sigma, oid0), (tau, oid1), (mu, oid2)], True, False)
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes_r[i + 1].nid], [(spin_oid, coeff)]))
+                OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes_r[i + 1].nid],
+                            [(spin_oid, coeff)]))
         elif j == k == l:
             nodes_l = nodes.get([oplist[0]], "left")
-            spin_oid = SpinOperatorConverter.to_spin_operator([(tau, oid1), (mu, oid2), (nu, oid3)], False, True)
+            spin_oid = SpinOperatorConverter.to_spin_operator(
+                [(tau, oid1), (mu, oid2), (nu, oid3)], False, True)
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_l[j].nid, nodes.identity_r[j + 1].nid], [(spin_oid, coeff)]))
+                OpGraphEdge(eid_next, [nodes_l[j].nid, nodes.identity_r[j + 1].nid],
+                            [(spin_oid, coeff)]))
         elif j == k:
             nodes_l = nodes.get([oplist[0]], "left")
             nodes_r = nodes.get([oplist[3]], "right")
-            spin_oid = SpinOperatorConverter.to_spin_operator([(tau, oid1), (mu, oid2)], False, False)
+            spin_oid = SpinOperatorConverter.to_spin_operator(
+                [(tau, oid1), (mu, oid2)], False, False)
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_l[j].nid, nodes_r[j + 1].nid], [(spin_oid, coeff)]))
-        elif k <= L//2:
+                OpGraphEdge(eid_next, [nodes_l[j].nid, nodes_r[j + 1].nid],
+                            [(spin_oid, coeff)]))
+        elif k <= nsites//2:
             nodes_l = nodes.get(oplist[:2], "left")
             if k == l:
-                spin_oid = SpinOperatorConverter.to_spin_operator([(mu, oid2), (nu, oid3)], True, True)
+                spin_oid = SpinOperatorConverter.to_spin_operator(
+                    [(mu, oid2), (nu, oid3)], True, True)
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_l[k].nid, nodes.identity_r[k + 1].nid], [(spin_oid, coeff)]))
+                    OpGraphEdge(eid_next, [nodes_l[k].nid, nodes.identity_r[k + 1].nid],
+                                [(spin_oid, coeff)]))
             else:
                 nodes_r = nodes.get([oplist[3]], "right")
                 spin_oid = SpinOperatorConverter.to_spin_operator([(mu, oid2)], True, False)
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_l[k].nid, nodes_r[k + 1].nid], [(spin_oid, coeff)]))
-        elif j >= L//2:
+                    OpGraphEdge(eid_next, [nodes_l[k].nid, nodes_r[k + 1].nid],
+                                [(spin_oid, coeff)]))
+        elif j >= nsites//2:
             nodes_r = nodes.get(oplist[2:], "right")
             if i == j:
-                spin_oid = SpinOperatorConverter.to_spin_operator([(sigma, oid0), (tau, oid1)], True, True)
+                spin_oid = SpinOperatorConverter.to_spin_operator(
+                    [(sigma, oid0), (tau, oid1)], True, True)
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes.identity_l[j].nid, nodes_r[j + 1].nid], [(spin_oid, coeff)]))
+                    OpGraphEdge(eid_next, [nodes.identity_l[j].nid, nodes_r[j + 1].nid],
+                                [(spin_oid, coeff)]))
             else:
                 nodes_l = nodes.get([oplist[0]], "left")
                 spin_oid = SpinOperatorConverter.to_spin_operator([(tau, oid1)], False, True)
                 graph.add_connect_edge(
-                    OpGraphEdge(eid_next, [nodes_l[j].nid, nodes_r[j + 1].nid], [(spin_oid, coeff)]))
+                    OpGraphEdge(eid_next, [nodes_l[j].nid, nodes_r[j + 1].nid],
+                                [(spin_oid, coeff)]))
         else:
             nodes_l = nodes.get(oplist[:2], "left")
             nodes_r = nodes.get(oplist[2:], "right")
             graph.add_connect_edge(
-                OpGraphEdge(eid_next, [nodes_l[L//2].nid, nodes_r[L//2 + 1].nid], [(SpinMolecularOID.Id, coeff)]))
+                OpGraphEdge(eid_next, [nodes_l[nsites//2].nid, nodes_r[nsites//2 + 1].nid],
+                            [(SpinMolecularOID.I, coeff)]))
     else:
         raise NotImplementedError
 
@@ -2124,20 +2243,24 @@ def spin_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
 
     .. math::
 
-        H = \sum_{i,j,\sigma} t_{i,j} a^{\dagger}_{i,\sigma} a_{j,\sigma} + \frac{1}{2} \sum_{i,j,k,\ell,\sigma,\tau} v_{i,j,k,\ell} a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{\ell,\tau} a_{k,\sigma}
+        H = \sum_{i,j,\sigma} t_{i,j} a^{\dagger}_{i,\sigma} a_{j,\sigma}
+            + \frac{1}{2} \sum_{i,j,k,\ell,\sigma,\tau} v_{i,j,k,\ell}
+              a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{\ell,\tau} a_{k,\sigma}
     """
     tkin = np.asarray(tkin)
     vint = np.asarray(vint)
-    L = tkin.shape[0]
-    assert tkin.shape == (L, L)
-    assert vint.shape == (L, L, L, L)
+    nsites = tkin.shape[0]
+    assert tkin.shape == (nsites, nsites)
+    assert vint.shape == (nsites, nsites, nsites, nsites)
 
     # physical particle number and spin quantum numbers (encoded as single integer)
-    qN = [0,  1,  1,  2]
-    qS = [0, -1,  1,  0]
-    qd = [encode_quantum_number_pair(q[0], q[1]) for q in zip(qN, qS)]
+    qn = [0,  1,  1,  2]
+    qs = [0, -1,  1,  0]
+    qsite = [encode_quantum_number_pair(q[0], q[1]) for q in zip(qn, qs)]
 
-    # interaction terms 1/2 \sum_{i,j,k,l,\sigma,\tau,\mu,\nu} v_{i,j,k,l} \delta_{\sigma,\mu} \delta_{\tau,\nu} a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{l,\nu} a_{k,\mu}:
+    # interaction terms 1/2 \sum_{i,j,k,l,\sigma,\tau,\mu,\nu} v_{i,j,k,l}
+    #   \delta_{\sigma,\mu} \delta_{\tau,\nu}
+    #   a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{l,\nu} a_{k,\mu}:
     # can anti-commute fermionic operators such that (i,\sigma) < (j,\tau) and (k,\mu) < (l,\nu)
     gint0 = 0.5 * (vint                             + np.transpose(vint, (1, 0, 3, 2)))
     gint1 = 0.5 * (np.transpose(vint, (1, 0, 2, 3)) + np.transpose(vint, (0, 1, 3, 2)))
@@ -2158,8 +2281,8 @@ def spin_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
 
         opchains = []
         # kinetic hopping terms \sum_{i,j,\sigma} t_{i,j} a^{\dagger}_{i,\sigma} a_{j,\sigma}
-        for i in range(2*L):
-            for j in range(2*L):
+        for i in range(2*nsites):
+            for j in range(2*nsites):
                 if (i - j) % 2 != 0:
                     continue
                 if i == j:
@@ -2171,16 +2294,20 @@ def spin_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                     opchains.append(SpinOperatorConverter.to_spin_opchain(
                         OpChain([p] + (b - a - 1)*[MolecularOID.Z] + [q],
                                 [0] + (b - a)*[int(p)] + [0], tkin[i//2, j//2], a)))
-        # interaction terms 1/2 \sum_{i,j,k,l,\sigma,\tau} v_{i,j,k,l} a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{l,\tau} a_{k,\sigma}
-        for i in range(2*L):
-            for j in range(i + 1, 2*L):  # i < j
-                for k in range(2*L):
-                    for l in range(k + 1, 2*L):  # k < l
+        # interaction terms 1/2 \sum_{i,j,k,l,\sigma,\tau} v_{i,j,k,l}
+        #   a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{l,\tau} a_{k,\sigma}
+        for i in range(2*nsites):
+            for j in range(i + 1, 2*nsites):  # i < j
+                for k in range(2*nsites):
+                    for l in range(k + 1, 2*nsites):  # k < l
                         coeff, valid = get_vint_coeff((i // 2, j // 2, k // 2, l // 2),
                                                       (i %  2, j %  2, k %  2, l %  2))
                         if not valid:
                             continue
-                        (a, p), (b, q), (c, r), (d, s) = sorted([(i, MolecularOID.C), (j, MolecularOID.C), (l, MolecularOID.A), (k, MolecularOID.A)])
+                        (a, p), (b, q), (c, r), (d, s) = sorted([(i, MolecularOID.C),
+                                                                 (j, MolecularOID.C),
+                                                                 (l, MolecularOID.A),
+                                                                 (k, MolecularOID.A)])
                         if a == b:
                             assert b < c
                             if c == d:
@@ -2203,28 +2330,31 @@ def spin_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                             # generic case: i, j, k, l pairwise different
                             oids  = [p] + (b - a - 1)*[MolecularOID.Z] + [q] + (c - b - 1)*[MolecularOID.I] + [r] + (d - c - 1)*[MolecularOID.Z] + [s]
                             qnums = [0] + (b - a)*[int(p)] + (c - b)*[int(p) + int(q)] + (d - c)*[-int(s)] + [0]
-                        opchains.append(SpinOperatorConverter.to_spin_opchain(OpChain(oids, qnums, coeff, a)))
-        graph = OpGraph.from_opchains(opchains, L, SpinMolecularOID.Id)
+                        opchains.append(SpinOperatorConverter.to_spin_opchain(
+                            OpChain(oids, qnums, coeff, a)))
+        graph = OpGraph.from_opchains(opchains, nsites, SpinMolecularOID.I)
 
     else:
         # explicit construction (typically faster, but does not optimize cases
         # of zero coefficients, and is slightly sub-optimal close to boundary)
-        assert L >= 2
-        nodes = SpinMolecularOpGraphNodes(L)
+        assert nsites >= 2
+        nodes = SpinMolecularOpGraphNodes(nsites)
         graph = nodes.generate_graph()
         # kinetic hopping terms \sum_{i,j,\sigma} t_{i,j} a^{\dagger}_{i,\sigma} a_{j,\sigma}
-        for i in range(L):
-            for j in range(L):
+        for i in range(nsites):
+            for j in range(nsites):
                 for sigma in (0, 1):
                     _spin_molecular_hamiltonian_graph_add_term(
-                        graph, nodes, [(i, sigma, MolecularOID.C), (j, sigma, MolecularOID.A)], tkin[i, j])
-        # interaction terms 1/2 \sum_{i,j,k,l,\sigma,\tau} v_{i,j,k,l} a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{l,\tau} a_{k,\sigma}
-        for i, sigma in itertools.product(range(L), (0, 1)):
-            for j, tau in itertools.product(range(i, L), (0, 1)):
+                        graph, nodes, [(i, sigma, MolecularOID.C),
+                                       (j, sigma, MolecularOID.A)], tkin[i, j])
+        # interaction terms 1/2 \sum_{i,j,k,l,\sigma,\tau} v_{i,j,k,l}
+        #   a^{\dagger}_{i,\sigma} a^{\dagger}_{j,\tau} a_{l,\tau} a_{k,\sigma}
+        for i, sigma in itertools.product(range(nsites), (0, 1)):
+            for j, tau in itertools.product(range(i, nsites), (0, 1)):
                 if (i, sigma) >= (j, tau):
                     continue
-                for k, mu in itertools.product(range(L), (0, 1)):
-                    for l, nu in itertools.product(range(k, L), (0, 1)):
+                for k, mu in itertools.product(range(nsites), (0, 1)):
+                    for l, nu in itertools.product(range(k, nsites), (0, 1)):
                         if (k, mu) >= (l, nu):
                             continue
                         coeff, valid = get_vint_coeff((i, j, k, l), (sigma, tau, mu, nu))
@@ -2237,13 +2367,14 @@ def spin_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                         _spin_molecular_hamiltonian_graph_add_term(
                             graph, nodes, oplist, coeff)
 
-    # skip consistency check for larger L (would take very long)
-    if L <= 10:
+    # skip consistency check for larger nsites (would take very long)
+    if nsites <= 10:
         assert graph.is_consistent()
     opmap = _spin_molecular_hamiltonian_generate_operator_map()
     # convert to MPO
-    mpo = MPO.from_opgraph(qd, graph, opmap, compute_nid_map=(not optimize))
-    # store node information in MPO, to identify virtual bonds by creation and annihilation operators
+    mpo = MPO.from_opgraph(qsite, graph, opmap, compute_nid_map=(not optimize))
+    # store node information in MPO, to identify virtual
+    # bonds by creation and annihilation operators
     if not optimize:
         nodes.copy_nids(mpo)
 
@@ -2270,13 +2401,14 @@ def decode_quantum_number_pair(qnum: int):
     return qa, qb
 
 
-def _local_opchains_to_mpo(qd: Sequence[int], lopchains: Sequence[OpChain], size: int, opmap: Mapping, oid_identity: int) -> MPO:
+def _local_opchains_to_mpo(qsite: Sequence[int], lopchains: Sequence[OpChain],
+                           size: int, opmap: Mapping, oid_identity: int) -> MPO:
     """
     Construct Hamiltonian as MPO based on local operator chains,
     which are shifted along a 1D lattice.
 
     Args:
-        qd: physical quantum numbers at each site
+        qsite: physical quantum numbers at each site
         lopchains: local operator chains
         size: system size, i.e., number of lattice sites
         opmap: local operators as dictionary, using operator IDs as keys
@@ -2293,4 +2425,4 @@ def _local_opchains_to_mpo(qd: Sequence[int], lopchains: Sequence[OpChain], size
             chain.istart = i
             opchains.append(chain)
     graph = OpGraph.from_opchains(opchains, size, oid_identity)
-    return MPO.from_opgraph(qd, graph, opmap)
+    return MPO.from_opgraph(qsite, graph, opmap)

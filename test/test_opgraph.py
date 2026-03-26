@@ -48,7 +48,7 @@ def test_opgraph_node_depth():
 def test_opgraph_merge_edges():
 
     # physical quantum numbers
-    qd = np.array([-1, 0, 2, 0])
+    qsite = np.array([-1, 0, 2, 0])
 
     graph = _generate_graph()
     assert graph.is_consistent()
@@ -58,23 +58,23 @@ def test_opgraph_merge_edges():
 
     # random local operators
     rng = np.random.default_rng()
-    opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-8, 1) }
+    opmap = { opid: ptn.crandn(2 * (len(qsite),), rng) for opid in range(-8, 1) }
     # enforce sparsity pattern according to quantum numbers
     for edge in graph.edges.values():
-        qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
-        mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+        qbonds_loc = [graph.nodes[nid].qnum for nid in edge.nids]
+        mask = ptn.qnumber_outer_sum([qsite, -qsite, [qbonds_loc[0]], [-qbonds_loc[1]]])[:, :, 0, 0]
         for opid, _ in edge.opics:
             opmap[opid] = np.where(mask == 0, opmap[opid], 0)
 
     # logical operation of initial graph as matrix
-    mat0 = graph.as_matrix(opmap, 1)
+    mat0 = graph.to_matrix(opmap, 1)
     # must be independent of direction
-    assert np.allclose(graph.as_matrix(opmap, 0), mat0)
+    assert np.allclose(graph.to_matrix(opmap, 0), mat0)
 
     # convert initial graph to an MPO
-    mpo0 = ptn.MPO.from_opgraph(qd, graph, opmap)
+    mpo0 = ptn.MPO.from_opgraph(qsite, graph, opmap)
     assert mpo0.bond_dims == [1, 4, 3, 1]
-    assert np.allclose(mat0, mpo0.as_matrix())
+    assert np.allclose(mat0, mpo0.to_matrix())
 
     graph.merge_edges(11, 14, 1)
     assert graph.is_consistent()
@@ -93,14 +93,14 @@ def test_opgraph_merge_edges():
     assert graph.is_consistent()
 
     # logical operation of final graph as matrix
-    mat1 = graph.as_matrix(opmap, 1)
+    mat1 = graph.to_matrix(opmap, 1)
     # must be independent of direction
-    assert np.allclose(graph.as_matrix(opmap, 1), mat1)
+    assert np.allclose(graph.to_matrix(opmap, 1), mat1)
 
     # convert final graph to an MPO
-    mpo1 = ptn.MPO.from_opgraph(qd, graph, opmap)
+    mpo1 = ptn.MPO.from_opgraph(qsite, graph, opmap)
     assert mpo1.bond_dims == [1, 2, 2, 1]
-    assert np.allclose(mat1, mpo1.as_matrix())
+    assert np.allclose(mat1, mpo1.to_matrix())
 
     # compare matrix representations
     assert np.allclose(mat1, mat0)
@@ -109,7 +109,7 @@ def test_opgraph_merge_edges():
 def test_opgraph_insert_opchain():
 
     # physical quantum numbers
-    qd = np.array([-1, 0, 2, 0])
+    qsite = np.array([-1, 0, 2, 0])
 
     for direction in (0, 1):
         graph = _generate_graph()
@@ -125,34 +125,38 @@ def test_opgraph_insert_opchain():
 
         # random local operators
         rng = np.random.default_rng()
-        opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-8, 3) }
+        opmap = { opid: ptn.crandn(2 * (len(qsite),), rng) for opid in range(-8, 3) }
         # enforce sparsity pattern according to quantum numbers
         for edge in graph.edges.values():
-            qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
-            mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+            qbonds_loc = [graph.nodes[nid].qnum for nid in edge.nids]
+            mask = ptn.qnumber_outer_sum(
+                [qsite, -qsite, [qbonds_loc[0]], [-qbonds_loc[1]]])[:, :, 0, 0]
             for opid, _ in edge.opics:
                 opmap[opid] = np.where(mask == 0, opmap[opid], 0)
         # quantum numbers for to-be inserted quantum chain
-        qnums_chain_ext = [graph.nodes[nid_start_chain].qnum] + qnums_chain + [graph.nodes[nid_end_chain].qnum]
+        qnums_chain_ext = [graph.nodes[nid_start_chain].qnum] \
+            + qnums_chain + [graph.nodes[nid_end_chain].qnum]
         for i, opid in enumerate(opids_chain):
-            qDloc = qnums_chain_ext[i:i+2]
-            mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[1-direction]], [-qDloc[direction]]])[:, :, 0, 0]
+            qbonds_loc = qnums_chain_ext[i:i+2]
+            mask = ptn.qnumber_outer_sum(
+                [qsite, -qsite, [qbonds_loc[1-direction]], [-qbonds_loc[direction]]])[:, :, 0, 0]
             opmap[opid] = np.where(mask == 0, opmap[opid], 0)
 
         # matrix representation of operator chain
         mat_chain = np.identity(1)
-        for opid, coeff in (zip(opids_chain, coeff_chain) if direction == 1 else zip(reversed(opids_chain), reversed(coeff_chain))):
+        for opid, coeff in (zip(opids_chain, coeff_chain) if direction == 1
+                            else zip(reversed(opids_chain), reversed(coeff_chain))):
             mat_chain = np.kron(mat_chain, coeff * opmap[opid])
 
         # logical operation of initial graph as matrix
-        mat0 = graph.as_matrix(opmap)
+        mat0 = graph.to_matrix(opmap)
 
         # insert the operator chain
         graph._insert_opchain(nid_start_chain, nid_end_chain, opids_chain, coeff_chain, qnums_chain, direction)
         assert graph.is_consistent()
 
         # logical operation of final graph as matrix
-        mat1 = graph.as_matrix(opmap)
+        mat1 = graph.to_matrix(opmap)
 
         # compare matrix representations, taking upstream connections of terminal nodes into account
         assert np.allclose(mat1,
@@ -164,7 +168,7 @@ def test_opgraph_from_opchains():
     rng = np.random.default_rng()
 
     # physical quantum numbers
-    qd = np.array([-1, 0, 2, 0])
+    qsite = np.array([-1, 0, 2, 0])
     # overall system size of operator graph
     size = 5
 
@@ -187,13 +191,15 @@ def test_opgraph_from_opchains():
     assert graph.length == size
 
     # random local operators
-    opmap = { opid: np.identity(len(qd)) if opid == oid_identity else ptn.crandn(2 * (len(qd),), rng)
+    opmap = { opid: np.identity(len(qsite)) if opid == oid_identity
+              else ptn.crandn(2 * (len(qsite),), rng)
                 for opid in range(17) }
     # enforce sparsity pattern according to quantum numbers
     for chain in chains:
         for i, opid in enumerate(chain.oids):
-            qDloc = chain.qnums[i:i+2]
-            mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+            qbonds_loc = chain.qnums[i:i+2]
+            mask = ptn.qnumber_outer_sum(
+                [qsite, -qsite, [qbonds_loc[0]], [-qbonds_loc[1]]])[:, :, 0, 0]
             opmap[opid] = np.where(mask == 0, opmap[opid], 0)
 
     # reference matrix representation of operator chains
@@ -201,14 +207,14 @@ def test_opgraph_from_opchains():
     for chain in chains:
         # including leading and trailing identity maps
         mat_ref = mat_ref + np.kron(np.kron(
-            np.identity(len(qd)**chain.istart),
-            chain.as_matrix(opmap)),
-            np.identity(len(qd)**(size - (chain.istart + chain.length))))
+            np.identity(len(qsite)**chain.istart),
+            chain.to_matrix(opmap)),
+            np.identity(len(qsite)**(size - (chain.istart + chain.length))))
 
     # compare matrix representations
-    assert np.allclose(graph.as_matrix(opmap), mat_ref)
-    mpo = ptn.MPO.from_opgraph(qd, graph, opmap)
-    assert np.allclose(mpo.as_matrix(), mat_ref)
+    assert np.allclose(graph.to_matrix(opmap), mat_ref)
+    mpo = ptn.MPO.from_opgraph(qsite, graph, opmap)
+    assert np.allclose(mpo.to_matrix(), mat_ref)
 
 
 def _generate_tree1():
@@ -218,16 +224,21 @@ def _generate_tree1():
     node_j = ptn.OpTreeNode([], 0)
     node_k = ptn.OpTreeNode([], 0)
     # node depth 2
-    node_d = ptn.OpTreeNode([ptn.OpTreeEdge(-7, -0.9, node_i), ptn.OpTreeEdge(-2,  0.7, node_j)], -1)
+    node_d = ptn.OpTreeNode([ptn.OpTreeEdge(-7, -0.9, node_i),
+                             ptn.OpTreeEdge(-2,  0.7, node_j)], -1)
     node_e = ptn.OpTreeNode([], 0)
     node_f = ptn.OpTreeNode([ptn.OpTreeEdge(-5,  0.4, node_k)], -1)
     node_g = ptn.OpTreeNode([], 0)
     node_h = ptn.OpTreeNode([], 0)
     # node depth 1
-    node_b = ptn.OpTreeNode([ptn.OpTreeEdge(-8, -0.2, node_d), ptn.OpTreeEdge(-4, -0.6, node_e)], 0)
-    node_c = ptn.OpTreeNode([ptn.OpTreeEdge(-1,  1.1, node_f), ptn.OpTreeEdge(-6,  0.4, node_g), ptn.OpTreeEdge(-10,  0.8, node_h)], 1)
+    node_b = ptn.OpTreeNode([ptn.OpTreeEdge(-8, -0.2, node_d),
+                             ptn.OpTreeEdge(-4, -0.6, node_e)], 0)
+    node_c = ptn.OpTreeNode([ptn.OpTreeEdge(-1,  1.1, node_f),
+                             ptn.OpTreeEdge(-6,  0.4, node_g),
+                             ptn.OpTreeEdge(-10, 0.8, node_h)], 1)
     # node depth 0
-    node_a = ptn.OpTreeNode([ptn.OpTreeEdge(-9,  1.7, node_b), ptn.OpTreeEdge(-3, -0.5, node_c)], 0)
+    node_a = ptn.OpTreeNode([ptn.OpTreeEdge(-9,  1.7, node_b),
+                             ptn.OpTreeEdge(-3, -0.5, node_c)], 0)
 
     return ptn.OpTree(node_a, 0)
 
@@ -240,10 +251,13 @@ def _generate_tree2():
     node_g = ptn.OpTreeNode([], 0)
     # node depth 1
     node_b = ptn.OpTreeNode([ptn.OpTreeEdge( 2,  2.1, node_e)], 1)
-    node_c = ptn.OpTreeNode([ptn.OpTreeEdge( 1, -0.7, node_f), ptn.OpTreeEdge( 4, -1.3, node_g)], -2)
+    node_c = ptn.OpTreeNode([ptn.OpTreeEdge( 1, -0.7, node_f),
+                             ptn.OpTreeEdge( 4, -1.3, node_g)], -2)
     node_d = ptn.OpTreeNode([], 0)
     # node depth 0
-    node_a = ptn.OpTreeNode([ptn.OpTreeEdge( 5,  0.4, node_b), ptn.OpTreeEdge(-1,  0.1, node_c), ptn.OpTreeEdge( 3,  1.5, node_d)], 0)
+    node_a = ptn.OpTreeNode([ptn.OpTreeEdge( 5,  0.4, node_b),
+                             ptn.OpTreeEdge(-1,  0.1, node_c),
+                             ptn.OpTreeEdge( 3,  1.5, node_d)], 0)
 
     return ptn.OpTree(node_a, 2)
 
@@ -251,7 +265,7 @@ def _generate_tree2():
 def test_opgraph_from_optrees():
 
     # physical quantum numbers
-    qd = np.array([1, 0, -2, 0])
+    qsite = np.array([1, 0, -2, 0])
 
     # construct two trees
     tree1 = _generate_tree1()
@@ -265,57 +279,58 @@ def test_opgraph_from_optrees():
 
     # random local operators
     rng = np.random.default_rng()
-    opmap = { opid: np.identity(len(qd)) if opid == 0 else ptn.crandn(2 * (len(qd),), rng)
+    opmap = { opid: np.identity(len(qsite)) if opid == 0 else ptn.crandn(2 * (len(qsite),), rng)
               for opid in range(-10, 6) }
-    enforce_tree_operator_sparsity(tree1.root, qd, opmap)
-    enforce_tree_operator_sparsity(tree2.root, qd, opmap)
+    enforce_tree_operator_sparsity(tree1.root, qsite, opmap)
+    enforce_tree_operator_sparsity(tree2.root, qsite, opmap)
 
     # reference matrix representation
-    mat_ref = (np.kron(tree1.as_matrix(opmap), np.identity(len(qd)))
-                + np.kron(np.identity(len(qd)**tree2.istart), tree2.as_matrix(opmap)))
+    mat_ref = (np.kron(tree1.to_matrix(opmap), np.identity(len(qsite)))
+                + np.kron(np.identity(len(qsite)**tree2.istart), tree2.to_matrix(opmap)))
 
     # compare matrix representations
-    assert np.allclose(graph.as_matrix(opmap), mat_ref)
-    mpo = ptn.MPO.from_opgraph(qd, graph, opmap)
-    assert np.allclose(mpo.as_matrix(), mat_ref)
+    assert np.allclose(graph.to_matrix(opmap), mat_ref)
+    mpo = ptn.MPO.from_opgraph(qsite, graph, opmap)
+    assert np.allclose(mpo.to_matrix(), mat_ref)
 
 
 def test_opgraph_simplify():
 
     # physical quantum numbers
-    qd = np.array([-1, 0, 2, 0])
+    qsite = np.array([-1, 0, 2, 0])
 
     graph = _generate_graph()
     assert graph.is_consistent()
 
     # random local operators
     rng = np.random.default_rng()
-    opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-8, 1) }
+    opmap = { opid: ptn.crandn(2 * (len(qsite),), rng) for opid in range(-8, 1) }
     # enforce sparsity pattern according to quantum numbers
     for edge in graph.edges.values():
-        qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
-        mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+        qbonds_loc = [graph.nodes[nid].qnum for nid in edge.nids]
+        mask = ptn.qnumber_outer_sum(
+            [qsite, -qsite, [qbonds_loc[0]], [-qbonds_loc[1]]])[:, :, 0, 0]
         for opid, _ in edge.opics:
             opmap[opid] = np.where(mask == 0, opmap[opid], 0)
 
     # logical operation of initial graph as matrix
-    mat0 = graph.as_matrix(opmap)
+    mat0 = graph.to_matrix(opmap)
 
     # convert initial graph to an MPO
-    mpo0 = ptn.MPO.from_opgraph(qd, graph, opmap)
+    mpo0 = ptn.MPO.from_opgraph(qsite, graph, opmap)
     assert mpo0.bond_dims == [1, 4, 3, 1]
-    assert np.allclose(mat0, mpo0.as_matrix())
+    assert np.allclose(mat0, mpo0.to_matrix())
 
     graph.simplify()
     assert graph.is_consistent()
 
     # logical operation of final graph as matrix
-    mat1 = graph.as_matrix(opmap)
+    mat1 = graph.to_matrix(opmap)
 
     # convert final graph to an MPO
-    mpo1 = ptn.MPO.from_opgraph(qd, graph, opmap)
+    mpo1 = ptn.MPO.from_opgraph(qsite, graph, opmap)
     assert mpo1.bond_dims == [1, 2, 2, 1]
-    assert np.allclose(mat1, mpo1.as_matrix())
+    assert np.allclose(mat1, mpo1.to_matrix())
 
     # compare matrix representations
     assert np.allclose(mat1, mat0)
@@ -324,59 +339,61 @@ def test_opgraph_simplify():
 def test_opgraph_flip():
 
     # physical quantum numbers
-    qd = np.array([-1, 0, 2, 0])
+    qsite = np.array([-1, 0, 2, 0])
 
     graph = _generate_graph()
     assert graph.is_consistent()
 
     # random local operators
     rng = np.random.default_rng()
-    opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-8, 1) }
+    opmap = { opid: ptn.crandn(2 * (len(qsite),), rng) for opid in range(-8, 1) }
     # enforce sparsity pattern according to quantum numbers
     for edge in graph.edges.values():
-        qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
-        mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+        qbonds_loc = [graph.nodes[nid].qnum for nid in edge.nids]
+        mask = ptn.qnumber_outer_sum(
+            [qsite, -qsite, [qbonds_loc[0]], [-qbonds_loc[1]]])[:, :, 0, 0]
         for opid, _ in edge.opics:
             opmap[opid] = np.where(mask == 0, opmap[opid], 0)
 
     # logical operation of graph as matrix
-    mat = graph.as_matrix(opmap)
+    mat = graph.to_matrix(opmap)
 
     # flip the graph
     graph.flip()
     assert graph.is_consistent()
 
-    mat_flip = graph.as_matrix(opmap)
+    mat_flip = graph.to_matrix(opmap)
 
     # compare matrix representations
     assert np.allclose(mat_flip,
-                       permute_operation(len(qd), mat, reversed(range(graph.length))))
+                       permute_operation(len(qsite), mat, reversed(range(graph.length))))
 
 
 def test_opgraph_rename():
 
     # physical quantum numbers
-    qd = np.array([-1, 0, 2, 0])
+    qsite = np.array([-1, 0, 2, 0])
 
     graph = _generate_graph()
     assert graph.is_consistent()
 
     # random local operators
     rng = np.random.default_rng()
-    opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-8, 1) }
+    opmap = { opid: ptn.crandn(2 * (len(qsite),), rng) for opid in range(-8, 1) }
     # enforce sparsity pattern according to quantum numbers
     for edge in graph.edges.values():
-        qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
-        mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+        qbonds_loc = [graph.nodes[nid].qnum for nid in edge.nids]
+        mask = ptn.qnumber_outer_sum(
+            [qsite, -qsite, [qbonds_loc[0]], [-qbonds_loc[1]]])[:, :, 0, 0]
         for opid, _ in edge.opics:
             opmap[opid] = np.where(mask == 0, opmap[opid], 0)
 
     # logical operation of initial graph as matrix
-    mat0 = graph.as_matrix(opmap)
+    mat0 = graph.to_matrix(opmap)
 
     # convert initial graph to an MPO
-    mpo0 = ptn.MPO.from_opgraph(qd, graph, opmap)
-    assert np.allclose(mat0, mpo0.as_matrix())
+    mpo0 = ptn.MPO.from_opgraph(qsite, graph, opmap)
+    assert np.allclose(mat0, mpo0.to_matrix())
 
     # interleaved node and edge renaming
     graph.rename_node_id( 8, -8)
@@ -390,11 +407,11 @@ def test_opgraph_rename():
     assert graph.nid_terminal[1] == 3
 
     # logical operation of final graph as matrix
-    mat1 = graph.as_matrix(opmap)
+    mat1 = graph.to_matrix(opmap)
 
     # convert final graph to an MPO
-    mpo1 = ptn.MPO.from_opgraph(qd, graph, opmap)
-    assert np.allclose(mat1, mpo1.as_matrix())
+    mpo1 = ptn.MPO.from_opgraph(qsite, graph, opmap)
+    assert np.allclose(mat1, mpo1.to_matrix())
 
     # compare matrix representations
     assert np.allclose(mat1, mat0)
@@ -428,7 +445,7 @@ def _generate_another_graph():
 def test_opgraph_add():
 
     # physical quantum numbers
-    qd = np.array([-1, 0, 2, 0])
+    qsite = np.array([-1, 0, 2, 0])
 
     graph = _generate_graph()
     graph_b = _generate_another_graph()
@@ -437,35 +454,36 @@ def test_opgraph_add():
 
     # random local operators
     rng = np.random.default_rng()
-    opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-13, 1) }
+    opmap = { opid: ptn.crandn(2 * (len(qsite),), rng) for opid in range(-13, 1) }
     # enforce sparsity pattern according to quantum numbers
     for graph in (graph, graph_b):
         for edge in graph.edges.values():
-            qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
-            mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+            qbonds_loc = [graph.nodes[nid].qnum for nid in edge.nids]
+            mask = ptn.qnumber_outer_sum(
+                [qsite, -qsite, [qbonds_loc[0]], [-qbonds_loc[1]]])[:, :, 0, 0]
             for opid, _ in edge.opics:
                 opmap[opid] = np.where(mask == 0, opmap[opid], 0)
 
     # logical operation of graph as matrix
-    mat_a = graph.as_matrix(opmap)
-    mat_b = graph_b.as_matrix(opmap)
+    mat_a = graph.to_matrix(opmap)
+    mat_b = graph_b.to_matrix(opmap)
 
     graph.add(graph_b)
     assert graph.is_consistent()
     assert graph_b.is_consistent()
 
     # compare matrix representations
-    assert np.allclose(graph.as_matrix(opmap), mat_a + mat_b)
+    assert np.allclose(graph.to_matrix(opmap), mat_a + mat_b)
 
 
-def enforce_tree_operator_sparsity(root: ptn.OpTreeNode, qd, opmap):
+def enforce_tree_operator_sparsity(root: ptn.OpTreeNode, qsite, opmap):
     """
     Enforce sparsity pattern of local operators in the tree according to quantum numbers.
     """
     for edge in root.children:
-        mask = ptn.qnumber_outer_sum([qd, -qd, [root.qnum], [-edge.node.qnum]])[:, :, 0, 0]
+        mask = ptn.qnumber_outer_sum([qsite, -qsite, [root.qnum], [-edge.node.qnum]])[:, :, 0, 0]
         opmap[edge.oid] = np.where(mask == 0, opmap[edge.oid], 0)
-        enforce_tree_operator_sparsity(edge.node, qd, opmap)
+        enforce_tree_operator_sparsity(edge.node, qsite, opmap)
 
 
 def permute_operation(d: int, u, perm):

@@ -8,68 +8,70 @@ def test_mpo_orthonormalization():
 
     # create random matrix product operator
     d = 4
-    D = [1, 10, 13, 14, 7, 1]
+    b = [1, 10, 13, 14, 7, 1]
     mpo0 = ptn.MPO(rng.integers(-2, 3, size=d),
-                   [rng.integers(-2, 3, size=Di) for Di in D], fill="random", rng=rng)
+                   [rng.integers(-2, 3, size=bi) for bi in b], fill="random", rng=rng)
 
-    assert mpo0.bond_dims == D, "virtual bond dimensions do not match reference values"
+    assert mpo0.bond_dims == b, "virtual bond dimensions do not match reference values"
 
     # density matrix on full Hilbert space
-    rho = mpo0.as_matrix()
+    rho = mpo0.to_matrix()
 
     # performing left-orthonormalization...
-    cL = mpo0.orthonormalize(mode="left")
+    c_left = mpo0.orthonormalize(mode="left")
 
     assert mpo0.bond_dims[1] <= d**2, \
-        "virtual bond dimension can only increase by factor of \"d^2\" per site"
+        "virtual bond dimension can only increase by factor of `d^2` per site"
 
     for i in range(mpo0.nsites):
-        assert ptn.is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]), \
+        assert ptn.is_qsparse(mpo0.a[i],
+            [mpo0.qsite, -mpo0.qsite, mpo0.qbonds[i], -mpo0.qbonds[i+1]]), \
             "sparsity pattern of MPO tensors must match quantum numbers"
 
-    rhoL = mpo0.as_matrix()
+    rho_left = mpo0.to_matrix()
     # density matrix should now be normalized
-    assert np.allclose(np.linalg.norm(rhoL, "fro"), 1., rtol=1e-12), \
+    assert np.allclose(np.linalg.norm(rho_left, "fro"), 1., rtol=1e-12), \
         "operator must be normalized after left-orthonormalization"
 
     # density matrices before and after left-normalization must match
     # (up to normalization factor)
-    assert np.allclose(cL*rhoL, rho, rtol=1e-10), \
+    assert np.allclose(c_left*rho_left, rho, rtol=1e-10), \
         "density matrices before and after left-normalization must match"
 
     # check left-orthonormalization
     for i in range(mpo0.nsites):
-        s = mpo0.A[i].shape
+        s = mpo0.a[i].shape
         assert s[0] == d and s[1] == d
-        Q = mpo0.A[i].reshape((s[0]*s[1]*s[2], s[3]))
-        assert np.allclose(Q.conj().T @ Q, np.identity(s[3]), rtol=1e-12), \
-            "left-orthonormalization"
+        q = mpo0.a[i].reshape((s[0]*s[1]*s[2], s[3]))
+        assert np.allclose(q.conj().T @ q, np.identity(s[3]), rtol=1e-12), \
+            "MPO tensor is not an isometry after left-orthonormalization"
 
     # performing right-orthonormalization...
-    cR = mpo0.orthonormalize(mode="right")
+    c_right = mpo0.orthonormalize(mode="right")
 
     assert mpo0.bond_dims[-2] <= d**2, \
-        "virtual bond dimension can only increase by a factor of \"d^2\" per site"
+        "virtual bond dimension can only increase by a factor of `d^2` per site"
 
     for i in range(mpo0.nsites):
-        assert ptn.is_qsparse(mpo0.A[i], [mpo0.qd, -mpo0.qd, mpo0.qD[i], -mpo0.qD[i+1]]), \
+        assert ptn.is_qsparse(mpo0.a[i],
+            [mpo0.qsite, -mpo0.qsite, mpo0.qbonds[i], -mpo0.qbonds[i+1]]), \
             "sparsity pattern of MPO tensors must match quantum numbers"
 
-    assert abs(abs(cR) - 1.) <= 1e-12, \
+    assert abs(abs(c_right) - 1.) <= 1e-12, \
         "normalization factor must have magnitude 1 due to previous left-orthonormalization"
 
-    rhoR = mpo0.as_matrix()
+    rho_right = mpo0.to_matrix()
     # density matrices must match
-    assert np.linalg.norm(rhoL - cR*rhoR) < 1e-10, \
+    assert np.linalg.norm(rho_left - c_right*rho_right) < 1e-10, \
         "density matrices after left- and right-orthonormalization must match"
 
     # check right-orthonormalization
     for i in range(mpo0.nsites):
-        s = mpo0.A[i].shape
+        s = mpo0.a[i].shape
         assert s[0] == d and s[1] == d
-        Q = mpo0.A[i].transpose((0, 1, 3, 2)).reshape((s[0]*s[1]*s[3], s[2]))
-        assert np.allclose(Q.conj().T @ Q, np.identity(s[2]), rtol=1e-12), \
-            "right-orthonormalization"
+        q = mpo0.a[i].transpose((0, 1, 3, 2)).reshape((s[0]*s[1]*s[3], s[2]))
+        assert np.allclose(q.conj().T @ q, np.identity(s[2]), rtol=1e-12), \
+            "MPO tensor is not an isometry after right-orthonormalization"
 
 
 def test_mpo_identity():
@@ -78,16 +80,16 @@ def test_mpo_identity():
 
     # dimensions
     d = 3
-    L = 6
+    nsites = 6
 
     # physical quantum numbers
-    qd = rng.integers(-2, 3, size=d)
+    qsite = rng.integers(-2, 3, size=d)
 
     # construct MPO representation of identity
-    idop = ptn.MPO.identity(qd, L)
+    idop = ptn.MPO.identity(qsite, nsites)
 
-    assert np.array_equal(idop.as_matrix(), np.identity(d**L)), \
-        "MPO representation of identity"
+    assert np.array_equal(idop.to_matrix(), np.identity(d**nsites)), \
+        "MPO must represent the identity map"
 
 
 def test_mpo_from_opgraph():
@@ -95,10 +97,10 @@ def test_mpo_from_opgraph():
     rng = np.random.default_rng()
 
     # lattice size
-    L = 5
+    nsites = 5
 
     # physical quantum numbers
-    qd = np.array([-1, 0, 2, 0])
+    qsite = np.array([-1, 0, 2, 0])
 
     # generate a symbolic operator graph
     graph = ptn.opgraph.OpGraph(
@@ -126,20 +128,20 @@ def test_mpo_from_opgraph():
     assert graph.is_consistent()
 
     # random local operators
-    opmap = { opid: ptn.crandn(2 * (len(qd),), rng) for opid in range(-10, 1) }
+    opmap = { opid: ptn.crandn(2 * (len(qsite),), rng) for opid in range(-10, 1) }
     # enforce sparsity pattern according to quantum numbers
     for edge in graph.edges.values():
-        qDloc = [graph.nodes[nid].qnum for nid in edge.nids]
-        mask = ptn.qnumber_outer_sum([qd, -qd, [qDloc[0]], [-qDloc[1]]])[:, :, 0, 0]
+        qbonds_loc = [graph.nodes[nid].qnum for nid in edge.nids]
+        mask = ptn.qnumber_outer_sum([qsite, -qsite, [qbonds_loc[0]], [-qbonds_loc[1]]])[:, :, 0, 0]
         for opid, _ in edge.opics:
             opmap[opid] = np.where(mask == 0, opmap[opid], 0)
 
     # convert graph to an MPO
-    mpo = ptn.MPO.from_opgraph(qd, graph, opmap)
+    mpo = ptn.MPO.from_opgraph(qsite, graph, opmap)
     assert mpo.bond_dims == [1, 2, 1, 2, 2, 1]
 
     # compare matrix representations
-    assert np.allclose(mpo.as_matrix(), graph.as_matrix(opmap))
+    assert np.allclose(mpo.to_matrix(), graph.to_matrix(opmap))
 
     # reference operator representation
     opstringids = [
@@ -149,30 +151,30 @@ def test_mpo_from_opgraph():
         [(-2, -0.6), (-1,  0.4), ( 0,  0.5), (-8, -0.3), ( -9, -0.2)],
         [(-5,  1.3), (-4, -1.2), ( 0,  0.5), (-6,  0.8), (-10,  0.9)],
         [(-5,  1.3), (-4, -1.2), ( 0,  0.5), (-8, -0.3), ( -9, -0.2)]]
-    opref = np.zeros(2 * (len(qd)**L,), dtype=complex)
+    opref = np.zeros(2 * (len(qsite)**nsites,), dtype=complex)
     for opstringid in opstringids:
         op = np.identity(1)
         for opid, coeff in opstringid:
             op = np.kron(op, coeff * opmap[opid])
         opref += op
     # compare
-    assert np.allclose(mpo.as_matrix(), opref)
+    assert np.allclose(mpo.to_matrix(), opref)
 
 
-def test_mpo_as_matrix():
+def test_mpo_to_matrix():
 
     rng = np.random.default_rng()
 
     # create a random matrix product operator
-    qd = rng.integers(-2, 3, size=3)
-    qD = [rng.integers(-2, 3, size=Di) for Di in [1, 11, 16, 23, 19, 9, 1]]
-    mpo = ptn.MPO(qd, qD, fill="random", rng=rng)
+    qsite = rng.integers(-2, 3, size=3)
+    qbonds = [rng.integers(-2, 3, size=bi) for bi in [1, 11, 16, 23, 19, 9, 1]]
+    mpo = ptn.MPO(qsite, qbonds, fill="random", rng=rng)
     # rescale to reach norm of order 1
     for i in range(mpo.nsites):
-        mpo.A[i] *= 5
+        mpo.a[i] *= 5
     # matrix representations
-    mat_dense  = mpo.as_matrix(sparse_format=False)
-    mat_sparse = mpo.as_matrix(sparse_format=True)
+    mat_dense  = mpo.to_matrix(sparse_format=False)
+    mat_sparse = mpo.to_matrix(sparse_format=True)
     # compare
     assert np.allclose(mat_dense, mat_sparse.toarray(), rtol=1e-13), \
         "dense and sparse matrix representations of an MPO must agree"
@@ -183,25 +185,25 @@ def test_mpo_add():
     rng = np.random.default_rng()
 
     # physical quantum numbers
-    qd = rng.integers(-2, 3, size=3)
+    qsite = rng.integers(-2, 3, size=3)
 
     # create random matrix product operators
-    qD0 = [rng.integers(-2, 3, size=Di) for Di in [1, 11, 15, 23, 18, 9, 1]]
-    qD1 = [rng.integers(-2, 3, size=Di) for Di in [1, 7, 23, 11, 17, 13, 1]]
+    qbonds0 = [rng.integers(-2, 3, size=bi) for bi in [1, 11, 15, 23, 18, 9, 1]]
+    qbonds1 = [rng.integers(-2, 3, size=bi) for bi in [1, 7, 23, 11, 17, 13, 1]]
     # leading and trailing (dummy) virtual bond quantum numbers must agree
-    qD1[ 0] = qD0[ 0].copy()
-    qD1[-1] = qD0[-1].copy()
-    op0 = ptn.MPO(qd, qD0, fill="random", rng=rng)
-    op1 = ptn.MPO(qd, qD1, fill="random", rng=rng)
+    qbonds1[ 0] = qbonds0[ 0].copy()
+    qbonds1[-1] = qbonds0[-1].copy()
+    op0 = ptn.MPO(qsite, qbonds0, fill="random", rng=rng)
+    op1 = ptn.MPO(qsite, qbonds1, fill="random", rng=rng)
 
     # MPO addition
     op = op0 + op1
 
     # reference calculation
-    op_ref = op0.as_matrix() + op1.as_matrix()
+    op_ref = op0.to_matrix() + op1.to_matrix()
 
     # compare
-    assert np.allclose(op.as_matrix(), op_ref, rtol=1e-12), \
+    assert np.allclose(op.to_matrix(), op_ref, rtol=1e-12), \
         "addition two MPOs must agree with matrix representation"
 
 
@@ -212,22 +214,22 @@ def test_mpo_add_singlesite():
     rng = np.random.default_rng()
 
     # physical quantum numbers
-    qd = rng.integers(-2, 3, size=5)
+    qsite = rng.integers(-2, 3, size=5)
 
     # create random matrix product operators acting on a single site
     # leading and trailing (dummy) virtual bond quantum numbers
-    qD = [np.array([-1]), np.array([-2])]
-    op0 = ptn.MPO(qd, qD, fill="random", rng=rng)
-    op1 = ptn.MPO(qd, qD, fill="random", rng=rng)
+    qbonds = [np.array([-1]), np.array([-2])]
+    op0 = ptn.MPO(qsite, qbonds, fill="random", rng=rng)
+    op1 = ptn.MPO(qsite, qbonds, fill="random", rng=rng)
 
     # MPO addition
     op = op0 + op1
 
     # reference calculation
-    op_ref = op0.as_matrix() + op1.as_matrix()
+    op_ref = op0.to_matrix() + op1.to_matrix()
 
     # compare
-    assert np.allclose(op.as_matrix(), op_ref, rtol=1e-12), \
+    assert np.allclose(op.to_matrix(), op_ref, rtol=1e-12), \
         "addition two MPOs must agree with matrix representation"
 
 
@@ -236,25 +238,25 @@ def test_mpo_sub():
     rng = np.random.default_rng()
 
     # physical quantum numbers
-    qd = rng.integers(-2, 3, size=3)
+    qsite = rng.integers(-2, 3, size=3)
 
     # create random matrix product operators
-    qD0 = [rng.integers(-2, 3, size=Di) for Di in [1, 11, 15, 23, 18, 9, 1]]
-    qD1 = [rng.integers(-2, 3, size=Di) for Di in [1, 7, 23, 11, 17, 13, 1]]
+    qbonds0 = [rng.integers(-2, 3, size=bi) for bi in [1, 11, 15, 23, 18, 9, 1]]
+    qbonds1 = [rng.integers(-2, 3, size=bi) for bi in [1, 7, 23, 11, 17, 13, 1]]
     # leading and trailing (dummy) virtual bond quantum numbers must agree
-    qD1[ 0] = qD0[ 0].copy()
-    qD1[-1] = qD0[-1].copy()
-    op0 = ptn.MPO(qd, qD0, fill="random", rng=rng)
-    op1 = ptn.MPO(qd, qD1, fill="random", rng=rng)
+    qbonds1[ 0] = qbonds0[ 0].copy()
+    qbonds1[-1] = qbonds0[-1].copy()
+    op0 = ptn.MPO(qsite, qbonds0, fill="random", rng=rng)
+    op1 = ptn.MPO(qsite, qbonds1, fill="random", rng=rng)
 
     # MPO subtraction
     op = op0 - op1
 
     # reference calculation
-    op_ref = op0.as_matrix() - op1.as_matrix()
+    op_ref = op0.to_matrix() - op1.to_matrix()
 
     # compare
-    assert np.allclose(op.as_matrix(), op_ref, rtol=1e-12), \
+    assert np.allclose(op.to_matrix(), op_ref, rtol=1e-12), \
         "subtraction two MPOs must agree with matrix representation"
 
 
@@ -265,22 +267,22 @@ def test_mpo_sub_singlesite():
     rng = np.random.default_rng()
 
     # physical quantum numbers
-    qd = rng.integers(-2, 3, size=5)
+    qsite = rng.integers(-2, 3, size=5)
 
     # create random matrix product operators acting on a single site
     # leading and trailing (dummy) virtual bond quantum numbers
-    qD = [np.array([-1]), np.array([-2])]
-    op0 = ptn.MPO(qd, qD, fill="random", rng=rng)
-    op1 = ptn.MPO(qd, qD, fill="random", rng=rng)
+    qbonds = [np.array([-1]), np.array([-2])]
+    op0 = ptn.MPO(qsite, qbonds, fill="random", rng=rng)
+    op1 = ptn.MPO(qsite, qbonds, fill="random", rng=rng)
 
     # MPO subtraction
     op = op0 - op1
 
     # reference calculation
-    op_ref = op0.as_matrix() - op1.as_matrix()
+    op_ref = op0.to_matrix() - op1.to_matrix()
 
     # compare
-    assert np.allclose(op.as_matrix(), op_ref, rtol=1e-12), \
+    assert np.allclose(op.to_matrix(), op_ref, rtol=1e-12), \
         "subtraction two MPOs must agree with matrix representation"
 
 
@@ -289,20 +291,20 @@ def test_mpo_multiply():
     rng = np.random.default_rng()
 
     # physical quantum numbers
-    qd = rng.integers(-2, 3, size=3)
+    qsite = rng.integers(-2, 3, size=3)
 
     # create random matrix product operators
-    op0 = ptn.MPO(qd, [rng.integers(-2, 3, size=Di) for Di in [1, 10, 13, 24, 17, 9, 1]],
+    op0 = ptn.MPO(qsite, [rng.integers(-2, 3, size=bi) for bi in [1, 10, 13, 24, 17, 9, 1]],
                   fill="random", rng=rng)
-    op1 = ptn.MPO(qd, [rng.integers(-2, 3, size=Di) for Di in [1, 8, 17, 11, 23, 13, 1]],
+    op1 = ptn.MPO(qsite, [rng.integers(-2, 3, size=bi) for bi in [1, 8, 17, 11, 23, 13, 1]],
                   fill="random", rng=rng)
 
     # MPO multiplication (composition)
     op = op0 @ op1
 
     # reference calculation
-    op_ref = op0.as_matrix() @ op1.as_matrix()
+    op_ref = op0.to_matrix() @ op1.to_matrix()
 
     # compare
-    assert np.allclose(op.as_matrix(), op_ref, rtol=1e-12), \
+    assert np.allclose(op.to_matrix(), op_ref, rtol=1e-12), \
         "composition of two MPOs must agree with matrix representation"

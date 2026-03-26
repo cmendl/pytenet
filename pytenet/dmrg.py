@@ -1,24 +1,29 @@
+"""
+DMRG algorithm.
+"""
+
 import numpy as np
-from .mps import MPS, local_orthonormalize_left_qr, local_orthonormalize_right_qr, merge_mps_tensor_pair, split_mps_tensor
-from .mpo import MPO, merge_mpo_tensor_pair
-from .operation import (
-        contraction_operator_step_right,
-        contraction_operator_step_left,
-        compute_right_operator_blocks,
-        apply_local_hamiltonian)
+from .mps import (MPS, mps_local_orthonormalize_left_qr, mps_local_orthonormalize_right_qr,
+                  mps_merge_tensor_pair, mps_split_tensor_svd)
+from .mpo import MPO, mpo_merge_tensor_pair
+from .operation import (contraction_operator_step_right, contraction_operator_step_left,
+                        compute_right_operator_blocks, apply_local_hamiltonian)
 from .krylov import eigh_krylov
-from .qnumber import is_qsparse
+from .block_sparse_util import is_qsparse
 
-__all__ = ['dmrg_singlesite', 'dmrg_twosite']
+__all__ = ["dmrg_singlesite", "dmrg_twosite"]
 
 
-def dmrg_singlesite(H: MPO, psi: MPS, numsweeps: int, numiter_lanczos: int = 25):
+def dmrg_singlesite(hamiltonian: MPO, psi: MPS, numsweeps: int, numiter_lanczos: int = 25):
     """
-    Approximate the ground state MPS by left and right sweeps and local single-site optimizations
-    (single-site DMRG algorithm). Virtual bond dimensions of starting state `psi` can only decrease.
+    Run the single-site DMRG algorithm: Approximate the ground state as MPS
+    via left- and right-sweeping and local single-site optimizations.
+    The input `psi` is used as the starting state
+    and is updated in-place during the optimization.
+    Its virtual bond dimensions cannot increase.
 
     Args:
-        H: Hamiltonian as MPO
+        hamiltonian: Hamiltonian as MPO
         psi: initial MPS used for optimization; will be overwritten
         numsweeps: maximum number of left and right sweeps
         numiter_lanczos: number of local Lanczos iterations
@@ -27,28 +32,28 @@ def dmrg_singlesite(H: MPO, psi: MPS, numsweeps: int, numiter_lanczos: int = 25)
         numpy.ndarray: array of approximate ground state energies after each iteration
 
     Reference:
-        Ulrich Schollw"ock
+        Ulrich Schollwöck
         The density-matrix renormalization group in the age of matrix product states
         Annals of Physics 326, 96-192 (2011)
     """
 
     # number of lattice sites
-    L = H.nsites
-    assert L == psi.nsites
+    nsites = hamiltonian.nsites
+    assert nsites == psi.nsites
 
     # right-normalize input matrix product state
-    psi.orthonormalize(mode='right')
+    psi.orthonormalize(mode="right")
 
     # left and right operator blocks
-    # initialize leftmost block by 1x1x1 identity
-    BR = compute_right_operator_blocks(psi, H)
-    BL = [None for _ in range(L)]
-    BL[0] = np.array([[[1]]], dtype=BR[0].dtype)
+    # initialize leftmost block by 1 x 1 x 1 identity
+    rblocks = compute_right_operator_blocks(psi, hamiltonian)
+    lblocks = [None for _ in range(nsites)]
+    lblocks[0] = np.array([[[1]]], dtype=rblocks[0].dtype)
 
     # consistency check
-    for i in range(len(BR)):
-        assert is_qsparse(BR[i], [psi.qD[i+1], H.qD[i+1], -psi.qD[i+1]]), \
-            'sparsity pattern of operator blocks must match quantum numbers'
+    for i, rb in enumerate(rblocks):
+        assert is_qsparse(rb, (psi.qbonds[i+1], hamiltonian.qbonds[i+1], -psi.qbonds[i+1])), \
+            "sparsity pattern of operator blocks must match quantum numbers"
 
     en_min = np.zeros(numsweeps)
 
@@ -57,26 +62,30 @@ def dmrg_singlesite(H: MPO, psi: MPS, numsweeps: int, numiter_lanczos: int = 25)
         en = 0
 
         # sweep from left to right
-        for i in range(L - 1):
-            en, psi.A[i] = _minimize_local_energy(BL[i], BR[i], H.A[i], psi.A[i], numiter_lanczos)
-            # left-orthonormalize current psi.A[i]
-            psi.A[i], psi.A[i+1], psi.qD[i+1] = local_orthonormalize_left_qr(
-                                        psi.A[i], psi.A[i+1], psi.qd, psi.qD[i:i+2])
+        for i in range(nsites - 1):
+            en, psi.a[i] = _minimize_local_energy(
+                hamiltonian.a[i], lblocks[i], rblocks[i], psi.a[i], numiter_lanczos)
+            # left-orthonormalize current psi.a[i]
+            psi.a[i], psi.a[i+1], psi.qbonds[i+1] = mps_local_orthonormalize_left_qr(
+                psi.a[i], psi.a[i+1], psi.qsite, psi.qbonds[i:i+2])
             # update the left blocks
-            BL[i+1] = contraction_operator_step_left(psi.A[i], psi.A[i], H.A[i], BL[i])
+            lblocks[i+1] = contraction_operator_step_left(
+                psi.a[i], psi.a[i], hamiltonian.a[i], lblocks[i])
 
         # sweep from right to left
-        for i in reversed(range(1, L)):
-            en, psi.A[i] = _minimize_local_energy(BL[i], BR[i], H.A[i], psi.A[i], numiter_lanczos)
-            # right-orthonormalize current psi.A[i]
-            psi.A[i], psi.A[i-1], psi.qD[i] = local_orthonormalize_right_qr(
-                                        psi.A[i], psi.A[i-1], psi.qd, psi.qD[i:i+2])
+        for i in reversed(range(1, nsites)):
+            en, psi.a[i] = _minimize_local_energy(
+                hamiltonian.a[i], lblocks[i], rblocks[i], psi.a[i], numiter_lanczos)
+            # right-orthonormalize current psi.a[i]
+            psi.a[i], psi.a[i-1], psi.qbonds[i] = mps_local_orthonormalize_right_qr(
+                psi.a[i], psi.a[i-1], psi.qsite, psi.qbonds[i:i+2])
             # update the right blocks
-            BR[i-1] = contraction_operator_step_right(psi.A[i], psi.A[i], H.A[i], BR[i])
+            rblocks[i-1] = contraction_operator_step_right(
+                psi.a[i], psi.a[i], hamiltonian.a[i], rblocks[i])
 
-        # right-normalize leftmost tensor to ensure that 'psi' is normalized
-        psi.A[0], _, psi.qD[0] = local_orthonormalize_right_qr(
-                                psi.A[0], np.array([[[1]]]), psi.qd, psi.qD[:2])
+        # right-normalize leftmost tensor to ensure that `psi` is normalized
+        psi.a[0], _, psi.qbonds[0] = mps_local_orthonormalize_right_qr(
+            psi.a[0], np.array([[[1]]]), psi.qsite, psi.qbonds[:2])
 
         # record energy after each sweep
         en_min[n] = en
@@ -84,77 +93,88 @@ def dmrg_singlesite(H: MPO, psi: MPS, numsweeps: int, numiter_lanczos: int = 25)
     return en_min
 
 
-def dmrg_twosite(H: MPO, psi: MPS, numsweeps: int, numiter_lanczos: int = 25, tol_split: float = 0):
+def dmrg_twosite(hamiltonian: MPO, psi: MPS, numsweeps: int,
+                 numiter_lanczos: int = 25, tol_split: float = 0):
     """
-    Approximate the ground state MPS by left and right sweeps and local two-site optimizations
-    (two-site DMRG algorithm). Virtual bond dimensions of starting state `psi` can only decrease.
+    Run the two-site DMRG algorithm: Approximate the ground state as MPS
+    via left- and right-sweeping and local two-site optimizations.
+    The input `psi` is used as the starting state
+    and is updated in-place during the optimization.
 
     Args:
-        H: Hamiltonian as MPO
+        hamiltonian: Hamiltonian as MPO
         psi: initial MPS used for optimization; will be overwritten
         numsweeps: maximum number of left and right sweeps
         numiter_lanczos: number of local Lanczos iterations
+        tol_split: tolerance for splitting merged MPS tensors
 
     Returns:
         numpy.ndarray: array of approximate ground state energies after each iteration
 
     Reference:
-        Ulrich Schollw"ock
+        Ulrich Schollwöck
         The density-matrix renormalization group in the age of matrix product states
         Annals of Physics 326, 96-192 (2011)
     """
 
     # number of lattice sites
-    L = H.nsites
-    assert L == psi.nsites
+    nsites = hamiltonian.nsites
+    assert nsites == psi.nsites
 
     # right-normalize input matrix product state
-    psi.orthonormalize(mode='right')
+    psi.orthonormalize(mode="right")
 
     # left and right operator blocks
     # initialize leftmost block by 1x1x1 identity
-    BR = compute_right_operator_blocks(psi, H)
-    BL = [None for _ in range(L)]
-    BL[0] = np.array([[[1]]], dtype=BR[0].dtype)
+    rblocks = compute_right_operator_blocks(psi, hamiltonian)
+    lblocks = [None for _ in range(nsites)]
+    lblocks[0] = np.array([[[1]]], dtype=rblocks[0].dtype)
 
     # consistency check
-    for i in range(len(BR)):
-        assert is_qsparse(BR[i], [psi.qD[i+1], H.qD[i+1], -psi.qD[i+1]]), \
-            'sparsity pattern of operator blocks must match quantum numbers'
+    for i, rb in enumerate(rblocks):
+        assert is_qsparse(rb, (psi.qbonds[i+1], hamiltonian.qbonds[i+1], -psi.qbonds[i+1])), \
+            "sparsity pattern of operator blocks must match quantum numbers"
 
     en_min = np.zeros(numsweeps)
+
+    h2 = [mpo_merge_tensor_pair(hamiltonian.a[i], hamiltonian.a[i+1]) for i in range(nsites - 1)]
 
     # TODO: number of iterations should be determined by tolerance and some convergence measure
     for n in range(numsweeps):
         en = 0
 
         # sweep from left to right
-        for i in range(L - 2):
+        for i in range(nsites - 2):
             # merge neighboring tensors
-            Am = merge_mps_tensor_pair(psi.A[i], psi.A[i+1])
-            Hm = merge_mpo_tensor_pair(H.A[i], H.A[i+1])
+            a_cur = mps_merge_tensor_pair(psi.a[i], psi.a[i+1])
             # minimize local energy
-            en, Am = _minimize_local_energy(BL[i], BR[i+1], Hm, Am, numiter_lanczos)
-            # split Am
-            psi.A[i], psi.A[i+1], psi.qD[i+1] = split_mps_tensor(Am, psi.qd, psi.qd, [psi.qD[i], psi.qD[i+2]], 'right', tol=tol_split)
+            en, a_cur = _minimize_local_energy(
+                h2[i], lblocks[i], rblocks[i+1], a_cur, numiter_lanczos)
+            # split a_cur
+            psi.a[i], psi.a[i+1], psi.qbonds[i+1] = mps_split_tensor_svd(
+                a_cur, psi.qsite, psi.qsite, [psi.qbonds[i], psi.qbonds[i+2]],
+                "right", tol=tol_split)
             # update the left blocks
-            BL[i+1] = contraction_operator_step_left(psi.A[i], psi.A[i], H.A[i], BL[i])
+            lblocks[i+1] = contraction_operator_step_left(psi.a[i], psi.a[i], hamiltonian.a[i], lblocks[i])
 
         # sweep from right to left
-        for i in reversed(range(L - 1)):
+        for i in reversed(range(nsites - 1)):
             # merge neighboring tensors
-            Am = merge_mps_tensor_pair(psi.A[i], psi.A[i+1])
-            Hm = merge_mpo_tensor_pair(H.A[i], H.A[i+1])
+            a_cur = mps_merge_tensor_pair(psi.a[i], psi.a[i+1])
             # minimize local energy
-            en, Am = _minimize_local_energy(BL[i], BR[i+1], Hm, Am, numiter_lanczos)
-            # split Am
-            psi.A[i], psi.A[i+1], psi.qD[i+1] = split_mps_tensor(Am, psi.qd, psi.qd, [psi.qD[i], psi.qD[i+2]], 'left', tol=tol_split)
+            en, a_cur = _minimize_local_energy(
+                h2[i], lblocks[i], rblocks[i+1], a_cur, numiter_lanczos)
+            # split a_cur
+            psi.a[i], psi.a[i+1], psi.qbonds[i+1] = mps_split_tensor_svd(
+                a_cur, psi.qsite, psi.qsite, [psi.qbonds[i], psi.qbonds[i+2]],
+                "left", tol=tol_split)
             # update the right blocks
-            BR[i] = contraction_operator_step_right(psi.A[i+1], psi.A[i+1], H.A[i+1], BR[i+1])
+            rblocks[i] = contraction_operator_step_right(
+                psi.a[i+1], psi.a[i+1], hamiltonian.a[i+1], rblocks[i+1])
 
-        # right-normalize leftmost tensor to ensure that 'psi' is normalized
-        psi.A[0], _, psi.qD[0] = local_orthonormalize_right_qr(
-                                psi.A[0], np.array([[[1]]]), psi.qd, psi.qD[:2])
+        # right-normalize leftmost tensor to ensure that `psi` is normalized
+        psi.a[0], _, psi.qbonds[0] = mps_local_orthonormalize_right_qr(
+            psi.a[0], np.array([[[1]]]), psi.qsite, psi.qbonds[:2])
 
         # record energy after each sweep
         en_min[n] = en
@@ -162,14 +182,12 @@ def dmrg_twosite(H: MPO, psi: MPS, numsweeps: int, numiter_lanczos: int = 25, to
     return en_min
 
 
-def _minimize_local_energy(L, R, W, Astart, numiter: int):
+def _minimize_local_energy(w, l, r, a_start, numiter: int):
     """
     Minimize single-site local energy by Lanczos iteration.
     """
     w, u_ritz = eigh_krylov(
-        lambda x: apply_local_hamiltonian(L, R, W, x.reshape(Astart.shape)).reshape(-1),
-            Astart.reshape(-1), numiter, 1)
-
-    Aopt = u_ritz[:, 0].reshape(Astart.shape)
-
-    return w[0], Aopt
+        lambda x: apply_local_hamiltonian(l, r, w, x.reshape(a_start.shape)).reshape(-1),
+            a_start.reshape(-1), numiter, 1)
+    a_opt = u_ritz[:, 0].reshape(a_start.shape)
+    return w[0], a_opt

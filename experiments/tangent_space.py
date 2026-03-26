@@ -1,9 +1,10 @@
 """
-Numerically investigate MPS tangent space dimension and projector.
+Numerically investigate properties of the MPS tangent space,
+like dimensionality and its projector.
 
 Reference:
-    J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, F. Verstraete
-    Unifying time evolution and optimization with matrix product states
+  - J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, F. Verstraete\n
+    Unifying time evolution and optimization with matrix product states\n
     Phys. Rev. B 94, 165116 (2016) (arXiv:1408.5056)
 """
 
@@ -18,48 +19,48 @@ def tangent_space_projector(psi: ptn.MPS):
     Construct tangent space projector as matrix based on MPS formalism.
     """
     # physical local site dimension
-    d = len(psi.qd)
+    d = len(psi.qsite)
 
     # number of lattice sites
-    L = psi.nsites
+    nsites = psi.nsites
 
     psi_c = copy.deepcopy(psi)
 
     # construct P_L operators
-    psi_c.orthonormalize(mode='left')
-    PL = []
+    psi_c.orthonormalize(mode="left")
+    p_left = []
     x = np.array([[[1.]]])
-    for i in range(L):
-        x = ptn.merge_mps_tensor_pair(x, psi_c.A[i])
+    for i in range(nsites):
+        x = ptn.mps_merge_tensor_pair(x, psi_c.a[i])
         assert x.ndim == 3 and x.shape[1] == 1
         xmat = x.reshape((x.shape[0], x.shape[2]))
         # check orthonormalization
         assert np.allclose(xmat.conj().T @ xmat, np.identity(xmat.shape[1]))
-        PL.append(xmat @ xmat.conj().T)
+        p_left.append(xmat @ xmat.conj().T)
 
     # construct P_R operators
-    psi_c.orthonormalize(mode='right')
-    PR = []
+    psi_c.orthonormalize(mode="right")
+    p_right = []
     x = np.array([[[1.]]])
-    for i in reversed(range(L)):
-        x = ptn.merge_mps_tensor_pair(psi_c.A[i], x)
+    for i in reversed(range(nsites)):
+        x = ptn.mps_merge_tensor_pair(psi_c.a[i], x)
         assert x.ndim == 3 and x.shape[2] == 1
         xmat = x.reshape(x.shape[:2])
         # check orthonormalization
         assert np.allclose(xmat.conj().T @ xmat, np.identity(xmat.shape[1]))
-        PR.append(xmat @ xmat.conj().T)
-    PR = list(reversed(PR))
+        p_right.append(xmat @ xmat.conj().T)
+    p_right = list(reversed(p_right))
 
     # construct projector
-    P = 0
-    P += np.kron(np.identity(d), PR[1])
-    for i in range(1, L-1):
-        P += np.kron(np.kron(PL[i-1], np.identity(d)), PR[i+1])
-    P += np.kron(PL[L-2], np.identity(d))
-    for i in range(0, L-1):
-        P -= np.kron(PL[i], PR[i+1])
+    proj = 0
+    proj += np.kron(np.identity(d), p_right[1])
+    for i in range(1, nsites-1):
+        proj += np.kron(np.kron(p_left[i-1], np.identity(d)), p_right[i+1])
+    proj += np.kron(p_left[nsites-2], np.identity(d))
+    for i in range(0, nsites-1):
+        proj -= np.kron(p_left[i], p_right[i+1])
 
-    return P
+    return proj
 
 
 def main():
@@ -68,98 +69,101 @@ def main():
 
     # physical dimension
     d = 3
-    # fictitious bond dimensions (should be bounded by d^i and d^(L-i))
-    D = [1, 2, 5, 7, 3, 1]
+    # fictitious bond dimensions (should be bounded by d^i and d^(nsites-i))
+    b = [1, 2, 5, 7, 3, 1]
 
     # number of lattice sites
-    L = len(D) - 1
-    print('L:', L)
+    nsites = len(b) - 1
+    print("nsites:", nsites)
 
-    psi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in D], fill='random', rng=rng)
+    psi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(bi, dtype=int) for bi in b],
+                  fill="random", rng=rng)
 
-    # construct MPS derivatives with respect to entries of the A tensors
-    T = []
-    for i in range(L):
-        s = psi.A[i].shape
-        print('s:', s)
+    # construct MPS derivatives with respect to entries of the `a` tensors
+    t = []
+    for i in range(nsites):
+        s = psi.a[i].shape
+        print("s:", s)
         for j in range(s[0]):
-            for a in range(s[1]):
-                for b in range(s[2]):
-                    # derivative in direction (i, j, a, b)
-                    B = np.zeros_like(psi.A[i])
-                    B[j, a, b] = 1
-                    # backup original A[i] tensor
-                    Ai = psi.A[i]
-                    psi.A[i] = B
-                    T.append(psi.as_vector())
-                    # restore A[i]
-                    psi.A[i] = Ai
+            for u in range(s[1]):
+                for v in range(s[2]):
+                    # derivative in direction (i, j, u, v)
+                    ddir = np.zeros_like(psi.a[i])
+                    ddir[j, u, v] = 1
+                    # backup original a[i] tensor
+                    ai = psi.a[i]
+                    psi.a[i] = ddir
+                    t.append(psi.to_vector())
+                    # restore a[i]
+                    psi.a[i] = ai
 
-    T = np.array(T)
-    num_entries = np.sum([Ai.size for Ai in psi.A])
-    print('T.shape: ', T.shape)
-    print('expected:', (num_entries, d**L))
-    print('rank of T:', np.linalg.matrix_rank(T))
+    t = np.array(t)
+    num_entries = np.sum([ai.size for ai in psi.a])
+    print("t.shape:", t.shape)
+    print("expected:", (num_entries, d**nsites))
+    print("rank of t:", np.linalg.matrix_rank(t))
     # number of degrees of freedom based on sandwiching "X" matrices between bonds,
-    # -2 for omitting the leading and trailing entry 1 in D
-    rank = num_entries - ((np.array(D)**2).sum() - 2)
-    print('expected: ', rank)
+    # -2 for omitting the leading and trailing entry 1 in `b`
+    rank = num_entries - ((np.array(b)**2).sum() - 2)
+    print("expected: ", rank)
 
     # realization of random X matrices
-    X = [np.identity(1, dtype=complex)]
-    for i in range(L - 1):
-        X.append(ptn.crandn((D[i+1], D[i+1]), rng))
-    X.append(np.identity(1, dtype=complex))
-    N = []
-    for i in range(L):
-        B = (np.tensordot(X[i], psi.A[i], axes=(1, 1)).transpose((1, 0, 2)) -
-             np.tensordot(psi.A[i], X[i+1], axes=(2, 0)))
-        # backup original A[i] tensor
-        Ai = psi.A[i]
-        psi.A[i] = B
-        N.append(psi.as_vector())
-        # restore A[i]
-        psi.A[i] = Ai
-    N = np.array(N)
-    print('N.shape:', N.shape)
-    # N should be contained in range of T
-    print('rank of [T, N]:', np.linalg.matrix_rank(np.concatenate((T, N), axis=0)),
-          '(should agree with rank of T)')
+    x_list = [np.identity(1, dtype=complex)]
+    for i in range(nsites - 1):
+        x_list.append(ptn.crandn((b[i+1], b[i+1]), rng))
+    x_list.append(np.identity(1, dtype=complex))
+    n = []
+    for i in range(nsites):
+        bmat = (np.tensordot(x_list[i], psi.a[i], axes=(1, 1)).transpose((1, 0, 2)) -
+                np.tensordot(psi.a[i], x_list[i+1], axes=(2, 0)))
+        # backup original a[i] tensor
+        ai = psi.a[i]
+        psi.a[i] = bmat
+        n.append(psi.to_vector())
+        # restore a[i]
+        psi.a[i] = ai
+    n = np.array(n)
+    print("n.shape:", n.shape)
+    # `n` should be contained in range of `t`
+    print(f"rank of [t, n]: {np.linalg.matrix_rank(np.concatenate((t, n), axis=0))} "
+          f"(should agree with rank of t)")
     # should be numerically zero by construction
-    z = N.transpose() @ np.ones(L)
-    print('|z|:', np.linalg.norm(z), '(should be numerically zero)')
+    z = n.transpose() @ np.ones(nsites)
+    print(f"|z|: {np.linalg.norm(z)} (should be numerically zero)")
 
-    # reference tangent space projector based on T
+    # reference tangent space projector based on t
     # rank-revealing QR decomposition
-    Q, _, _ = scipy.linalg.qr(T.T, mode='economic', pivoting=True)
-    P_ref = Q[:, :rank] @ Q[:, :rank].conj().T
+    q, _, _ = scipy.linalg.qr(t.T, mode="economic", pivoting=True)
+    proj_ref = q[:, :rank] @ q[:, :rank].conj().T
 
     # construct tangent space projector based on MPS formalism
-    P = tangent_space_projector(psi)
+    proj = tangent_space_projector(psi)
     # compare
-    print('|P - P_ref|:', np.linalg.norm(P - P_ref), '(should be numerically zero)')
+    print(f"|proj - proj_ref|: {np.linalg.norm(proj - proj_ref)} (should be numerically zero)")
 
     # apply projector to psi (psi should remain unaffected)
-    x = psi.as_vector()
-    print('|P psi - psi|:', np.linalg.norm(P @ x - x), '(should be numerically zero)')
+    x = psi.to_vector()
+    print(f"|proj psi - psi|: {np.linalg.norm(proj @ x - x)} (should be numerically zero)")
 
     # define another state
-    # fictitious bond dimensions (should be bounded by d^i and d^(L-i))
-    D = [1, 4, 7, 5, 3, 1]
-    chi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(Di, dtype=int) for Di in D], fill='random', rng=rng)
+    # fictitious bond dimensions (should be bounded by d^i and d^(nsites-i))
+    b = [1, 4, 7, 5, 3, 1]
+    chi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(bi, dtype=int) for bi in b],
+                  fill="random", rng=rng)
 
     # tangent space projector corresponding to the sum of two states
-    Psum = tangent_space_projector(psi + chi)
+    proj_sum = tangent_space_projector(psi + chi)
     # apply projector to psi (should remain unaffected)
-    x = psi.as_vector()
-    print('|Psum psi - psi|:', np.linalg.norm(Psum @ x - x), '(should be numerically zero)')
+    x = psi.to_vector()
+    print(f"|proj_sum psi - psi|: {np.linalg.norm(proj_sum @ x - x)} (should be numerically zero)")
     # apply projector to chi (should remain unaffected)
-    x = chi.as_vector()
-    print('|Psum chi - chi|:', np.linalg.norm(Psum @ x - x), '(should be numerically zero)')
+    x = chi.to_vector()
+    print(f"|proj_sum chi - chi|: {np.linalg.norm(proj_sum @ x - x)} (should be numerically zero)")
     # apply projector to psi + chi (should remain unaffected)
-    x = psi.as_vector() + chi.as_vector()
-    print('|Psum (psi + chi) - (psi + chi)|:', np.linalg.norm(Psum @ x - x), '(should be numerically zero)')
+    x = psi.to_vector() + chi.to_vector()
+    print(f"|proj_sum (psi + chi) - (psi + chi)|: {np.linalg.norm(proj_sum @ x - x)} "
+          f"(should be numerically zero)")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

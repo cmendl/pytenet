@@ -11,18 +11,18 @@ def test_ising():
     h = -2.0/7
     g = 13.0/8
     # number of lattice sites
-    L = 7
+    nsites = 7
 
     # construct MPO
-    mpoH = ptn.ising_mpo(L, J, h, g)
+    h_mpo = ptn.ising_mpo(nsites, J, h, g)
     # matrix representation, for comparison with reference
-    H = mpoH.as_matrix()
+    h_mat = h_mpo.to_matrix()
 
     # reference Hamiltonian
-    Href = construct_ising_hamiltonian(L, J, h, g)
+    h_ref = construct_ising_1d_hamiltonian(nsites, J, h, g)
 
     # compare
-    assert np.allclose(H, Href.todense()), \
+    assert np.allclose(h_mat, h_ref.todense()), \
         "matrix representation of MPO and reference Hamiltonian must match"
 
 
@@ -33,18 +33,18 @@ def test_heisenberg_xxz():
     D = 13.0/8
     h =  2.0/7
     # number of lattice sites
-    L = 7
+    nsites = 7
 
     # construct MPO
-    mpoH = ptn.heisenberg_xxz_mpo(L, J, D, h)
+    h_mpo = ptn.heisenberg_xxz_mpo(nsites, J, D, h)
     # matrix representation, for comparison with reference
-    H = mpoH.as_matrix()
+    h_mat = h_mpo.to_matrix()
 
     # reference Hamiltonian
-    Href = construct_heisenberg_xxz_hamiltonian(L, J, D, h)
+    h_ref = construct_heisenberg_xxz_1d_hamiltonian(nsites, J, D, h)
 
     # compare
-    assert np.allclose(H, Href.todense()), \
+    assert np.allclose(h_mat, h_ref.todense()), \
         "matrix representation of MPO and reference Hamiltonian must match"
 
 
@@ -55,18 +55,18 @@ def test_heisenberg_xxz_spin1():
     D = -0.9
     h =  1.0/7
     # number of lattice sites
-    L = 6
+    nsites = 6
 
     # construct MPO
-    mpoH = ptn.heisenberg_xxz_spin1_mpo(L, J, D, h)
+    h_mpo = ptn.heisenberg_xxz_spin1_mpo(nsites, J, D, h)
     # matrix representation, for comparison with reference
-    H = mpoH.as_matrix()
+    h_mat = h_mpo.to_matrix()
 
     # reference Hamiltonian
-    Href = construct_heisenberg_xxz_spin1_hamiltonian(L, J, D, h)
+    h_ref = construct_heisenberg_xxz_spin1_1d_hamiltonian(nsites, J, D, h)
 
     # compare
-    assert np.allclose(H, Href.todense()), \
+    assert np.allclose(h_mat, h_ref.todense()), \
         "matrix representation of MPO and reference Hamiltonian must match"
 
 
@@ -75,44 +75,44 @@ def test_bose_hubbard():
     # physical dimension per site (maximal occupancy is d - 1)
     d = 4
     # number of lattice sites
-    L = 5
+    nsites = 5
     # Hamiltonian parameters
     t  = 0.7
-    U  = 3.2
+    u  = 3.2
     mu = 1.3
 
     # construct MPO
-    mpoH = ptn.bose_hubbard_mpo(d, L, t, U, mu)
+    h_mpo = ptn.bose_hubbard_mpo(d, nsites, t, u, mu)
     # matrix representation, for comparison with reference
-    H = mpoH.as_matrix()
+    h_mat = h_mpo.to_matrix()
 
     # reference Hamiltonian
-    Href = construct_bose_hubbard_hamiltonian(d, L, t, U, mu)
+    h_ref = construct_bose_hubbard_1d_hamiltonian(nsites, d, t, u, mu)
 
     # compare
-    assert np.allclose(H, Href.todense()), \
+    assert np.allclose(h_mat, h_ref.todense()), \
         "matrix representation of MPO and reference Hamiltonian must match"
 
 
 def test_fermi_hubbard():
 
     # number of lattice sites
-    L = 5
+    nsites = 5
     # Hamiltonian parameters
     t  = 1.2
-    U  = 2.7
+    u  = 2.7
     mu = 0.3
 
     # construct MPO
-    mpoH = ptn.fermi_hubbard_mpo(L, t, U, mu)
+    h_mpo = ptn.fermi_hubbard_mpo(nsites, t, u, mu)
     # matrix representation, for comparison with reference
-    H = mpoH.as_matrix()
+    h_mat = h_mpo.to_matrix()
 
     # reference Hamiltonian
-    Href = construct_fermi_hubbard_hamiltonian(L, t, U, mu)
+    h_ref = construct_fermi_hubbard_1d_hamiltonian(nsites, t, u, mu)
 
     # compare
-    assert np.allclose(H, Href.todense()), \
+    assert np.allclose(h_mat, h_ref.todense()), \
         "matrix representation of MPO and reference Hamiltonian must match"
 
 
@@ -121,22 +121,24 @@ def test_linear_fermionic_operator():
     rng = np.random.default_rng()
 
     # number of lattice sites
-    L = 6
+    nsites = 6
     # coefficients
-    coeff = ptn.crandn(L, rng)
+    coeff = ptn.crandn(nsites, rng)
 
-    for ftype in ('c', 'a'):
+    for ftype in ("c", "a"):
         # construct the MPO
-        mpo = ptn.linear_fermionic_mpo(coeff, ftype)
-        assert mpo.bond_dims == [1] + (L - 1)*[2] + [1], \
+        h_mpo = ptn.linear_fermionic_mpo(coeff, ftype)
+        assert h_mpo.bond_dims == [1] + (nsites - 1)*[2] + [1], \
             "virtual bond dimensions must match theoretical prediction"
         # matrix representation, for comparison with reference
-        op = mpo.as_matrix()
+        h_mat = h_mpo.to_matrix()
+
         # reference operator
-        clist, alist = generate_fermi_operators(L)
-        op_ref = sum(coeff[i] * (clist[i] if ftype == 'c' else alist[i]) for i in range(L))
+        clist, alist, _ = construct_fermi_operators(nsites)
+        h_ref = sum(coeff[i] * (clist[i] if ftype == "c" else alist[i]) for i in range(nsites))
+
         # compare
-        assert np.allclose(op, op_ref.todense()), \
+        assert np.allclose(h_mat, h_ref.todense()), \
             "matrix representation of MPO and reference operator must match"
 
 
@@ -145,24 +147,27 @@ def test_linear_spin_fermionic_operator():
     rng = np.random.default_rng()
 
     # number of lattice sites
-    L = 5
+    nsites = 5
     # coefficients
-    coeff = ptn.crandn(L, rng)
+    coeff = ptn.crandn(nsites, rng)
 
-    for ftype in ('c', 'a'):
+    for ftype in ("c", "a"):
         for sigma in (1, -1):
             # construct the MPO
-            mpo = ptn.linear_spin_fermionic_mpo(coeff, ftype, sigma)
-            assert mpo.bond_dims == [1] + (L - 1)*[2] + [1], \
+            h_mpo = ptn.linear_spin_fermionic_mpo(coeff, ftype, sigma)
+            assert h_mpo.bond_dims == [1] + (nsites - 1)*[2] + [1], \
                 "virtual bond dimensions must match theoretical prediction"
             # matrix representation, for comparison with reference
-            op = mpo.as_matrix()
+            h_mat = h_mpo.to_matrix()
+
             # reference operator
-            clist, alist = generate_fermi_operators(2*L)
+            clist, alist, _ = construct_fermi_operators(2*nsites)
             offset = (0 if sigma == 1 else 1)
-            op_ref = sum(coeff[i] * (clist[2*i+offset] if ftype == 'c' else alist[2*i+offset]) for i in range(L))
+            h_ref = sum(coeff[i] * (clist[2*i+offset] if ftype == "c" else alist[2*i+offset])
+                         for i in range(nsites))
+
             # compare
-            assert np.allclose(op, op_ref.todense()), \
+            assert np.allclose(h_mat, h_ref.todense()), \
                 "matrix representation of MPO and reference operator must match"
 
 
@@ -171,22 +176,23 @@ def test_quadratic_fermionic_operator():
     rng = np.random.default_rng()
 
     # number of lattice sites
-    L = 6
+    nsites = 6
     # coefficients
-    coeffc = ptn.crandn(L, rng)
-    coeffa = ptn.crandn(L, rng)
+    coeffc = ptn.crandn(nsites, rng)
+    coeffa = ptn.crandn(nsites, rng)
 
     # construct the MPO
-    mpo = ptn.quadratic_fermionic_mpo(coeffc, coeffa)
-    assert mpo.bond_dims == [1] + (L - 1)*[4] + [1], \
+    h_mpo = ptn.quadratic_fermionic_mpo(coeffc, coeffa)
+    assert h_mpo.bond_dims == [1] + (nsites - 1)*[4] + [1], \
         "virtual bond dimensions must match theoretical prediction"
     # matrix representation, for comparison with reference
-    op = mpo.as_matrix()
+    h_mat = h_mpo.to_matrix()
     # reference operator
-    clist, alist = generate_fermi_operators(L)
-    op_ref = sum(coeffc[i] * clist[i] for i in range(L)) @ sum(coeffa[i] * alist[i] for i in range(L))
+    clist, alist, _ = construct_fermi_operators(nsites)
+    h_ref = sum(coeffc[i] * clist[i] for i in range(nsites)) \
+          @ sum(coeffa[i] * alist[i] for i in range(nsites))
     # compare
-    assert np.allclose(op, op_ref.todense()), \
+    assert np.allclose(h_mat, h_ref.todense()), \
         "matrix representation of MPO and reference operator must match"
 
 
@@ -195,24 +201,27 @@ def test_quadratic_spin_fermionic_operator():
     rng = np.random.default_rng()
 
     # number of lattice sites
-    L = 5
+    nsites = 5
     # coefficients
-    coeffc = ptn.crandn(L, rng)
-    coeffa = ptn.crandn(L, rng)
+    coeffc = ptn.crandn(nsites, rng)
+    coeffa = ptn.crandn(nsites, rng)
 
     for sigma in (1, -1):
         # construct the MPO
-        mpo = ptn.quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma)
-        assert mpo.bond_dims == [1] + (L - 1)*[4] + [1], \
+        h_mpo = ptn.quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma)
+        assert h_mpo.bond_dims == [1] + (nsites - 1)*[4] + [1], \
             "virtual bond dimensions must match theoretical prediction"
         # matrix representation, for comparison with reference
-        op = mpo.as_matrix()
+        h_mat = h_mpo.to_matrix()
+
         # reference operator
-        clist, alist = generate_fermi_operators(2*L)
+        clist, alist, _ = construct_fermi_operators(2*nsites)
         offset = (0 if sigma == 1 else 1)
-        op_ref = sum(coeffc[i] * clist[2*i+offset] for i in range(L)) @ sum(coeffa[i] * alist[2*i+offset] for i in range(L))
+        h_ref = sum(coeffc[i] * clist[2*i+offset] for i in range(nsites)) \
+              @ sum(coeffa[i] * alist[2*i+offset] for i in range(nsites))
+
         # compare
-        assert np.allclose(op, op_ref.todense()), \
+        assert np.allclose(h_mat, h_ref.todense()), \
             "matrix representation of MPO and reference operator must match"
 
 
@@ -221,42 +230,45 @@ def test_molecular_hamiltonian_construction():
     rng = np.random.default_rng()
 
     # number of fermionic modes
-    L = 7
+    nsites = 7
     # Hamiltonian parameters
-    tkin = ptn.crandn(2 * (L,), rng)
-    vint = ptn.crandn(4 * (L,), rng)
+    tkin = ptn.crandn(2 * (nsites,), rng)
+    vint = ptn.crandn(4 * (nsites,), rng)
 
     # reference Hamiltonian
-    Href = construct_molecular_hamiltonian(tkin, vint)
+    h_ref = construct_molecular_hamiltonian(tkin, vint)
 
     for opt in (True, False):
-        mpoH = ptn.molecular_hamiltonian_mpo(tkin, vint, opt)
+        h_mpo = ptn.molecular_hamiltonian_mpo(tkin, vint, opt)
 
         # theoretically predicted virtual bond dimensions
-        D_theo = []
-        for i in range(L + 1):
+        b_theo = []
+        for i in range(nsites + 1):
             nl = i
-            nr = L - i
+            nr = nsites - i
             n = min(nl, nr)
             # identity chains
             if opt:
-                D1 = 2 if 1 < i < L - 1 else 1
+                b1 = 2 if 1 < i < nsites - 1 else 1
             else:
                 # slightly sub-optimal
-                D1 = 2 if 1 <= i <= L - 1 else 1
+                b1 = 2 if 1 <= i <= nsites - 1 else 1
             # a^{\dagger}_i and a_i chains, reaching (almost) from one boundary to the other
             if opt:
-                D2 = 2 * min(nl**2 * (nl - 1) // 2, nr) + 2 * min(nl, nr**2 * (nr - 1) // 2)
+                b2 = 2 * min(nl**2 * (nl - 1) // 2, nr) + 2 * min(nl, nr**2 * (nr - 1) // 2)
             else:
                 # slightly sub-optimal
-                D2 = 2 * ((nl if i < L - 1 else 0) + (nr if i > 1 else 0))
-            # a^{\dagger}_i a^{\dagger}_j (for i < j), a_i a_j (for i > j) and a^{\dagger}_i a_j chains, extending from boundary to center
-            D3 = 2 * n * (n - 1) // 2 + n**2
-            D_theo.append(D1 + D2 + D3)
-        assert mpoH.bond_dims == D_theo
+                b2 = 2 * ((nl if i < nsites - 1 else 0) + (nr if i > 1 else 0))
+            # a^{\dagger}_i a^{\dagger}_j (for i < j),
+            # a_i a_j (for i > j)
+            # and a^{\dagger}_i a_j chains,
+            # extending from boundary to center
+            b3 = 2 * n * (n - 1) // 2 + n**2
+            b_theo.append(b1 + b2 + b3)
+        assert h_mpo.bond_dims == b_theo
 
         # compare matrix representations
-        assert np.allclose(mpoH.as_matrix(), Href.todense()), \
+        assert np.allclose(h_mpo.to_matrix(), h_ref.todense()), \
             "matrix representation of MPO and reference Hamiltonian must match"
 
 
@@ -265,39 +277,40 @@ def test_molecular_hamiltonian_orbital_rotation():
     rng = np.random.default_rng()
 
     # number of fermionic modes
-    L = 6
+    nsites = 6
     # Hamiltonian coefficients
-    tkin = ptn.crandn(2 * (L,), rng)
-    vint = ptn.crandn(4 * (L,), rng)
+    tkin = ptn.crandn(2 * (nsites,), rng)
+    vint = ptn.crandn(4 * (nsites,), rng)
 
-    for i in range(L - 1):
+    for i in range(nsites - 1):
 
-        mpoH = ptn.molecular_hamiltonian_mpo(tkin, vint, optimize=False)
+        h_mpo = ptn.molecular_hamiltonian_mpo(tkin, vint, optimize=False)
 
         # random rotation matrix for two orbitals
         u2 = unitary_group.rvs(2, random_state=rng)
 
         # extend to overall orbital rotation matrix
-        u = np.identity(L, dtype=u2.dtype)
+        u = np.identity(nsites, dtype=u2.dtype)
         u[i:i+2, i:i+2] = u2
 
         # apply transposed single-orbital rotation matrix to Hamiltonian coefficients
         tkin_rotorb = np.einsum(u, (2, 0), u.conj(), (3, 1), tkin, (2, 3), (0, 1))
-        vint_rotorb = np.einsum(u, (4, 0), u, (5, 1), u.conj(), (6, 2), u.conj(), (7, 3), vint, (4, 5, 6, 7), (0, 1, 2, 3))
+        vint_rotorb = np.einsum(u, (4, 0), u, (5, 1), u.conj(), (6, 2), u.conj(), (7, 3),
+                                vint, (4, 5, 6, 7), (0, 1, 2, 3))
 
         # rotated reference MPO
-        mpoH_rotorb = ptn.molecular_hamiltonian_mpo(tkin_rotorb, vint_rotorb, optimize=False)
+        h_mpo_rotorb = ptn.molecular_hamiltonian_mpo(tkin_rotorb, vint_rotorb, optimize=False)
 
         # copy transformed MPO tensors at sites `i` and `i + 1`
-        mpoH.A[i    ] = np.copy(mpoH_rotorb.A[i    ])
-        mpoH.A[i + 1] = np.copy(mpoH_rotorb.A[i + 1])
+        h_mpo.a[i    ] = np.copy(h_mpo_rotorb.a[i    ])
+        h_mpo.a[i + 1] = np.copy(h_mpo_rotorb.a[i + 1])
         # apply left and right gauge transformations
-        v_l, v_r = ptn.molecular_hamiltonian_orbital_gauge_transform(mpoH, u2, i)
-        mpoH.A[i    ] = np.einsum(v_l, (2, 4), mpoH.A[i    ], (0, 1, 4, 3), (0, 1, 2, 3))
-        mpoH.A[i + 1] = np.einsum(v_r, (3, 4), mpoH.A[i + 1], (0, 1, 2, 4), (0, 1, 2, 3))
+        v_l, v_r = ptn.molecular_hamiltonian_orbital_gauge_transform(h_mpo, u2, i)
+        h_mpo.a[i    ] = np.einsum(v_l, (2, 4), h_mpo.a[i    ], (0, 1, 4, 3), (0, 1, 2, 3))
+        h_mpo.a[i + 1] = np.einsum(v_r, (3, 4), h_mpo.a[i + 1], (0, 1, 2, 4), (0, 1, 2, 3))
 
         # compare matrix representations
-        assert np.allclose(mpoH.as_matrix(), mpoH_rotorb.as_matrix()), \
+        assert np.allclose(h_mpo.to_matrix(), h_mpo_rotorb.to_matrix()), \
             "matrix representation of MPO after orbital rotation and reference Hamiltonian must match"
 
 
@@ -306,185 +319,193 @@ def test_spin_molecular_hamiltonian_construction():
     rng = np.random.default_rng()
 
     # number of spin-endowed lattice sites
-    L = 4
+    nsites = 4
     # Hamiltonian parameters
-    tkin = ptn.crandn(2 * (L,), rng)
-    vint = ptn.crandn(4 * (L,), rng)
+    tkin = ptn.crandn(2 * (nsites,), rng)
+    vint = ptn.crandn(4 * (nsites,), rng)
 
     # reference Hamiltonian
-    Href = construct_spin_molecular_hamiltonian(tkin, vint)
+    h_ref = construct_spin_molecular_hamiltonian(tkin, vint)
 
     for opt in (True, False):
-        mpoH = ptn.spin_molecular_hamiltonian_mpo(tkin, vint, opt)
+        h_mpo = ptn.spin_molecular_hamiltonian_mpo(tkin, vint, opt)
 
         # compare matrix representations
-        assert np.allclose(mpoH.as_matrix(), Href.todense()), \
+        assert np.allclose(h_mpo.to_matrix(), h_ref.todense()), \
             "matrix representation of MPO and reference Hamiltonian must match"
 
 
-def construct_ising_hamiltonian(L: int, J: float, h: float, g: float):
+def construct_ising_1d_hamiltonian(nsites: int, J: float, h: float, g: float):
     """
-    Construct Ising Hamiltonian `sum J sz sz + h sz + g sx`
-    on a 1D lattice as sparse matrix.
+    Construct the Ising Hamiltonian `sum J Z Z + h Z + g X`
+    on a one-dimensional lattice as sparse matrix.
     """
     # Pauli-X and Z matrices
     sigma_x = sparse.csr_matrix([[0., 1.], [1.,  0.]])
     sigma_z = sparse.csr_matrix([[1., 0.], [0., -1.]])
-    H = sparse.csr_matrix((2**L, 2**L), dtype=float)
-    # interaction terms
+    # interaction terms and external field
     hint = sparse.kron(sigma_z, sigma_z)
-    for j in range(L - 1):
-        H += J * sparse.kron(sparse.identity(2**j),
-                 sparse.kron(hint,
-                             sparse.identity(2**(L-j-2))))
-    # external field
-    for j in range(L):
-        H += sparse.kron(sparse.identity(2**j),
-             sparse.kron(h*sigma_z + g*sigma_x,
-                         sparse.identity(2**(L-j-1))))
-    return H
+    hamiltonian = \
+        sum(J * sparse.kron(sparse.identity(2**j),
+                sparse.kron(hint,
+                            sparse.identity(2**(nsites-j-2))))
+            for j in range(nsites - 1)) \
+      + sum(sparse.kron(sparse.identity(2**j),
+            sparse.kron(h*sigma_z + g*sigma_x,
+                        sparse.identity(2**(nsites-j-1))))
+            for j in range(nsites))
+    hamiltonian.eliminate_zeros()
+    return hamiltonian
 
 
-def construct_heisenberg_xxz_hamiltonian(L: int, J: float, D: float, h: float):
+def construct_heisenberg_xxz_1d_hamiltonian(nsites: int, J: float, D: float, h: float):
     """
-    Construct XXZ Heisenberg Hamiltonian `sum J X X + J Y Y + D Z Z - h Z`
-    on a 1D lattice as sparse matrix.
+    Construct the XXZ Heisenberg Hamiltonian `sum J X X + J Y Y + D Z Z - h Z`
+    on a one-dimensional lattice as sparse matrix.
     """
     # spin operators
-    Sup = np.array([[0.,  1.], [0.,  0. ]])
-    Sdn = np.array([[0.,  0.], [1.,  0. ]])
-    Sz  = np.array([[0.5, 0.], [0., -0.5]])
-    H = sparse.csr_matrix((2**L, 2**L), dtype=float)
-    # interaction terms
-    hint = J * 0.5 * (sparse.kron(Sup, Sdn) + sparse.kron(Sdn, Sup)) + D * sparse.kron(Sz, Sz)
-    for j in range(L - 1):
-        H += sparse.kron(sparse.identity(2**j),
-             sparse.kron(hint,
-                         sparse.identity(2**(L-j-2))))
-    # external field
-    for j in range(L):
-        H -= sparse.kron(sparse.identity(2**j),
-             sparse.kron(h*Sz,
-                         sparse.identity(2**(L-j-1))))
-    return H
+    sup = np.array([[0.,  1.], [0.,  0. ]])
+    sdn = np.array([[0.,  0.], [1.,  0. ]])
+    sz  = np.array([[0.5, 0.], [0., -0.5]])
+    # interaction terms and external field
+    hint = J * 0.5 * (sparse.kron(sup, sdn) + sparse.kron(sdn, sup)) + D * sparse.kron(sz, sz)
+    hamiltonian = \
+        sum(sparse.kron(sparse.identity(2**j),
+            sparse.kron(hint,
+                        sparse.identity(2**(nsites-j-2))))
+            for j in range(nsites - 1)) \
+      + sum(sparse.kron(sparse.identity(2**j),
+            sparse.kron(-h * sz,
+                        sparse.identity(2**(nsites-j-1))))
+            for j in range(nsites))
+    hamiltonian.eliminate_zeros()
+    return hamiltonian
 
 
-def construct_heisenberg_xxz_spin1_hamiltonian(L: int, J: float, D: float, h: float):
+def construct_heisenberg_xxz_spin1_1d_hamiltonian(nsites: int, J: float, D: float, h: float):
     """
-    Construct spin-1 XXZ Heisenberg Hamiltonian `sum J X X + J Y Y + D Z Z - h Z`
-    on a 1D lattice as sparse matrix.
+    Construct the spin-1 XXZ Heisenberg Hamiltonian `sum J X X + J Y Y + D Z Z - h Z`
+    on a one-dimensional lattice as sparse matrix.
     """
     # spin operators
     sq2 = np.sqrt(2.)
-    Sup = np.array([[0.,  sq2, 0.], [0.,  0.,  sq2], [0.,  0.,  0.]])
-    Sdn = np.array([[0.,  0.,  0.], [sq2, 0.,  0. ], [0.,  sq2, 0.]])
-    Sz  = np.array([[1.,  0.,  0.], [0.,  0.,  0. ], [0.,  0., -1.]])
-    H = sparse.csr_matrix((3**L, 3**L), dtype=float)
+    sup = np.array([[0.,  sq2, 0.], [0.,  0.,  sq2], [0.,  0.,  0.]])
+    sdn = np.array([[0.,  0.,  0.], [sq2, 0.,  0. ], [0.,  sq2, 0.]])
+    sz  = np.array([[1.,  0.,  0.], [0.,  0.,  0. ], [0.,  0., -1.]])
     # interaction terms
-    hint = J * 0.5 * (sparse.kron(Sup, Sdn) + sparse.kron(Sdn, Sup)) + D * sparse.kron(Sz, Sz)
-    for j in range(L - 1):
-        H += sparse.kron(sparse.identity(3**j),
-             sparse.kron(hint,
-                         sparse.identity(3**(L-j-2))))
-    # external field
-    for j in range(L):
-        H -= sparse.kron(sparse.identity(3**j),
-             sparse.kron(h*Sz,
-                         sparse.identity(3**(L-j-1))))
-    return H
+    hint = J * 0.5 * (sparse.kron(sup, sdn) + sparse.kron(sdn, sup)) + D * sparse.kron(sz, sz)
+    hamiltonian = \
+        sum(sparse.kron(sparse.identity(3**j),
+            sparse.kron(hint,
+                        sparse.identity(3**(nsites-j-2))))
+            for j in range(nsites - 1)) \
+      + sum(sparse.kron(sparse.identity(3**j),
+            sparse.kron(-h * sz,
+                        sparse.identity(3**(nsites-j-1))))
+            for j in range(nsites))
+    hamiltonian.eliminate_zeros()
+    return hamiltonian
 
 
-def construct_bose_hubbard_hamiltonian(d: int, L: int, t: float, U: float, mu: float):
+def construct_bose_hubbard_1d_hamiltonian(nsites: int, d: int, t: float, u: float, mu: float):
     """
-    Construct Bose-Hubbard Hamiltonian
-    with nearest-neighbor hopping on a 1D lattice as sparse matrix.
+    Construct the Bose-Hubbard Hamiltonian
+    with nearest-neighbor hopping on a one-dimensional lattice as a sparse matrix.
     """
     # bosonic creation and annihilation operators
     b_dag = np.diag(np.sqrt(np.arange(1, d, dtype=float)), -1)
     b_ann = np.diag(np.sqrt(np.arange(1, d, dtype=float)),  1)
     # number operator
     numop = np.diag(np.arange(d, dtype=float))
-    H = sparse.csr_matrix((d**L, d**L), dtype=float)
-    # interaction terms
-    hint = -t * (sparse.kron(b_dag, b_ann) + sparse.kron(b_ann, b_dag))
-    for j in range(L - 1):
-        H += sparse.kron(sparse.identity(d**j),
-             sparse.kron(hint,
-                         sparse.identity(d**(L-j-2))))
-    # external field
-    for j in range(L):
-        H += sparse.kron(sparse.identity(d**j),
-             sparse.kron(0.5*U*(numop @ (numop - np.identity(d))) - mu*numop,
-                         sparse.identity(d**(L-j-1))))
-    return H
+    # kinetic hopping terms, interaction terms and external field
+    tkin = -t * (sparse.kron(b_dag, b_ann) + sparse.kron(b_ann, b_dag))
+    hint = 0.5 * u * (numop @ (numop - np.identity(d))) - mu * numop
+    hamiltonian = \
+        sum(sparse.kron(sparse.identity(d**j),
+            sparse.kron(tkin,
+                        sparse.identity(d**(nsites-j-2))))
+            for j in range(nsites - 1)) \
+      + sum(sparse.kron(sparse.identity(d**j),
+            sparse.kron(hint,
+                        sparse.identity(d**(nsites-j-1))))
+            for j in range(nsites))
+    hamiltonian.eliminate_zeros()
+    return hamiltonian
 
 
-def generate_fermi_operators(L: int):
+def construct_fermi_operators(nmodes: int):
     """
     Generate sparse matrix representations of the fermionic creation and
-    annihilation operators for `L` sites (or modes).
+    annihilation operators for `nmodes` modes (or sites),
+    based on Jordan-Wigner transformation.
     """
-    I = sparse.identity(2)
-    Z = sparse.csr_matrix([[ 1.,  0.], [ 0., -1.]])
-    U = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
+    id2 = sparse.identity(2)
+    z = sparse.csr_matrix([[ 1.,  0.], [ 0., -1.]])
+    u = sparse.csr_matrix([[ 0.,  0.], [ 1.,  0.]])
     clist = []
-    for i in range(L):
+    for i in range(nmodes):
         c = sparse.identity(1)
-        for j in range(L):
+        for j in range(nmodes):
             if j < i:
-                c = sparse.kron(c, Z)
+                c = sparse.kron(c, z)
             elif j == i:
-                c = sparse.kron(c, U)
+                c = sparse.kron(c, u)
             else:
-                c = sparse.kron(c, I)
+                c = sparse.kron(c, id2)
+        c = sparse.csr_matrix(c)
+        c.eliminate_zeros()
         clist.append(c)
     # corresponding annihilation operators
-    alist = [c.conj().T for c in clist]
-    return (clist, alist)
+    alist = [sparse.csr_matrix(c.conj().T) for c in clist]
+    # corresponding number operators
+    nlist = []
+    for i in range(nmodes):
+        f = 1 << (nmodes - i - 1)
+        data = [1. if (n & f == f) else 0. for n in range(2**nmodes)]
+        nlist.append(sparse.dia_matrix((data, 0), 2*(2**nmodes,)))
+    return clist, alist, nlist
 
 
-def construct_fermi_hubbard_hamiltonian(L: int, t: float, U: float, mu: float):
+def construct_fermi_hubbard_1d_hamiltonian(nsites: int, t: float, u: float, mu: float):
     """
-    Construct Fermi-Hubbard Hamiltonian
-    with nearest-neighbor hopping on a 1D lattice as sparse matrix.
+    Construct the Fermi-Hubbard Hamiltonian
+    with nearest-neighbor hopping on a one-dimensional lattice as sparse matrix.
     """
-    clist, alist = generate_fermi_operators(2*L)
-    nlist = [c @ a for c, a in zip(clist, alist)]
-    H = sparse.csr_matrix((4**L, 4**L), dtype=float)
-    # kinetic hopping terms
-    for j in range(2*L - 2):
-        H -= t * (clist[j] @ alist[j+2] + clist[j+2] @ alist[j])
-    # interaction U (n_up-1/2) (n_dn-1/2) and number operator - mu (n_up + n_dn)
-    for j in range(0, 2*L, 2):
-        H += (U * (nlist[j] - 0.5*sparse.identity(4**L)) @ (nlist[j+1] - 0.5*sparse.identity(4**L))
-              - mu * (nlist[j] + nlist[j+1]))
-    H.eliminate_zeros()
-    return H
+    clist, alist, nlist = construct_fermi_operators(2*nsites)
+    # kinetic hopping terms and
+    # interaction u (n_up - 1/2) (n_dn - 1/2) and number operator - mu (n_up + n_dn)
+    hamiltonian = sum(-t * (clist[j] @ alist[j+2] + clist[j+2] @ alist[j])
+                      for j in range(2*nsites - 2)) \
+                + sum((u * (nlist[j]   - 0.5*sparse.identity(4**nsites)) \
+                         @ (nlist[j+1] - 0.5*sparse.identity(4**nsites)) \
+                       - mu * (nlist[j] + nlist[j+1]))
+                      for j in range(0, 2*nsites, 2))
+    hamiltonian.eliminate_zeros()
+    return hamiltonian
 
 
 def construct_molecular_hamiltonian(tkin, vint):
     """
-    Construct a molecular Hamiltonian as sparse matrix.
+    Construct the molecular Hamiltonian as a sparse matrix.
     """
-    L = tkin.shape[0]
+    nmodes = tkin.shape[0]
+    assert tkin.shape == (nmodes, nmodes)
+    assert vint.shape == (nmodes, nmodes, nmodes, nmodes)
 
-    complex_hamiltonian = np.iscomplexobj(tkin) or np.iscomplexobj(vint)
-    H = sparse.csr_matrix((2**L, 2**L), dtype=(complex if complex_hamiltonian else float))
+    clist, alist, _ = construct_fermi_operators(nmodes)
 
-    clist, alist = generate_fermi_operators(L)
-
-    # kinetic hopping terms
-    for i in range(L):
-        for j in range(L):
-            H += tkin[i, j] * (clist[i] @ alist[j])
-    # interaction terms
-    for i in range(L):
-        for j in range(L):
-            for k in range(L):
-                for l in range(L):
-                    H += 0.5*vint[i, j, k, l] * (clist[i] @ clist[j] @ alist[l] @ alist[k])
-    H.eliminate_zeros()
-    return H
+    # kinetic hopping and interaction terms
+    hamiltonian = \
+        sum(tkin[i, j] * (clist[i] @ alist[j])
+            for i in range(nmodes)
+            for j in range(nmodes)) + \
+        sum(0.5 * vint[i, j, k, l] * (clist[i] @ clist[j] @ alist[l] @ alist[k])
+            for i in range(nmodes)
+            for j in range(nmodes)
+            for k in range(nmodes)
+            for l in range(nmodes))
+    hamiltonian.eliminate_zeros()
+    return hamiltonian
 
 
 def construct_spin_molecular_hamiltonian(tkin, vint):
@@ -494,24 +515,24 @@ def construct_spin_molecular_hamiltonian(tkin, vint):
     tkin = np.asarray(tkin)
     vint = np.asarray(vint)
 
-    L = tkin.shape[0]
-    assert tkin.shape == (L, L)
-    assert vint.shape == (L, L, L, L)
+    nsites = tkin.shape[0]
+    assert tkin.shape == 2 * (nsites,)
+    assert vint.shape == 4 * (nsites,)
 
     # enlarge the single- and two-particle electron overlap integral tensors
     # from an orbital basis without spin to a spin orbital basis
 
     # single-particle integrals
-    tkin_spin = np.kron(tkin, np.eye(2))
+    tkin_spin = np.kron(tkin, np.identity(2))
 
     # two-particle integrals
-    tmp = np.zeros((2*L, L, 2*L, L), dtype=vint.dtype)
-    for i in range(L):
-        for j in range(L):
-            tmp[:, i, :, j] = np.kron(vint[:, i, :, j], np.eye(2))
-    vint_spin = np.zeros((2*L, 2*L, 2*L, 2*L), dtype=vint.dtype)
-    for i in range(2*L):
-        for j in range(2*L):
-            vint_spin[i, :, j, :] = np.kron(tmp[i, :, j, :], np.eye(2))
+    tmp = np.zeros((2*nsites, nsites, 2*nsites, nsites), dtype=vint.dtype)
+    for i in range(nsites):
+        for j in range(nsites):
+            tmp[:, i, :, j] = np.kron(vint[:, i, :, j], np.identity(2))
+    vint_spin = np.zeros((2*nsites, 2*nsites, 2*nsites, 2*nsites), dtype=vint.dtype)
+    for i in range(2*nsites):
+        for j in range(2*nsites):
+            vint_spin[i, :, j, :] = np.kron(tmp[i, :, j, :], np.identity(2))
 
     return construct_molecular_hamiltonian(tkin_spin, vint_spin)

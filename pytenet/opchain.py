@@ -1,7 +1,11 @@
+"""
+Symbolic operator chain.
+"""
+
 from collections.abc import Sequence, Mapping
 import numpy as np
 
-__all__ = ['OpChain']
+__all__ = ["OpChain"]
 
 
 class OpChain:
@@ -23,9 +27,9 @@ class OpChain:
             istart: first lattice site the operator chain acts on
         """
         if len(oids) + 1 != len(qnums):
-            raise ValueError('incompatible lengths of operator and quantum number lists')
+            raise ValueError("incompatible lengths of operator and quantum number lists")
         if istart < 0:
-            raise ValueError('start index cannot be negative')
+            raise ValueError("start index cannot be negative")
         self.oids  = list(oids)
         self.qnums = list(qnums)
         self.coeff = coeff
@@ -58,7 +62,7 @@ class OpChain:
                 return True
         return False
 
-    def as_matrix(self, opmap: Mapping) -> np.ndarray:
+    def to_matrix(self, opmap: Mapping) -> np.ndarray:
         """
         Represent the logical operation of the operator chain as a matrix.
         """

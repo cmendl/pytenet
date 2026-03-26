@@ -1,6 +1,10 @@
+"""
+Generic utility functions.
+"""
+
 import numpy as np
 
-__all__ = ['crandn']
+__all__ = ["crandn"]
 
 
 def crandn(size=None, rng: np.random.Generator=None):

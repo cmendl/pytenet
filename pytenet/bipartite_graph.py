@@ -6,16 +6,16 @@ https://en.wikipedia.org/wiki/Hopcroft%E2%80%93Karp_algorithm
 from queue import Queue
 from collections.abc import Sequence
 
-__all__ = ['BipartiteGraph', 'HopcroftKarp', 'minimum_vertex_cover']
+__all__ = ["BipartiteGraph", "HopcroftKarp", "minimum_vertex_cover"]
 
 
 class BipartiteGraph:
     """
     Data structure representing a bipartite graph G = ((U, V), E),
-    where 'U' and 'V' are the vertices in the left and right partition, respectively,
-    and 'E' the edges.
+    where `U` and `V` are the vertices in the left and right partition, respectively,
+    and `E` the edges.
 
-    Vertices in 'U' and 'V' are assumed to be sequentially indexed: 0, 1, ...
+    Vertices in `U` and `V` are assumed to be sequentially indexed: 0, 1, ...
     """
     def __init__(self, num_u: int, num_v: int, edges: Sequence[tuple[int, int]]):
         assert num_u >= 1
@@ -50,14 +50,14 @@ class HopcroftKarp:
     def __connect_unmatched_vertices(self) -> bool:
         """
         Find a path of minimal length connecting
-        currently unmatched vertices in 'U' to currently unmatched vertices in 'V'
+        currently unmatched vertices in "U" to currently unmatched vertices in "V"
         via a breadth-first search.
         """
         queue = Queue()
         inf_dist = self.graph.num_u + 1  # formally "infinite" distance
         for u in range(self.graph.num_u):
             if self.matched_pairs_u[u] == -1:
-                # 'u' has not been matched yet
+                # "u" has not been matched yet
                 self.dist[u] = 0
                 queue.put(u)
             else:
@@ -118,19 +118,19 @@ def minimum_vertex_cover(graph: BipartiteGraph):
     # maximum matching
     hk = HopcroftKarp(graph)
     matching = hk()
-    # unmatched vertices in 'U'
+    # unmatched vertices in "U"
     alist = set(range(graph.num_u))
     for (u, _) in matching:
         alist.discard(u)
     # cover vertices
     u_cover = set(range(graph.num_u))
     v_cover = set()
-    # vertices which are either in 'alist' or are connected to 'alist' by alternating paths
+    # vertices which are either in "alist" or are connected to "alist" by alternating paths
     for u in alist:
         u_visited = []
         v_visited = []
         _explore_alternating_paths(u, graph, matching, u_visited, v_visited)
-        # remove 'u_visited' from cover set
+        # remove "u_visited" from cover set
         u_cover.difference_update(u_visited)
         v_cover.update(v_visited)
     # number of vertices in minimum vertex cover must agree with
@@ -140,9 +140,9 @@ def minimum_vertex_cover(graph: BipartiteGraph):
 
 
 def _explore_alternating_paths(u_start: int, graph: BipartiteGraph, matching: Sequence[tuple[int, int]],
-                               u_visited: Sequence[int], v_visited: Sequence[int]):
+                               u_visited: list[int], v_visited: list[int]):
     """
-    Explore alternating paths originating from 'u_start' by a depth-first search.
+    Explore alternating paths originating from `u_start` by a depth-first search.
     """
     if u_start in u_visited:
         return

@@ -1,7 +1,11 @@
+"""
+Symbolic operator tree.
+"""
+
 from collections.abc import Sequence, Mapping
 import numpy as np
 
-__all__ = ['OpTreeEdge', 'OpTreeNode', 'OpTree']
+__all__ = ["OpTreeEdge", "OpTreeNode", "OpTree"]
 
 
 class OpTreeEdge:
@@ -10,7 +14,7 @@ class OpTreeEdge:
     """
     def __init__(self, oid: int, coeff: float, node):
         if not isinstance(node, OpTreeNode):
-            raise ValueError("'node' argument must be of type 'OpTreeNode'")
+            raise ValueError("`node` argument must be of type `OpTreeNode`")
         self.oid   = oid    # operator ID
         self.coeff = coeff  # coefficient
         self.node  = node   # child node
@@ -23,7 +27,7 @@ class OpTreeNode:
     """
     def __init__(self, children: Sequence[OpTreeEdge], qnum: int):
         if not all(isinstance(child, OpTreeEdge) for child in children):
-            raise ValueError("children of a 'OpTreeNode' must be of type 'OpTreeEdge'")
+            raise ValueError("children of an `OpTreeNode` must be of type `OpTreeEdge`")
         self.children = list(children)
         self.qnum = qnum    # quantum number
 
@@ -32,7 +36,7 @@ class OpTreeNode:
         Add a child to the operator tree node.
         """
         if not isinstance(child, OpTreeEdge):
-            raise ValueError("child nodes of a 'OpTreeNode' must be of type 'OpTreeEdge'")
+            raise ValueError("child nodes of an `OpTreeNode` must be of type `OpTreeEdge`")
         self.children.append(child)
 
     def is_leaf(self) -> bool:
@@ -56,11 +60,11 @@ class OpTree:
         """
         return _subtree_height(self.root)
 
-    def as_matrix(self, opmap: Mapping) -> np.ndarray:
+    def to_matrix(self, opmap: Mapping) -> np.ndarray:
         """
         Represent the logical operation of the tree as a matrix.
         """
-        return _subtree_as_matrix(self.root, opmap)
+        return _subtree_to_matrix(self.root, opmap)
 
 
 def _subtree_height(node: OpTreeNode) -> int:
@@ -72,7 +76,7 @@ def _subtree_height(node: OpTreeNode) -> int:
     return 1 + max(_subtree_height(child.node) for child in node.children)
 
 
-def _subtree_as_matrix(node: OpTreeNode, opmap: Mapping) -> np.ndarray:
+def _subtree_to_matrix(node: OpTreeNode, opmap: Mapping) -> np.ndarray:
     """
     Contract the (sub-)tree to obtain its matrix representation.
     """
@@ -81,7 +85,7 @@ def _subtree_as_matrix(node: OpTreeNode, opmap: Mapping) -> np.ndarray:
         if edge.node.is_leaf():
             op_subtree = np.identity(1)
         else:
-            op_subtree = _subtree_as_matrix(edge.node, opmap)
+            op_subtree = _subtree_to_matrix(edge.node, opmap)
         op = np.kron(edge.coeff * opmap[edge.oid], op_subtree)
         # subtrees can have different heights
         if op_sum.shape[0] < op.shape[0]:

@@ -1,11 +1,33 @@
+"""
+Tensor hypercontraction (THC) representation of molecular Hamiltonians.
+
+References:
+  - Robert M. Parrish, Edward G. Hohenstein, Todd J. Martínez, C. David Sherrill\n
+    Tensor hypercontraction. II. Least-squares renormalization\n
+    J. Chem. Phys. 137, 224106 (2012)
+  - Jianfeng Lu, Lexing Ying\n
+    Compression of the electron repulsion integral tensor
+    in tensor hypercontraction format with cubic scaling cost\n
+    J. Comput. Phys. 302, 329-335 (2015)
+  - Joonho Lee, Lin Lin, Martin Head-Gordon\n
+    Systematically improvable tensor hypercontraction:
+    interpolative separable density-fitting for molecules applied to exact exchange,
+    second- and third-order Møller-Plesset perturbation theory\n
+    J. Chem. Theory Comput. 16, 243-263 (2020)
+  - Yu Wang, Maxine Luo, Matthias Reumann, Christian B. Mendl\n
+    Enhanced Krylov methods for molecular Hamiltonians:
+    Reduced memory cost and complexity scaling via tensor hypercontraction\n
+    J. Chem. Theory Comput. 21, 6874-6886 (2025)
+"""
+
 import copy
 import numpy as np
 from .hamiltonian import quadratic_spin_fermionic_mpo
 from .mps import MPS, add_mps
 from .mpo import MPO
-from .operation import apply_operator
+from .operation import apply_mpo
 
-__all__ = ['THCSpinMolecularHamiltonian', 'apply_thc_spin_molecular_hamiltonian']
+__all__ = ["THCSpinMolecularHamiltonian", "apply_thc_spin_molecular_hamiltonian"]
 
 
 class THCSpinMolecularHamiltonian:
@@ -69,16 +91,16 @@ class THCSpinMolecularHamiltonian:
         """
         return self.thc_kernel.shape[0]
 
-    def as_matrix(self, sparse_format:bool=False):
+    def to_matrix(self, sparse_format:bool=False):
         """
         Generate the matrix representation of the Hamiltonian on the full Hilbert space.
         """
         # kinetic term
-        mat = sum(self.en_kin[i] * self.mpo_kin[i][sigma].as_matrix(sparse_format)
+        mat = sum(self.en_kin[i] * self.mpo_kin[i][sigma].to_matrix(sparse_format)
                   for sigma in (0, 1)
                   for i in range(self.nsites))
         # convert individual THC MPOs to sparse matrices
-        mat_thc = [[self.mpo_thc[mu][sigma].as_matrix(sparse_format)
+        mat_thc = [[self.mpo_thc[mu][sigma].to_matrix(sparse_format)
                     for sigma in (0, 1)]
                     for mu in range(self.thc_rank)]
         # diagonalize the THC kernel
@@ -97,13 +119,14 @@ def _apply_operator_and_compress(op: MPO, psi: MPS, tol: float) -> MPS:
     """
     Apply an operator represented as MPO to a state in MPS form and compress the result.
     """
-    op_psi = apply_operator(op, psi)
+    op_psi = apply_mpo(op, psi)
     nrm, _ = op_psi.compress(tol)
-    op_psi.A[0] *= nrm
+    op_psi.a[0] *= nrm
     return op_psi
 
 
-def apply_thc_spin_molecular_hamiltonian(hamiltonian: THCSpinMolecularHamiltonian, psi: MPS, tol: float) -> MPS:
+def apply_thc_spin_molecular_hamiltonian(hamiltonian: THCSpinMolecularHamiltonian,
+                                         psi: MPS, tol: float) -> MPS:
     """
     Apply a molecular Hamiltonian in tensor hypercontraction representation
     to a state in MPS form.
@@ -120,18 +143,18 @@ def apply_thc_spin_molecular_hamiltonian(hamiltonian: THCSpinMolecularHamiltonia
                 ret = add_mps(ret, op_psi, alpha=hamiltonian.en_kin[i])
             else:
                 ret = op_psi
-                ret.A[0] *= hamiltonian.en_kin[i]
+                ret.a[0] *= hamiltonian.en_kin[i]
             nrm, _ = ret.compress(tol)
-            ret.A[0] *= nrm
+            ret.a[0] *= nrm
     # interaction term
     for nu in range(hamiltonian.thc_rank):
         for tau in (0, 1):
             chi = _apply_operator_and_compress(hamiltonian.mpo_thc[nu][tau], psi, tol)
             for mu in range(hamiltonian.thc_rank):
                 chi_k = copy.deepcopy(chi)
-                chi_k.A[0] *= 0.5 * hamiltonian.thc_kernel[mu, nu]
+                chi_k.a[0] *= 0.5 * hamiltonian.thc_kernel[mu, nu]
                 for sigma in (0, 1):
                     ret += _apply_operator_and_compress(hamiltonian.mpo_thc[mu][sigma], chi_k, tol)
                     nrm, _ = ret.compress(tol)
-                    ret.A[0] *= nrm
+                    ret.a[0] *= nrm
     return ret

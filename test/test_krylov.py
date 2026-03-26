@@ -11,23 +11,23 @@ def test_lanczos_iteration():
     numiter = 24
 
     # random Hermitian matrix
-    A = ptn.crandn((n, n), rng) / np.sqrt(n)
-    A = 0.5 * (A + A.conj().T)
+    a = ptn.crandn((n, n), rng) / np.sqrt(n)
+    a = 0.5 * (a + a.conj().T)
 
     # random complex starting vector
     vstart = ptn.crandn(n, rng) / np.sqrt(n)
 
-    # simply use A as linear transformation
-    alpha, beta, V = ptn.lanczos_iteration(lambda x: A @ x, vstart, numiter)
+    # simply use `a` as linear transformation
+    alpha, beta, v = ptn.lanczos_iteration(lambda x: a @ x, vstart, numiter)
 
     # check orthogonality of Lanczos vectors
-    assert np.allclose(V.T.conj() @ V, np.identity(numiter), rtol=1e-12), \
+    assert np.allclose(v.T.conj() @ v, np.identity(numiter), rtol=1e-12), \
         "matrix of Lanczos vectors must be orthonormalized"
 
-    # Lanczos vectors must tridiagonalize A
-    T = np.diag(alpha) + np.diag(beta, 1) + np.diag(beta, -1)
-    assert np.allclose(V.conj().T @ A @ V, T, rtol=1e-12), \
-        "Lanczos vectors must tridiagonalize A"
+    # Lanczos vectors must tridiagonalize `a`
+    t = np.diag(alpha) + np.diag(beta, 1) + np.diag(beta, -1)
+    assert np.allclose(v.conj().T @ a @ v, t, rtol=1e-12), \
+        "Lanczos vectors must tridiagonalize `a`"
 
 
 def test_arnoldi_iteration():
@@ -38,19 +38,19 @@ def test_arnoldi_iteration():
     numiter = 24
 
     # random matrix
-    A = ptn.crandn((n, n), rng)
+    a = ptn.crandn((n, n), rng)
     # random complex starting vector
     vstart = ptn.crandn(n, rng) / np.sqrt(n)
 
-    # simply use A as linear transformation
-    H, V = ptn.arnoldi_iteration(lambda x: A @ x, vstart, numiter)
+    # simply use `a` as linear transformation
+    hess, v = ptn.arnoldi_iteration(lambda x: a @ x, vstart, numiter)
 
     # check orthogonality of Arnoldi vectors
-    assert np.allclose(V.conj().T @ V, np.identity(V.shape[1]), rtol=1e-12), \
+    assert np.allclose(v.conj().T @ v, np.identity(v.shape[1]), rtol=1e-12), \
         "matrix of Arnoldi vectors must be orthonormalized"
 
-    assert np.allclose(V.conj().T @ A @ V, H, rtol=1e-12), \
-        "Arnoldi vectors must transform A to upper Hessenberg form"
+    assert np.allclose(v.conj().T @ a @ v, hess, rtol=1e-12), \
+        "Arnoldi vectors must transform `a` to upper Hessenberg form"
 
 
 def test_eigh_krylov():
@@ -62,25 +62,25 @@ def test_eigh_krylov():
     numeig  = 2
 
     # random Hermitian matrix
-    A = ptn.crandn((n, n), rng) / np.sqrt(n)
-    A = 0.5 * (A + A.conj().T)
+    a = ptn.crandn((n, n), rng) / np.sqrt(n)
+    a = 0.5 * (a + a.conj().T)
 
     # random complex starting vector
     vstart = ptn.crandn(n, rng) / np.sqrt(n)
 
-    # simply use A as linear transformation;
-    w, u_ritz = ptn.eigh_krylov(lambda x: A @ x, vstart, numiter, numeig)
+    # simply use `a` as linear transformation;
+    w, u_ritz = ptn.eigh_krylov(lambda x: a @ x, vstart, numiter, numeig)
 
     # check orthogonality of Ritz matrix
     assert np.allclose(u_ritz.conj().T @ u_ritz, np.identity(numeig), rtol=1e-12), \
         "matrix of Ritz eigenvectors must be orthonormalized"
 
-    # check U^H A U = diag(w)
-    assert np.allclose(u_ritz.conj().T @ A @ u_ritz, np.diag(w), rtol=1e-12), \
-        "Ritz eigenvectors must diagonalize A within Krylov subspace"
+    # check U^H a U = diag(w)
+    assert np.allclose(u_ritz.conj().T @ a @ u_ritz, np.diag(w), rtol=1e-12), \
+        "Ritz eigenvectors must diagonalize a within Krylov subspace"
 
     # reference eigenvalues
-    w_ref = np.linalg.eigvalsh(A)
+    w_ref = np.linalg.eigvalsh(a)
 
     # compare lowest eigenvalues
     assert abs(w[0] - w_ref[0]) < 0.001, \
@@ -100,23 +100,23 @@ def test_expm_krylov():
     dt = 0.4 + 0.2j
 
     # random complex matrix
-    A = ptn.crandn((n, n), rng) / np.sqrt(n)
+    a = ptn.crandn((n, n), rng) / np.sqrt(n)
 
     # random complex vector
-    v = ptn.crandn(n, rng) / np.sqrt(n)
+    vec = ptn.crandn(n, rng) / np.sqrt(n)
 
-    # Krylov subspace approximation of expm(dt*A) @ v, general case
-    vt = ptn.expm_krylov(lambda x: A @ x, v, dt, numiter, hermitian=False)
+    # Krylov subspace approximation of expm(dt*a) @ vec, general case
+    vt = ptn.expm_krylov(lambda x: a @ x, vec, dt, numiter, hermitian=False)
     # reference
-    vt_ref = expm(dt*A) @ v
+    vt_ref = expm(dt*a) @ vec
     assert np.allclose(vt, vt_ref, rtol=1e-11), \
-        "Krylov subspace approximation of expm(dt*A) @ v should match reference"
+        "Krylov subspace approximation of expm(dt*a) @ vec should match reference"
 
     # symmetrize
-    A = 0.5 * (A + A.conj().T)
-    # Krylov subspace approximation of expm(dt*A) @ v, Hermitian case
-    vt = ptn.expm_krylov(lambda x: A @ x, v, dt, numiter, hermitian=True)
+    a = 0.5 * (a + a.conj().T)
+    # Krylov subspace approximation of expm(dt*a) @ vec, Hermitian case
+    vt = ptn.expm_krylov(lambda x: a @ x, vec, dt, numiter, hermitian=True)
     # reference
-    vt_ref = expm(dt*A) @ v
+    vt_ref = expm(dt*a) @ vec
     assert np.allclose(vt, vt_ref, rtol=1e-11), \
-        "Krylov subspace approximation of expm(dt*A) @ v should match reference"
+        "Krylov subspace approximation of expm(dt*a) @ vec should match reference"

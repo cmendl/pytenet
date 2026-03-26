@@ -2,7 +2,7 @@ import numpy as np
 import pytenet as ptn
 
 
-def test_vdot():
+def test_mps_vdot():
 
     rng = np.random.default_rng()
 
@@ -11,24 +11,24 @@ def test_vdot():
 
     # create random matrix product states
     psi = ptn.MPS(np.zeros(d, dtype=int),
-                  [np.zeros(Di, dtype=int) for Di in [1, 3, 9, 13, 4, 1]],
+                  [np.zeros(bi, dtype=int) for bi in [1, 3, 9, 13, 4, 1]],
                   fill="random", rng=rng)
     chi = ptn.MPS(np.zeros(d, dtype=int),
-                  [np.zeros(Di, dtype=int) for Di in [1, 4, 7, 8,  2, 1]],
+                  [np.zeros(bi, dtype=int) for bi in [1, 4, 7, 8,  2, 1]],
                   fill="random", rng=rng)
 
     # calculate dot product <chi | psi>
-    s = ptn.vdot(chi, psi)
+    s = ptn.mps_vdot(chi, psi)
 
     # reference value
-    s_ref = np.vdot(chi.as_vector(), psi.as_vector())
+    s_ref = np.vdot(chi.to_vector(), psi.to_vector())
 
     # relative error
     err = abs(s - s_ref) / max(abs(s_ref), 1e-12)
     assert err < 1e-12, "dot product must match reference value"
 
 
-def test_norm():
+def test_mps_norm():
 
     rng = np.random.default_rng()
 
@@ -37,14 +37,14 @@ def test_norm():
 
     # create random matrix product state
     psi = ptn.MPS(np.zeros(d, dtype=int),
-                  [np.zeros(Di, dtype=int) for Di in [1, 3, 5, 8, 7, 2, 1]],
+                  [np.zeros(bi, dtype=int) for bi in [1, 3, 5, 8, 7, 2, 1]],
                   fill="random", rng=rng)
 
     # calculate the norm of psi using the MPS representation
-    n = ptn.norm(psi)
+    n = ptn.mps_norm(psi)
 
     # reference value
-    n_ref = np.linalg.norm(psi.as_vector())
+    n_ref = np.linalg.norm(psi.to_vector())
 
     # relative error
     err = abs(n - n_ref) / max(abs(n_ref), 1e-12)
@@ -60,29 +60,29 @@ def test_operator_average():
     d = 3
 
     # physical quantum numbers
-    qd = rng.integers(-1, 2, size=d)
+    qsite = rng.integers(-1, 2, size=d)
 
     # create random matrix product state
-    D = [1, 7, 26, 19, 25, 8, 1]
-    psi = ptn.MPS(qd, [rng.integers(-1, 2, size=Di) for Di in D],
+    b = [1, 7, 26, 19, 25, 8, 1]
+    psi = ptn.MPS(qsite, [rng.integers(-1, 2, size=bi) for bi in b],
                   fill="random", rng=rng)
     # rescale to achieve norm of order 1
     for i in range(psi.nsites):
-        psi.A[i] *= 5
+        psi.a[i] *= 5
 
     # create random matrix product operator
-    D = [1, 5, 16, 14, 17, 4, 1]
+    b = [1, 5, 16, 14, 17, 4, 1]
     # set bond quantum numbers to zero since otherwise,
     # sparsity pattern often leads to <psi | op | psi> = 0
-    op = ptn.MPO(qd, [np.zeros(Di, dtype=int) for Di in D],
+    op = ptn.MPO(qsite, [np.zeros(bi, dtype=int) for bi in b],
                  fill="random", rng=rng)
 
     # calculate average (expectation value) <psi | op | psi>
     avr = ptn.operator_average(psi, op)
 
     # reference value based on full Fock space representation
-    x = psi.as_vector()
-    avr_ref = np.vdot(x, op.as_matrix() @ x)
+    x = psi.to_vector()
+    avr_ref = np.vdot(x, op.to_matrix() @ x)
 
     # relative error
     err = abs(avr - avr_ref) / max(abs(avr_ref), 1e-12)
@@ -90,50 +90,50 @@ def test_operator_average():
 
     # represent a density matrix as random matrix product operator
     # (Hermitian property not relevant here)
-    D = [1, 3, 7, 6, 11, 5, 1]
+    b = [1, 3, 7, 6, 11, 5, 1]
     # set bond quantum numbers to zero since otherwise,
     # sparsity pattern often leads to <psi | op | psi> = 0
-    rho = ptn.MPO(qd, [np.zeros(Di, dtype=int) for Di in D],
+    rho = ptn.MPO(qsite, [np.zeros(bi, dtype=int) for bi in b],
                   fill="random", rng=rng)
 
     # calculate average (expectation value) tr[op rho]
     avr = ptn.operator_density_average(rho, op)
 
     # reference value based on full Fock space representation
-    avr_ref = np.trace(op.as_matrix() @ rho.as_matrix())
+    avr_ref = np.trace(op.to_matrix() @ rho.to_matrix())
 
     # relative error
     err = abs(avr - avr_ref) / max(abs(avr_ref), 1e-12)
     assert err < 1e-12, "operator average must match reference value"
 
 
-def test_apply_operator():
+def test_apply_mpo():
 
     rng = np.random.default_rng()
 
     # physical quantum numbers
-    qd = [0, -1, 1]
+    qsite = [0, -1, 1]
 
     # create random matrix product state
-    D = [1, 9, 25, 31, 23, 8, 1]
-    psi = ptn.MPS(qd, [rng.integers(-1, 2, size=Di) for Di in D],
+    b = [1, 9, 25, 31, 23, 8, 1]
+    psi = ptn.MPS(qsite, [rng.integers(-1, 2, size=bi) for bi in b],
                   fill="random", rng=rng)
     # rescale to achieve norm of order 1
     for i in range(psi.nsites):
-        psi.A[i] *= 5
+        psi.a[i] *= 5
 
     # create random matrix product operator
-    D = [1, 5, 16, 43, 35, 7, 1]
-    op = ptn.MPO(qd, [rng.integers(-1, 2, size=Di) for Di in D],
+    b = [1, 5, 16, 43, 35, 7, 1]
+    op = ptn.MPO(qsite, [rng.integers(-1, 2, size=bi) for bi in b],
                  fill="random", rng=rng)
     # rescale to achieve norm of order 1
     for i in range(op.nsites):
-        op.A[i] *= 5
+        op.a[i] *= 5
 
-    op_psi = ptn.apply_operator(op, psi)
+    op_psi = ptn.apply_mpo(op, psi)
 
     # reference
-    op_psi_ref = op.as_matrix() @ psi.as_vector()
+    op_psi_ref = op.to_matrix() @ psi.to_vector()
 
     # compare
-    assert np.allclose(op_psi.as_vector(), op_psi_ref, rtol=1e-12, atol=1e-12)
+    assert np.allclose(op_psi.to_vector(), op_psi_ref, rtol=1e-12, atol=1e-12)

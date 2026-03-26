@@ -1,3 +1,7 @@
+"""
+Operator graph internal data structure for generating MPO representations.
+"""
+
 from itertools import combinations
 from collections.abc import Sequence, Mapping, Callable
 import copy
@@ -7,7 +11,7 @@ from .opchain import OpChain
 from .bipartite_graph import BipartiteGraph, minimum_vertex_cover
 from .optree import OpTreeEdge, OpTreeNode, OpTree
 
-__all__ = ['OpGraphNode', 'OpGraphEdge', 'OpGraph']
+__all__ = ["OpGraphNode", "OpGraphEdge", "OpGraph"]
 
 
 class OpGraphNode:
@@ -15,15 +19,17 @@ class OpGraphNode:
     Operator graph node, corresponding to a virtual bond in an MPO.
     """
     def __init__(self, nid: int, eids_in: Sequence[int], eids_out: Sequence[int], qnum: int):
-        assert len(eids_in)  == len(set(eids_in)),  f'incoming edge indices must be pairwise different, received {eids_in}'
-        assert len(eids_out) == len(set(eids_out)), f'outgoing edge indices must be pairwise different, received {eids_out}'
+        assert len(eids_in)  == len(set(eids_in)), \
+            f"incoming edge indices must be pairwise different, received {eids_in}"
+        assert len(eids_out) == len(set(eids_out)), \
+            f"outgoing edge indices must be pairwise different, received {eids_out}"
         self.nid = nid
         self.eids = (list(eids_in), list(eids_out))
         self.qnum = qnum
 
     def add_edge_id(self, eid: int, direction: int):
         """
-        Add an edge identified by ID 'eid' in the specified direction.
+        Add an edge identified by ID `eid` in the specified direction.
         """
         eids = self.eids[direction]
         assert eid not in eids
@@ -31,7 +37,7 @@ class OpGraphNode:
 
     def remove_edge_id(self, eid: int, direction: int):
         """
-        Remove an edge identified by ID 'eid' in the specified direction.
+        Remove an edge identified by ID `eid` in the specified direction.
         """
         self.eids[direction].remove(eid)
 
@@ -57,12 +63,13 @@ class OpGraphEdge:
     """
     def __init__(self, eid: int, nids: Sequence[int], opics: Sequence[tuple[int, float]]):
         if len(nids) != 2:
-            raise ValueError(f'expecting exactly two node IDs per edge, received {len(nids)}')
+            raise ValueError(f"expecting exactly two node IDs per edge, received {len(nids)}")
         self.eid   = eid
         self.nids  = list(nids)
         self.opics = []
         for i, c in opics:
             # ensure that each index is unique
+            # pylint: disable=consider-using-enumerate
             for k in range(len(self.opics)):
                 if self.opics[k][0] == i:
                     j, d = self.opics.pop(k)
@@ -71,7 +78,7 @@ class OpGraphEdge:
                     self.opics.append((i, c + d))
                     break
             else:
-                # index 'i' not found so far
+                # index `i` not found so far
                 self.opics.append((i, c))
         # sort by index
         self.opics = sorted(self.opics)
@@ -89,6 +96,7 @@ class OpGraphEdge:
         """
         assert self.nids == other.nids
         for i, c in other.opics:
+            # pylint: disable=consider-using-enumerate
             for k in range(len(self.opics)):
                 if self.opics[k][0] == i:
                     j, d = self.opics.pop(k)
@@ -97,7 +105,7 @@ class OpGraphEdge:
                     self.opics.append((i, c + d))
                     break
             else:
-                # index 'i' not found so far
+                # index `i` not found so far
                 self.opics.append((i, c))
         # sort by index
         self.opics = sorted(self.opics)
@@ -110,16 +118,17 @@ class OpGraph:
     The layout consists of alternating layers of nodes (corresponding to virtual bonds)
     and edges (corresponding to local operators in the MPO tensors).
     """
-    def __init__(self, nodes: Sequence[OpGraphNode], edges: Sequence[OpGraphEdge], nid_terminal: Sequence[int]):
+    def __init__(self, nodes: Sequence[OpGraphNode], 
+                 edges: Sequence[OpGraphEdge], nid_terminal: Sequence[int]):
         # dictionary of nodes
         self.nodes = {}
         for node in nodes:
             self.add_node(node)
         # terminal node IDs
         if len(nid_terminal) != 2:
-            raise ValueError(f'expecting two terminal node IDs, received {len(nid_terminal)}')
+            raise ValueError(f"expecting two terminal node IDs, received {len(nid_terminal)}")
         if nid_terminal[0] not in self.nodes or nid_terminal[1] not in self.nodes:
-            raise ValueError(f'terminal node IDs {nid_terminal} not found')
+            raise ValueError(f"terminal node IDs {nid_terminal} not found")
         self.nid_terminal = list(nid_terminal)
         # dictionary of edges
         self.edges = {}
@@ -131,7 +140,7 @@ class OpGraph:
         Add a node to the graph.
         """
         if node.nid in self.nodes:
-            raise ValueError(f'node with ID {node.nid} already exists')
+            raise ValueError(f"node with ID {node.nid} already exists")
         self.nodes[node.nid] = node
 
     def remove_node(self, nid: int) -> OpGraphNode:
@@ -145,7 +154,7 @@ class OpGraph:
         Add an edge to the graph.
         """
         if edge.eid in self.edges:
-            raise ValueError(f'edge with ID {edge.eid} already exists')
+            raise ValueError(f"edge with ID {edge.eid} already exists")
         self.edges[edge.eid] = edge
 
     def add_connect_edge(self, edge: OpGraphEdge):
@@ -191,7 +200,7 @@ class OpGraph:
         Construct an operator graph from a state automaton.
         """
         if length < 1:
-            raise ValueError('length must at least be 1')
+            raise ValueError("length must at least be 1")
         # determine active nodes at each layer
         nids_active_dir = []
         for direction in (0, 1):
@@ -203,7 +212,8 @@ class OpGraph:
                 for nid in nids_prev:
                     for eid in autop.nodes[nid].eids[direction]:
                         edge = autop.edges[eid]
-                        edge_active = edge.active(i) if isinstance(edge.active, Callable) else edge.active
+                        edge_active = edge.active(i) if isinstance(edge.active, Callable) \
+                                      else edge.active
                         if edge_active:
                             nids_curr.add(edge.nids[direction])
                 if direction == 1:
@@ -212,7 +222,8 @@ class OpGraph:
                     nids_active_d = [nids_curr] + nids_active_d
             nids_active_dir.append(nids_active_d)
         # a node is marked as active if it is connected to both terminal nodes
-        nids_active = [sorted(list(s0 & s1)) for s0, s1 in zip(nids_active_dir[0], nids_active_dir[1])]
+        nids_active = [sorted(list(s0 & s1))
+                       for s0, s1 in zip(nids_active_dir[0], nids_active_dir[1])]
         assert len(nids_active) == length + 1
         assert nids_active[ 0] == [autop.nid_terminal[0]]
         assert nids_active[-1] == [autop.nid_terminal[1]]
@@ -235,7 +246,8 @@ class OpGraph:
                 nid_next += 1
                 # insert edges connected to the node on the left
                 for edge_autop in [autop.edges[eid] for eid in node_autop.eids[0]]:
-                    edge_active = edge_autop.active(i) if isinstance(edge_autop.active, Callable) else edge_autop.active
+                    edge_active = edge_autop.active(i) if isinstance(edge_autop.active, Callable) \
+                                  else edge_autop.active
                     if not edge_active:
                         continue
                     if edge_autop.nids[0] not in nids_active[i]:
@@ -243,7 +255,8 @@ class OpGraph:
                     idx = nids_active[i].index(edge_autop.nids[0])
                     nid_prev = nids_map[i][idx]
                     # add a new edge
-                    opics = edge_autop.opics(i) if isinstance(edge_autop.opics, Callable) else edge_autop.opics
+                    opics = edge_autop.opics(i) if isinstance(edge_autop.opics, Callable) \
+                            else edge_autop.opics
                     edge = OpGraphEdge(eid_next, [nid_prev, node.nid], opics)
                     graph.add_connect_edge(edge)
                     eid_next += 1
@@ -260,7 +273,8 @@ class OpGraph:
         Construct an operator graph from a list of operator chains,
         implementing the algorithm in:
             Jiajun Ren, Weitang Li, Tong Jiang, Zhigang Shuai
-            A general automatic method for optimal construction of matrix product operators using bipartite graph theory
+            A general automatic method for optimal construction
+            of matrix product operators using bipartite graph theory
             J. Chem. Phys. 153, 084118 (2020)
 
         Args:
@@ -272,7 +286,7 @@ class OpGraph:
             OpGraph: the constructed operator graph
         """
         if not chains:
-            raise ValueError('list of operator chains cannot be empty')
+            raise ValueError("list of operator chains cannot be empty")
 
         # construct graph with start node and dummy end node
         node_start = OpGraphNode(0, [], [], 0)
@@ -285,7 +299,8 @@ class OpGraph:
         chains = [chain.padded(length, oid_identity) for chain in chains if chain.coeff != 0]
 
         # convert to half-chains and add a dummy identity operator
-        vlist_next  = [OpHalfchain(chain.oids + [oid_identity], chain.qnums + [0], node_start.nid) for chain in chains]
+        vlist_next  = [OpHalfchain(chain.oids + [oid_identity], chain.qnums + [0], node_start.nid)
+                       for chain in chains]
         coeffs_next = [chain.coeff for chain in chains]
 
         # sweep from left to right
@@ -333,7 +348,8 @@ class OpGraph:
                     if (i, j) not in edges:
                         continue
                     u = ulist[i]
-                    graph.add_edge(OpGraphEdge(eid_next, [u.nidl, node.nid], [(u.oid, gamma[(i, j)])]))
+                    graph.add_edge(OpGraphEdge(eid_next, [u.nidl, node.nid],
+                                               [(u.oid, gamma[(i, j)])]))
                     assert u.qnum1 == node.qnum
                     # keep track of handled edges
                     edges.remove((i, j))
@@ -358,7 +374,8 @@ class OpGraph:
         assert graph.is_consistent()
         return graph
 
-    def _insert_opchain(self, nid_start: int, nid_end: int, oids: Sequence[int], coeffs: Sequence[float], qnums: Sequence[int], direction: int):
+    def _insert_opchain(self, nid_start: int, nid_end: int, oids: Sequence[int],
+                        coeffs: Sequence[float], qnums: Sequence[int], direction: int):
         """
         Insert an operator chain between two nodes
         by generating an alternating sequence of edges and nodes.
@@ -372,28 +389,32 @@ class OpGraph:
         eid_next = max(self.edges.keys(), default=0) + 1
         node = self.nodes[nid_start]
         for oid, coeff, qnum in zip(oids[:-1], coeffs[:-1], qnums):
-            edge = OpGraphEdge(eid_next, [nid_next, node.nid] if direction == 0 else [node.nid, nid_next], [(oid, coeff)])
+            edge = OpGraphEdge(eid_next, [nid_next, node.nid] if direction == 0
+                                         else [node.nid, nid_next], [(oid, coeff)])
             node = OpGraphNode(nid_next, [], [], qnum)
             self.add_node(node)
             self.add_connect_edge(edge)
             nid_next += 1
             eid_next += 1
         # last step
-        self.add_connect_edge(OpGraphEdge(eid_next, [nid_end, node.nid] if direction == 0 else [node.nid, nid_end], [(oids[-1], coeffs[-1])]))
+        self.add_connect_edge(OpGraphEdge(eid_next,
+            [nid_end, node.nid] if direction == 0
+            else [node.nid, nid_end], [(oids[-1], coeffs[-1])]))
 
-    def _insert_subtree(self, tree_root: OpTreeNode, nid_root: int, terminal_dist: int, oid_identity: int):
+    def _insert_subtree(self, tree_root: OpTreeNode, nid_root: int,
+                        terminal_dist: int, oid_identity: int):
         """
         Insert a subtree into the graph, connecting the leaves with the terminal node of the graph.
         """
         if not isinstance(tree_root, OpTreeNode):
-            raise ValueError("'tree_root' must be of type 'OpTreeNode'")
+            raise ValueError("`tree_root` must be of type `OpTreeNode`")
         if terminal_dist < 0:
-            raise ValueError("'terminal_dist' cannot be negative")
+            raise ValueError("`terminal_dist` cannot be negative")
         # operator graph node
         node = self.nodes[nid_root]
         if node.qnum != tree_root.qnum:
-            raise RuntimeError(f'quantum number of operator graph node ({node.qnum}) '
-                               f'does not match quantum number of tree node ({tree_root.qnum})')
+            raise RuntimeError(f"quantum number of operator graph node ({node.qnum}) "
+                               f"does not match quantum number of tree node ({tree_root.qnum})")
         if not tree_root.children:
             # arrived at leaf node
             if terminal_dist > 0:
@@ -403,7 +424,7 @@ class OpGraph:
                                      terminal_dist * [1.0],
                                      (terminal_dist - 1) * [0], 1)
             else:
-                # 'terminal_dist' is zero -> have to be at terminal node
+                # "terminal_dist" is zero -> have to be at terminal node
                 assert nid_root == self.nid_terminal[1]
             return
         # recursively insert sub-trees
@@ -459,10 +480,11 @@ class OpGraph:
         Edges must originate from same node.
         """
         if direction not in (0, 1):
-            raise ValueError(f"'direction' must be 0 or 1, received {direction}")
+            raise ValueError(f"`direction` must be 0 or 1, received {direction}")
         edge1 = self.edges[eid1]
         edge2 = self.edges.pop(eid2)
-        assert edge1.nids[direction] == edge2.nids[direction], 'to-be merged edges must originate from same node'
+        assert edge1.nids[direction] == edge2.nids[direction], \
+            "to-be merged edges must originate from same node"
         # remove reference to edge2 from base node
         self.nodes[edge2.nids[direction]].remove_edge_id(edge2.eid, 1-direction)
         if edge1.nids[1-direction] == edge2.nids[1-direction]:
@@ -471,13 +493,17 @@ class OpGraph:
             # remove reference to edge2 from upstream node
             self.nodes[edge2.nids[1-direction]].remove_edge_id(edge2.eid, direction)
             return
-        assert edge1.opics == edge2.opics, 'can only merge edges with same logical operators'
+        assert edge1.opics == edge2.opics, "can only merge edges with same logical operators"
         # merge upstream nodes
         node1 = self.nodes[edge1.nids[1-direction]]
         node2 = self.nodes.pop(edge2.nids[1-direction])
-        assert len(node1.eids[direction]) == 1, 'to-be merged upstream node can only have one input edge'
-        assert len(node2.eids[direction]) == 1, 'to-be merged upstream node can only have one input edge'
-        assert node1.qnum == node2.qnum, f'can only merge nodes with same quantum numbers, encountered {node1.qnum} and {node2.qnum}'
+        assert len(node1.eids[direction]) == 1, \
+            "to-be merged upstream node can only have one input edge"
+        assert len(node2.eids[direction]) == 1, \
+            "to-be merged upstream node can only have one input edge"
+        assert node1.qnum == node2.qnum, \
+            f"can only merge nodes with same quantum numbers, " \
+            f"encountered {node1.qnum} and {node2.qnum}"
         # make former edges from node2 to point to node1
         for eid in node2.eids[1-direction]:
             self.edges[eid].nids[direction] = node1.nid
@@ -602,8 +628,8 @@ class OpGraph:
         Assuming that the operator IDs are shared between the graphs.
         """
         if not isinstance(other, OpGraph):
-            raise ValueError('can only update an operator graph by another operator graph')
-        # require a deep copy since the IDs in the 'other' graph might change
+            raise ValueError("can only update an operator graph by another operator graph")
+        # require a deep copy since the IDs in the "other" graph might change
         other = copy.deepcopy(other)
         # ensure that node IDs in the two graphs are disjoint
         shared_nids = self.nodes.keys() & other.nodes.keys()
@@ -620,7 +646,7 @@ class OpGraph:
         # use same identifiers for terminal nodes
         for direction in (0, 1):
             other.rename_node_id(other.nid_terminal[direction], self.nid_terminal[direction])
-        # integrate terminal nodes from 'other' graph
+        # integrate terminal nodes from "other" graph
         for direction in (0, 1):
             tnode = other.remove_node(other.nid_terminal[direction])
             assert not tnode.eids[direction]
@@ -635,7 +661,7 @@ class OpGraph:
         # enable chaining
         return self
 
-    def as_matrix(self, opmap: Mapping, direction: int = 1) -> np.ndarray:
+    def to_matrix(self, opmap: Mapping, direction: int = 1) -> np.ndarray:
         """
         Represent the logical operation of the operator graph as a matrix.
         """
@@ -648,53 +674,58 @@ class OpGraph:
         for k, node in self.nodes.items():
             if k != node.nid:
                 if verbose:
-                    print(f'Consistency check failed: dictionary key {k} does not match node ID {node.nid}.')
+                    print(f"Consistency check failed: dictionary key {k} "
+                          f"does not match node ID {node.nid}.")
                 return False
             for direction in (0, 1):
                 for eid in node.eids[direction]:
-                    # edge with ID 'eid' must exist
+                    # edge with ID `eid` must exist
                     if eid not in self.edges:
                         if verbose:
-                            print(f'Consistency check failed: edge with ID {eid} '
-                                  f'referenced by node {k} does not exist.')
+                            print(f"Consistency check failed: edge with ID {eid} "
+                                  f"referenced by node {k} does not exist.")
                         return False
                     # edge must refer back to node
                     edge = self.edges[eid]
                     if edge.nids[1-direction] != node.nid:
                         if verbose:
-                            print(f'Consistency check failed: edge with ID {eid} '
-                                  f'does not refer to node {node.nid}.')
+                            print(f"Consistency check failed: edge with ID {eid} "
+                                  f"does not refer to node {node.nid}.")
                         return False
         for k, edge in self.edges.items():
             if k != edge.eid:
                 if verbose:
-                    print(f'Consistency check failed: dictionary key {k} does not match edge ID {edge.eid}.')
+                    print(f"Consistency check failed: dictionary key {k} "
+                          f"does not match edge ID {edge.eid}.")
                 return False
             for direction in (0, 1):
                 if edge.nids[direction] not in self.nodes:
                     if verbose:
-                        print(f'Consistency check failed: node with ID {edge.nids[direction]} '
-                              f'referenced by edge {k} does not exist.')
+                        print(f"Consistency check failed: node with ID {edge.nids[direction]} "
+                              f"referenced by edge {k} does not exist.")
                     return False
                 node = self.nodes[edge.nids[direction]]
                 if edge.eid not in node.eids[1-direction]:
                     if verbose:
-                        print(f'Consistency check failed: node {node.nid} does not refer to edge {edge.eid}.')
+                        print(f"Consistency check failed: node {node.nid} "
+                              f"does not refer to edge {edge.eid}.")
                     return False
             if edge.opics != sorted(edge.opics):
                 if verbose:
-                    print(f'Consistency check failed: list of operator IDs of edge {edge.eid} is not sorted.')
+                    print(f"Consistency check failed: list of operator IDs "
+                          f"of edge {edge.eid} is not sorted.")
                 return False
         for direction in (0, 1):
             if self.nid_terminal[direction] not in self.nodes:
                 if verbose:
-                    print(f'Consistency check failed: terminal node ID {self.nid_terminal[direction]} not found.')
+                    print(f"Consistency check failed: terminal node ID "
+                          f"{self.nid_terminal[direction]} not found.")
                 return False
             node = self.nodes[self.nid_terminal[direction]]
             if node.eids[direction]:
                 if verbose:
-                    print(f'Consistency check failed: terminal node in direction {direction} '
-                          f'cannot have edges in that direction.')
+                    print(f"Consistency check failed: terminal node in direction {direction} "
+                          f"cannot have edges in that direction.")
                 return False
         for direction in (0, 1):
             # node levels (distance from start and end node)
@@ -706,7 +737,7 @@ class OpGraph:
                 if nid in node_level_map:
                     if level != node_level_map[nid]:
                         if verbose:
-                            print(f'Consistency check failed: level of node {nid} is inconsistent.')
+                            print(f"Consistency check failed: level of node {nid} is inconsistent.")
                         return False
                 else:
                     node_level_map[nid] = level
@@ -725,7 +756,7 @@ def _subgraph_as_matrix(graph: OpGraph, nid: int, opmap: Mapping, direction: int
         return np.identity(1)
     op_sum = 0
     node = graph.nodes[nid]
-    assert node.eids[direction], f'encountered dangling node {nid} in direction {direction}'
+    assert node.eids[direction], f"encountered dangling node {nid} in direction {direction}"
     for eid in node.eids[direction]:
         edge = graph.edges[eid]
         op_sub = _subgraph_as_matrix(graph, edge.nids[direction], opmap, direction)
@@ -754,7 +785,7 @@ class OpHalfchain:
             nidl: ID of left-connected node
         """
         if len(oids) + 1 != len(qnums):
-            raise ValueError('incompatible lengths of operator and quantum number lists')
+            raise ValueError("incompatible lengths of operator and quantum number lists")
         self.oids  = tuple(oids)
         self.qnums = tuple(qnums)
         self.nidl  = nidl
@@ -777,12 +808,12 @@ class OpHalfchain:
 
 class UNode:
     """
-    Store the information of a 'U' node, temporary data structure for building
+    Store the information of a `U` node, temporary data structure for building
     an operator graph from a list of operator chains.
     """
     def __init__(self, oid: int, qnum0: int, qnum1: int, nidl: int):
         """
-        Create a 'U' node.
+        Create a `U` node.
 
         Args:
             oid: local operator ID
@@ -800,7 +831,8 @@ class UNode:
         Equality test.
         """
         if isinstance(other, UNode):
-            return (self.oid, self.qnum0, self.qnum1, self.nidl) == (other.oid, other.qnum0, other.qnum1, other.nidl)
+            return (self.oid, self.qnum0, self.qnum1, self.nidl) == \
+                   (other.oid, other.qnum0, other.qnum1, other.nidl)
         return False
 
 
@@ -810,7 +842,7 @@ def _site_partition_halfchains(chains: Sequence[OpHalfchain], coeffs: Sequence[f
     """
     ulist = []
     vlist = []
-    v_set = set() # entries of 'vlist' stored in a set for faster lookup
+    v_set = set() # entries of `vlist` stored in a set for faster lookup
     edges = []
     gamma = {}
     for chain, coeff in zip(chains, coeffs):

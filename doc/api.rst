@@ -27,6 +27,6 @@ API documentation
     pytenet.opgraph
     pytenet.opgraph.OpGraph
     pytenet.operation
-    pytenet.qnumber
+    pytenet.block_sparse_util
     pytenet.thc
     pytenet.thc.THCSpinMolecularHamiltonian
