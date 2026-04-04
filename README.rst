@@ -34,7 +34,7 @@ Example usage for TDVP time evolution:
     # effectively clamp virtual bond dimension of initial state
     b_init = 8
     for i in range(nsites):
-        psi.a[i][:, b_init:, :] = 0
+        psi.a[i][b_init:, :, :] = 0
         psi.a[i][:, :, b_init:] = 0
     psi.orthonormalize(mode="left")
 

@@ -55,7 +55,7 @@ def main():
     psi = ptn.MPS(h_mpo.qsite, [np.zeros(bi, dtype=int) for bi in b], fill="random", rng=rng)
     # effectively clamp virtual bond dimension
     for i in range(nsites):
-        psi.a[i][:, 3:, :] = 0
+        psi.a[i][3:, :, :] = 0
         psi.a[i][:, :, 3:] = 0
     psi.orthonormalize(mode="right")
     psi.orthonormalize(mode="left")

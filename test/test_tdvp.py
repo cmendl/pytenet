@@ -40,7 +40,7 @@ def test_tdvp_approximation():
     # effectively clamp virtual bond dimension of initial state
     b_init = 8
     for i in range(nsites):
-        psi.a[i][:, b_init:, :] = 0
+        psi.a[i][b_init:, :, :] = 0
         psi.a[i][:, :, b_init:] = 0
     # orthonormalize again
     psi.orthonormalize(mode="left")
