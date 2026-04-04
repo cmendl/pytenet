@@ -21,7 +21,7 @@ def test_tdvp_approximation():
     J =  4.0/3
     D =  5.0/13
     h = -2.0/7
-    h_mpo = ptn.heisenberg_xxz_mpo(nsites, J, D, h)
+    h_mpo = ptn.heisenberg_xxz_1d_mpo(nsites, J, D, h)
 
     # fix total spin quantum number of wavefunction (trailing virtual bond)
     spin_tot = 2
@@ -55,7 +55,7 @@ def test_tdvp_approximation():
                                   { 0: np.identity(2), 1: np.diag([0.5, -0.5]) })
 
     # explicitly compute average spin
-    spin_avr = ptn.operator_average(psi, sz_tot)
+    spin_avr = ptn.mpo_average(psi, sz_tot)
     assert abs(spin_avr - spin_tot) < 1e-14, \
         "average spin must be equal to prescribed value"
 
@@ -89,7 +89,7 @@ def test_tdvp_symmetry():
     J =  4.0/3
     D =  5.0/13
     h = -2.0/7
-    h_mpo = ptn.heisenberg_xxz_mpo(nsites, J, D, h)
+    h_mpo = ptn.heisenberg_xxz_1d_mpo(nsites, J, D, h)
     h_mpo.zero_qnumbers()
 
     # quantum numbers not used here; set them to zero

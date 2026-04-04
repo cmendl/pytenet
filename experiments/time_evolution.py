@@ -3,8 +3,8 @@ Perform real time evolution using the TDVP algorithm and
 numerically investigate convergence rate (should be quadratic).
 
 Reference:
-  - J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, F. Verstraete\n
-    Unifying time evolution and optimization with matrix product states\n
+    J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, F. Verstraete
+    Unifying time evolution and optimization with matrix product states
     Phys. Rev. B 94, 165116 (2016) (arXiv:1408.5056)
 """
 
@@ -44,7 +44,7 @@ def main():
     J  =  1.0
     D  =  1.2
     h  = -0.2
-    h_mpo = ptn.heisenberg_xxz_mpo(nsites, J, D, h)
+    h_mpo = ptn.heisenberg_xxz_1d_mpo(nsites, J, D, h)
     h_mpo.zero_qnumbers()
 
     # initial wavefunction as MPS with random entries
@@ -61,7 +61,7 @@ def main():
     psi.orthonormalize(mode="left")
 
     # initial average energy (should be conserved)
-    e_avr_0 = ptn.operator_average(psi, h_mpo).real
+    e_avr_0 = ptn.mpo_average(psi, h_mpo).real
     print("e_avr_0:", e_avr_0)
 
     # exact singular values (Schmidt coefficients) of initial state
@@ -108,15 +108,15 @@ def main():
 
         # expecting numerically exact energy conservation
         # (for real time evolution)
-        e_avr_t = ptn.operator_average(psi_t, h_mpo).real
+        e_avr_t = ptn.mpo_average(psi_t, h_mpo).real
         print("e_avr_t:", e_avr_t)
         print("abs(e_avr_t - e_avr_0):", abs(e_avr_t - e_avr_0))
 
     dtinv = numsteps / abs(t)
     plt.loglog(dtinv, err, ".-")
     # show quadratic scaling for comparison
-    plt.loglog(dtinv, 4e-4/dtinv**2, "--")
-    plt.xlabel("1/dt")
+    plt.loglog(dtinv, 1e-4/dtinv**2, "--")
+    plt.xlabel(r"$1/\mathrm{dt}$")
     plt.ylabel(r"$\Vert\psi[A](t) - \psi_\mathrm{ref}(t)\Vert$")
     plt.title(f"TDVP time evolution rate of convergence (t = {t.imag:g}) for\n"
               f"the Heisenberg XXZ model (J={J:g}, D={D:g}, h={h:g})")

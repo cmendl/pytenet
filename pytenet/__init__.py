@@ -17,7 +17,7 @@ from .mpo               import *
 from .bipartite_graph   import *
 from .hamiltonian       import *
 from .thc               import *
-from .operation         import *
+from .chain_ops         import *
 from .krylov            import *
 from .dmrg              import *
 from .tdvp              import *

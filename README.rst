@@ -24,7 +24,7 @@ Example usage for TDVP time evolution:
 
     # construct matrix product operator representation of the
     # Heisenberg XXZ Hamiltonian (arguments are nsites, J, \Delta, h)
-    h_mpo = ptn.heisenberg_xxz_mpo(nsites, 1.0, 0.8, -0.1)
+    h_mpo = ptn.heisenberg_xxz_1d_mpo(nsites, 1.0, 0.8, -0.1)
     h_mpo.zero_qnumbers()
 
     # initial wavefunction as MPS with random entries

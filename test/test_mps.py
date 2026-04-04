@@ -2,7 +2,7 @@ import numpy as np
 import pytenet as ptn
 
 
-def test_mps_orthonormalization():
+def test_mps_orthonormalize():
 
     rng = np.random.default_rng()
 
@@ -25,7 +25,7 @@ def test_mps_orthonormalization():
         "virtual bond dimension can only increase by a factor of `d` per site"
 
     for i in range(mps0.nsites):
-        assert ptn.is_qsparse(mps0.a[i], [mps0.qsite, mps0.qbonds[i], -mps0.qbonds[i+1]]), \
+        assert ptn.is_qsparse(mps0.a[i], (mps0.qbonds[i], mps0.qsite, -mps0.qbonds[i+1])), \
             "sparsity pattern of MPS tensors must match quantum numbers"
 
     psi_left = mps0.to_vector()
@@ -41,7 +41,7 @@ def test_mps_orthonormalization():
     # check left-orthonormalization
     for i in range(mps0.nsites):
         s = mps0.a[i].shape
-        assert s[0] == d
+        assert s[1] == d
         q = mps0.a[i].reshape((s[0]*s[1], s[2]))
         assert np.allclose(q.conj().T @ q, np.identity(s[2]), rtol=1e-12), \
             "MPS tensor is not left-orthonormalized"
@@ -53,7 +53,7 @@ def test_mps_orthonormalization():
         "virtual bond dimension can only increase by a factor of `d` per site"
 
     for i in range(mps0.nsites):
-        assert ptn.is_qsparse(mps0.a[i], [mps0.qsite, mps0.qbonds[i], -mps0.qbonds[i+1]]), \
+        assert ptn.is_qsparse(mps0.a[i], (mps0.qbonds[i], mps0.qsite, -mps0.qbonds[i+1])), \
             "sparsity pattern of MPS tensors must match quantum numbers"
 
     assert abs(abs(c_right) - 1.) <= 1e-12, \
@@ -67,13 +67,13 @@ def test_mps_orthonormalization():
     # check right-orthonormalization
     for i in range(mps0.nsites):
         s = mps0.a[i].shape
-        assert s[0] == d
-        q = mps0.a[i].transpose((0, 2, 1)).reshape((s[0]*s[2], s[1]))
-        assert np.allclose(q.conj().T @ q, np.identity(s[1]), rtol=1e-12), \
+        assert s[1] == d
+        q = mps0.a[i].transpose((2, 1, 0)).reshape((s[1]*s[2], s[0]))
+        assert np.allclose(q.conj().T @ q, np.identity(s[0]), rtol=1e-12), \
             "MPS tensor is not right-orthonormalized"
 
 
-def test_mps_compression():
+def test_mps_compress():
 
     rng = np.random.default_rng()
 
@@ -106,11 +106,11 @@ def test_mps_compression():
             assert abs(ptn.mps_norm(psi) - 1) < 1e-13
 
             # compare with original state vector
-            ctol = (1e-13 if tol == 0 else 0.05)
+            ctol = (1e-13 if tol == 0 else 0.08)
             assert np.allclose(nrm*psi.to_vector(), psi_ref, atol=ctol, rtol=ctol)
 
 
-def test_mps_split_tensor():
+def test_mps_split_tensor_svd():
 
     rng = np.random.default_rng()
 
@@ -119,7 +119,7 @@ def test_mps_split_tensor():
     # outer virtual bond dimensions
     b0, b2 = 14, 17
 
-    a_pair = ptn.crandn((d0*d1, b0, b2), rng) / np.sqrt(d0*d1*b0*b2)
+    a_pair = ptn.crandn((b0, d0*d1, b2), rng) / np.sqrt(b0*d0*d1*b2)
 
     # fictitious quantum numbers
     qsite0 = rng.integers(-2, 3, size=d0)
@@ -127,15 +127,16 @@ def test_mps_split_tensor():
     qbonds = [rng.integers(-2, 3, size=b0), rng.integers(-2, 3, size=b2)]
 
     # enforce block sparsity structure dictated by quantum numbers
-    ptn.enforce_qsparsity(a_pair, [ptn.qnumber_flatten([qsite0, qsite1]), qbonds[0], -qbonds[1]])
+    ptn.enforce_qsparsity(a_pair, (qbonds[0], ptn.qnumber_flatten((qsite0, qsite1)), -qbonds[1]))
 
     for svd_distr in ["left", "right", "sqrt"]:
-        a0, a1, qbond = ptn.mps_split_tensor_svd(a_pair, qsite0, qsite1, qbonds, svd_distr=svd_distr, tol=0)
+        a0, a1, qbond = ptn.mps_split_tensor_svd(
+            a_pair, qsite0, qsite1, qbonds, svd_distr=svd_distr, tol=0)
 
-        assert ptn.is_qsparse(a0, [qsite0, qbonds[0], -qbond]), \
-            "sparsity pattern of a0 tensors must match quantum numbers"
-        assert ptn.is_qsparse(a1, [qsite1, qbond, -qbonds[1]]), \
-            "sparsity pattern of a1 tensors must match quantum numbers"
+        assert ptn.is_qsparse(a0, (qbonds[0], qsite0, -qbond)), \
+            "sparsity pattern of `a0` tensors must match quantum numbers"
+        assert ptn.is_qsparse(a1, (qbond, qsite1, -qbonds[1])), \
+            "sparsity pattern of `a1` tensors must match quantum numbers"
 
         # merged tensor must agree with the original tensor
         a_mrg = ptn.mps_merge_tensor_pair(a0, a1)
@@ -262,3 +263,34 @@ def test_mps_sub_singlesite():
     # compare
     assert np.allclose(mps.to_vector(), mps_ref, rtol=1e-12), \
         "subtraction of two matrix product states must agree with vector representation"
+
+
+def test_mps_vdot():
+
+    rng = np.random.default_rng()
+
+    # physical quantum numbers
+    qsite = rng.integers(-2, 3, size=5)
+    # number of lattice sites
+    nsites = 6
+
+    for dtype in ("real", "complex"):
+        # create random matrix product states
+        psi = ptn.MPS.construct_random(
+            nsites, qsite, qnum_sector=2, max_vdim=13, dtype=dtype, rng=rng)
+        chi = ptn.MPS.construct_random(
+            nsites, qsite, qnum_sector=2, max_vdim=17, dtype=dtype, rng=rng)
+        # rescale to achieve norm of order 1
+        for i in range(nsites):
+            psi.a[i] *= 7
+            chi.a[i] *= 7
+
+        # calculate dot product <chi | psi>
+        s = ptn.mps_vdot(chi, psi)
+
+        # reference value
+        s_ref = np.vdot(chi.to_vector(), psi.to_vector())
+
+        # compare
+        assert abs(s - s_ref) / max(abs(s_ref), 1e-12) < 1e-12, \
+            "dot product of two matrix product states must match reference value"

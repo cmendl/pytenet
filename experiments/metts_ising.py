@@ -3,8 +3,8 @@ Numerically investigate METTS sampling for computing dynamical
 correlation functions at finite temperature.
 
 Reference:
-  - E. M. Stoudenmire, S. R. White\n
-    Minimally entangled typical thermal state algorithms\n
+    E. M. Stoudenmire, S. R. White
+    Minimally entangled typical thermal state algorithms
     New J. Phys. 12, 055026 (2010) (arXiv:1002.1305)
 """
 
@@ -62,7 +62,7 @@ def main():
     J =  1.0
     h =  0.8
     g = -0.375
-    hamiltonian = ptn.ising_mpo(nsites, J, h, g).to_matrix()
+    hamiltonian = ptn.ising_1d_mpo(nsites, J, h, g).to_matrix()
 
     # inverse temperature
     beta = 1.2

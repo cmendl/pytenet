@@ -4,7 +4,7 @@ from scipy.stats import unitary_group
 import pytenet as ptn
 
 
-def test_ising():
+def test_ising_1d_mpo():
 
     # Hamiltonian parameters
     J =  5.0/11
@@ -14,7 +14,7 @@ def test_ising():
     nsites = 7
 
     # construct MPO
-    h_mpo = ptn.ising_mpo(nsites, J, h, g)
+    h_mpo = ptn.ising_1d_mpo(nsites, J, h, g)
     # matrix representation, for comparison with reference
     h_mat = h_mpo.to_matrix()
 
@@ -26,7 +26,7 @@ def test_ising():
         "matrix representation of MPO and reference Hamiltonian must match"
 
 
-def test_heisenberg_xxz():
+def test_heisenberg_xxz_1d_mpo():
 
     # Hamiltonian parameters
     J = 14.0/25
@@ -36,7 +36,7 @@ def test_heisenberg_xxz():
     nsites = 7
 
     # construct MPO
-    h_mpo = ptn.heisenberg_xxz_mpo(nsites, J, D, h)
+    h_mpo = ptn.heisenberg_xxz_1d_mpo(nsites, J, D, h)
     # matrix representation, for comparison with reference
     h_mat = h_mpo.to_matrix()
 
@@ -48,7 +48,7 @@ def test_heisenberg_xxz():
         "matrix representation of MPO and reference Hamiltonian must match"
 
 
-def test_heisenberg_xxz_spin1():
+def test_heisenberg_xxz_spin1_1d_mpo():
 
     # Hamiltonian parameters
     J =  1.2
@@ -58,7 +58,7 @@ def test_heisenberg_xxz_spin1():
     nsites = 6
 
     # construct MPO
-    h_mpo = ptn.heisenberg_xxz_spin1_mpo(nsites, J, D, h)
+    h_mpo = ptn.heisenberg_xxz_spin1_1d_mpo(nsites, J, D, h)
     # matrix representation, for comparison with reference
     h_mat = h_mpo.to_matrix()
 
@@ -70,7 +70,7 @@ def test_heisenberg_xxz_spin1():
         "matrix representation of MPO and reference Hamiltonian must match"
 
 
-def test_bose_hubbard():
+def test_bose_hubbard_1d_mpo():
 
     # physical dimension per site (maximal occupancy is d - 1)
     d = 4
@@ -82,7 +82,7 @@ def test_bose_hubbard():
     mu = 1.3
 
     # construct MPO
-    h_mpo = ptn.bose_hubbard_mpo(d, nsites, t, u, mu)
+    h_mpo = ptn.bose_hubbard_1d_mpo(nsites, d, t, u, mu)
     # matrix representation, for comparison with reference
     h_mat = h_mpo.to_matrix()
 
@@ -94,7 +94,7 @@ def test_bose_hubbard():
         "matrix representation of MPO and reference Hamiltonian must match"
 
 
-def test_fermi_hubbard():
+def test_fermi_hubbard_1d_mpo():
 
     # number of lattice sites
     nsites = 5
@@ -104,7 +104,7 @@ def test_fermi_hubbard():
     mu = 0.3
 
     # construct MPO
-    h_mpo = ptn.fermi_hubbard_mpo(nsites, t, u, mu)
+    h_mpo = ptn.fermi_hubbard_1d_mpo(nsites, t, u, mu)
     # matrix representation, for comparison with reference
     h_mat = h_mpo.to_matrix()
 
@@ -116,7 +116,7 @@ def test_fermi_hubbard():
         "matrix representation of MPO and reference Hamiltonian must match"
 
 
-def test_linear_fermionic_operator():
+def test_linear_fermionic_mpo():
 
     rng = np.random.default_rng()
 
@@ -142,7 +142,7 @@ def test_linear_fermionic_operator():
             "matrix representation of MPO and reference operator must match"
 
 
-def test_linear_spin_fermionic_operator():
+def test_linear_spin_fermionic_mpo():
 
     rng = np.random.default_rng()
 
@@ -171,7 +171,7 @@ def test_linear_spin_fermionic_operator():
                 "matrix representation of MPO and reference operator must match"
 
 
-def test_quadratic_fermionic_operator():
+def test_quadratic_fermionic_mpo():
 
     rng = np.random.default_rng()
 
@@ -196,7 +196,7 @@ def test_quadratic_fermionic_operator():
         "matrix representation of MPO and reference operator must match"
 
 
-def test_quadratic_spin_fermionic_operator():
+def test_quadratic_spin_fermionic_mpo():
 
     rng = np.random.default_rng()
 
@@ -225,7 +225,7 @@ def test_quadratic_spin_fermionic_operator():
             "matrix representation of MPO and reference operator must match"
 
 
-def test_molecular_hamiltonian_construction():
+def test_molecular_hamiltonian_mpo():
 
     rng = np.random.default_rng()
 
@@ -272,7 +272,7 @@ def test_molecular_hamiltonian_construction():
             "matrix representation of MPO and reference Hamiltonian must match"
 
 
-def test_molecular_hamiltonian_orbital_rotation():
+def test_molecular_hamiltonian_orbital_gauge_transform():
 
     rng = np.random.default_rng()
 
@@ -306,15 +306,16 @@ def test_molecular_hamiltonian_orbital_rotation():
         h_mpo.a[i + 1] = np.copy(h_mpo_rotorb.a[i + 1])
         # apply left and right gauge transformations
         v_l, v_r = ptn.molecular_hamiltonian_orbital_gauge_transform(h_mpo, u2, i)
-        h_mpo.a[i    ] = np.einsum(v_l, (2, 4), h_mpo.a[i    ], (0, 1, 4, 3), (0, 1, 2, 3))
+        h_mpo.a[i    ] = np.einsum(v_l, (0, 4), h_mpo.a[i    ], (4, 1, 2, 3), (0, 1, 2, 3))
         h_mpo.a[i + 1] = np.einsum(v_r, (3, 4), h_mpo.a[i + 1], (0, 1, 2, 4), (0, 1, 2, 3))
 
         # compare matrix representations
         assert np.allclose(h_mpo.to_matrix(), h_mpo_rotorb.to_matrix()), \
-            "matrix representation of MPO after orbital rotation and reference Hamiltonian must match"
+            "matrix representation of MPO after orbital rotation and " \
+            "reference Hamiltonian must match"
 
 
-def test_spin_molecular_hamiltonian_construction():
+def test_spin_molecular_hamiltonian_mpo():
 
     rng = np.random.default_rng()
 

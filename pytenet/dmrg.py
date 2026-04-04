@@ -1,12 +1,17 @@
 """
 DMRG algorithm.
+
+Reference:
+    Ulrich Schollwöck
+    The density-matrix renormalization group in the age of matrix product states
+    Ann. Phys. (N. Y.) 326, 96-192 (2011)
 """
 
 import numpy as np
 from .mps import (MPS, mps_local_orthonormalize_left_qr, mps_local_orthonormalize_right_qr,
                   mps_merge_tensor_pair, mps_split_tensor_svd)
 from .mpo import MPO, mpo_merge_tensor_pair
-from .operation import (contraction_operator_step_right, contraction_operator_step_left,
+from .chain_ops import (contraction_operator_step_right, contraction_operator_step_left,
                         compute_right_operator_blocks, apply_local_hamiltonian)
 from .krylov import eigh_krylov
 from .block_sparse_util import is_qsparse
@@ -30,11 +35,6 @@ def dmrg_singlesite(hamiltonian: MPO, psi: MPS, numsweeps: int, numiter_lanczos:
 
     Returns:
         numpy.ndarray: array of approximate ground state energies after each iteration
-
-    Reference:
-        Ulrich Schollwöck
-        The density-matrix renormalization group in the age of matrix product states
-        Annals of Physics 326, 96-192 (2011)
     """
 
     # number of lattice sites
@@ -110,11 +110,6 @@ def dmrg_twosite(hamiltonian: MPO, psi: MPS, numsweeps: int,
 
     Returns:
         numpy.ndarray: array of approximate ground state energies after each iteration
-
-    Reference:
-        Ulrich Schollwöck
-        The density-matrix renormalization group in the age of matrix product states
-        Annals of Physics 326, 96-192 (2011)
     """
 
     # number of lattice sites
@@ -155,7 +150,8 @@ def dmrg_twosite(hamiltonian: MPO, psi: MPS, numsweeps: int,
                 a_cur, psi.qsite, psi.qsite, [psi.qbonds[i], psi.qbonds[i+2]],
                 "right", tol=tol_split)
             # update the left blocks
-            lblocks[i+1] = contraction_operator_step_left(psi.a[i], psi.a[i], hamiltonian.a[i], lblocks[i])
+            lblocks[i+1] = contraction_operator_step_left(
+                psi.a[i], psi.a[i], hamiltonian.a[i], lblocks[i])
 
         # sweep from right to left
         for i in reversed(range(nsites - 1)):
@@ -187,7 +183,7 @@ def _minimize_local_energy(w, l, r, a_start, numiter: int):
     Minimize single-site local energy by Lanczos iteration.
     """
     w, u_ritz = eigh_krylov(
-        lambda x: apply_local_hamiltonian(l, r, w, x.reshape(a_start.shape)).reshape(-1),
+        lambda x: apply_local_hamiltonian(x.reshape(a_start.shape), w, l, r).reshape(-1),
             a_start.reshape(-1), numiter, 1)
     a_opt = u_ritz[:, 0].reshape(a_start.shape)
     return w[0], a_opt

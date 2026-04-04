@@ -3,8 +3,8 @@ Numerically investigate properties of the MPS tangent space,
 like dimensionality and its projector.
 
 Reference:
-  - J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, F. Verstraete\n
-    Unifying time evolution and optimization with matrix product states\n
+    J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, F. Verstraete
+    Unifying time evolution and optimization with matrix product states
     Phys. Rev. B 94, 165116 (2016) (arXiv:1408.5056)
 """
 
@@ -32,8 +32,8 @@ def tangent_space_projector(psi: ptn.MPS):
     x = np.array([[[1.]]])
     for i in range(nsites):
         x = ptn.mps_merge_tensor_pair(x, psi_c.a[i])
-        assert x.ndim == 3 and x.shape[1] == 1
-        xmat = x.reshape((x.shape[0], x.shape[2]))
+        assert x.ndim == 3 and x.shape[0] == 1
+        xmat = x.reshape((x.shape[1], x.shape[2]))
         # check orthonormalization
         assert np.allclose(xmat.conj().T @ xmat, np.identity(xmat.shape[1]))
         p_left.append(xmat @ xmat.conj().T)
@@ -45,7 +45,7 @@ def tangent_space_projector(psi: ptn.MPS):
     for i in reversed(range(nsites)):
         x = ptn.mps_merge_tensor_pair(psi_c.a[i], x)
         assert x.ndim == 3 and x.shape[2] == 1
-        xmat = x.reshape(x.shape[:2])
+        xmat = x.reshape(x.shape[:2]).T
         # check orthonormalization
         assert np.allclose(xmat.conj().T @ xmat, np.identity(xmat.shape[1]))
         p_right.append(xmat @ xmat.conj().T)
@@ -114,7 +114,7 @@ def main():
     x_list.append(np.identity(1, dtype=complex))
     n = []
     for i in range(nsites):
-        bmat = (np.tensordot(x_list[i], psi.a[i], axes=(1, 1)).transpose((1, 0, 2)) -
+        bmat = (np.tensordot(x_list[i], psi.a[i], axes=(1, 0)) -
                 np.tensordot(psi.a[i], x_list[i+1], axes=(2, 0)))
         # backup original a[i] tensor
         ai = psi.a[i]

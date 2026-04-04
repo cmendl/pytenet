@@ -3,15 +3,15 @@ TDVP time integration algorithms for MPS, based on
 a Lanczos iteration for the local time evolution steps.
 
 Reference:
-  - J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, F. Verstraete\n
-    Unifying time evolution and optimization with matrix product states\n
+    J. Haegeman, C. Lubich, I. Oseledets, B. Vandereycken, F. Verstraete
+    Unifying time evolution and optimization with matrix product states
     Phys. Rev. B 94, 165116 (2016) (arXiv:1408.5056)
 """
 
 import numpy as np
 from .mps import MPS, mps_merge_tensor_pair, mps_split_tensor_svd
 from .mpo import MPO, mpo_merge_tensor_pair
-from .operation import (
+from .chain_ops import (
         contraction_operator_step_right,
         contraction_operator_step_left,
         compute_right_operator_blocks,
@@ -71,9 +71,9 @@ def tdvp_singlesite(hamiltonian: MPO, psi: MPS, dt, numsteps: int, numiter_lancz
                 lblocks[i], rblocks[i], hamiltonian.a[i], psi.a[i], 0.5*dt, numiter_lanczos)
             # left-orthonormalize current psi.a[i]
             s = psi.a[i].shape
-            (q, c, psi.qbonds[i+1]) = block_sparse_qr(
+            q, c, psi.qbonds[i+1] = block_sparse_qr(
                 psi.a[i].reshape((s[0]*s[1], s[2])),
-                qnumber_flatten([psi.qsite, psi.qbonds[i]]), psi.qbonds[i+1])
+                qnumber_flatten((psi.qbonds[i], psi.qsite)), psi.qbonds[i+1])
             psi.a[i] = q.reshape((s[0], s[1], q.shape[1]))
             # update the left blocks
             lblocks[i+1] = contraction_operator_step_left(
@@ -81,7 +81,7 @@ def tdvp_singlesite(hamiltonian: MPO, psi: MPS, dt, numsteps: int, numiter_lancz
             # evolve `c` backward in time by half a time step
             c = _local_bond_step(lblocks[i+1], rblocks[i], c, -0.5*dt, numiter_lanczos)
             # update psi.a[i+1] tensor: multiply with c from left
-            psi.a[i+1] = np.einsum(psi.a[i+1], (0, 3, 2), c, (1, 3), (0, 1, 2), optimize=True)
+            psi.a[i+1] = np.tensordot(c, psi.a[i+1], (1, 0))
 
         # evolve psi.a[nsites-1] forward in time by a full time step
         i = nsites - 1
@@ -92,16 +92,16 @@ def tdvp_singlesite(hamiltonian: MPO, psi: MPS, dt, numsteps: int, numiter_lancz
         for i in reversed(range(1, nsites)):
             # right-orthonormalize current psi.a[i]
             # flip left and right virtual bond dimensions
-            psi.a[i] = psi.a[i].transpose((0, 2, 1))
+            psi.a[i] = psi.a[i].transpose((2, 1, 0))
             # perform QR decomposition
             s = psi.a[i].shape
-            (q, c, qbond) = block_sparse_qr(
+            q, c, qbond = block_sparse_qr(
                 psi.a[i].reshape((s[0]*s[1], s[2])),
-                qnumber_flatten([psi.qsite, -psi.qbonds[i+1]]), -psi.qbonds[i])
+                qnumber_flatten((-psi.qbonds[i+1], psi.qsite)), -psi.qbonds[i])
             psi.qbonds[i] = -qbond
             # replace psi.a[i] by reshaped `q` matrix and
             # undo flip of left and right virtual bond dimensions
-            psi.a[i] = q.reshape((s[0], s[1], q.shape[1])).transpose((0, 2, 1))
+            psi.a[i] = q.reshape((s[0], s[1], q.shape[1])).transpose((2, 1, 0))
             # update the right blocks
             rblocks[i-1] = contraction_operator_step_right(
                 psi.a[i], psi.a[i], hamiltonian.a[i], rblocks[i])
@@ -109,7 +109,7 @@ def tdvp_singlesite(hamiltonian: MPO, psi: MPS, dt, numsteps: int, numiter_lancz
             c = np.transpose(c)
             c = _local_bond_step(lblocks[i], rblocks[i-1], c, -0.5*dt, numiter_lanczos)
             # update psi.a[i-1] tensor: multiply with c from right
-            psi.a[i-1] = np.einsum(psi.a[i-1], (0, 1, 3), c, (3, 2), (0, 1, 2), optimize=True)
+            psi.a[i-1] = np.tensordot(psi.a[i-1], c, (2, 0))
             # evolve psi.a[i-1] forward in time by half a time step
             psi.a[i-1] = _local_hamiltonian_step(
                 lblocks[i-1], rblocks[i-1], hamiltonian.a[i-1], psi.a[i-1], 0.5*dt, numiter_lanczos)
@@ -174,7 +174,7 @@ def tdvp_twosite(hamiltonian: MPO, psi: MPS, dt, numsteps: int,
             # split `a_cur`
             psi.a[i], psi.a[i+1], psi.qbonds[i+1] = mps_split_tensor_svd(
                 a_cur, psi.qsite, psi.qsite,
-                [psi.qbonds[i], psi.qbonds[i+2]], "right", tol=tol_split)
+                (psi.qbonds[i], psi.qbonds[i+2]), "right", tol=tol_split)
             # update the left blocks
             lblocks[i+1] = contraction_operator_step_left(
                 psi.a[i], psi.a[i], hamiltonian.a[i], lblocks[i])
@@ -220,19 +220,19 @@ def tdvp_twosite(hamiltonian: MPO, psi: MPS, dt, numsteps: int,
     return nrm
 
 
-def _local_hamiltonian_step(nsites, r, w, a, dt, numiter: int):
+def _local_hamiltonian_step(l, r, w, a, dt, numiter: int):
     """
     Local time step effected by Hamiltonian, based on a Lanczos iteration.
     """
     return expm_krylov(
-        lambda x: apply_local_hamiltonian(nsites, r, w, x.reshape(a.shape)).reshape(-1),
+        lambda x: apply_local_hamiltonian(x.reshape(a.shape), w, l, r).reshape(-1),
             a.reshape(-1), -dt, numiter, hermitian=True).reshape(a.shape)
 
 
-def _local_bond_step(nsites, r, c, dt, numiter: int):
+def _local_bond_step(l, r, c, dt, numiter: int):
     """
     Local "zero-site" bond step, based on a Lanczos iteration.
     """
     return expm_krylov(
-        lambda x: apply_local_bond_contraction(nsites, r, x.reshape(c.shape)).reshape(-1),
+        lambda x: apply_local_bond_contraction(x.reshape(c.shape), l, r).reshape(-1),
             c.reshape(-1), -dt, numiter, hermitian=True).reshape(c.shape)

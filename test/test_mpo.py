@@ -2,7 +2,7 @@ import numpy as np
 import pytenet as ptn
 
 
-def test_mpo_orthonormalization():
+def test_mpo_orthonormalize():
 
     rng = np.random.default_rng()
 
@@ -25,7 +25,7 @@ def test_mpo_orthonormalization():
 
     for i in range(mpo0.nsites):
         assert ptn.is_qsparse(mpo0.a[i],
-            [mpo0.qsite, -mpo0.qsite, mpo0.qbonds[i], -mpo0.qbonds[i+1]]), \
+            (mpo0.qbonds[i], mpo0.qsite, -mpo0.qsite, -mpo0.qbonds[i+1])), \
             "sparsity pattern of MPO tensors must match quantum numbers"
 
     rho_left = mpo0.to_matrix()
@@ -41,7 +41,7 @@ def test_mpo_orthonormalization():
     # check left-orthonormalization
     for i in range(mpo0.nsites):
         s = mpo0.a[i].shape
-        assert s[0] == d and s[1] == d
+        assert s[1] == d and s[2] == d
         q = mpo0.a[i].reshape((s[0]*s[1]*s[2], s[3]))
         assert np.allclose(q.conj().T @ q, np.identity(s[3]), rtol=1e-12), \
             "MPO tensor is not an isometry after left-orthonormalization"
@@ -54,7 +54,7 @@ def test_mpo_orthonormalization():
 
     for i in range(mpo0.nsites):
         assert ptn.is_qsparse(mpo0.a[i],
-            [mpo0.qsite, -mpo0.qsite, mpo0.qbonds[i], -mpo0.qbonds[i+1]]), \
+            (mpo0.qbonds[i], mpo0.qsite, -mpo0.qsite, -mpo0.qbonds[i+1])), \
             "sparsity pattern of MPO tensors must match quantum numbers"
 
     assert abs(abs(c_right) - 1.) <= 1e-12, \
@@ -68,9 +68,9 @@ def test_mpo_orthonormalization():
     # check right-orthonormalization
     for i in range(mpo0.nsites):
         s = mpo0.a[i].shape
-        assert s[0] == d and s[1] == d
-        q = mpo0.a[i].transpose((0, 1, 3, 2)).reshape((s[0]*s[1]*s[3], s[2]))
-        assert np.allclose(q.conj().T @ q, np.identity(s[2]), rtol=1e-12), \
+        assert s[1] == d and s[2] == d
+        q = mpo0.a[i].transpose((3, 1, 2, 0)).reshape((s[1]*s[2]*s[3], s[0]))
+        assert np.allclose(q.conj().T @ q, np.identity(s[0]), rtol=1e-12), \
             "MPO tensor is not an isometry after right-orthonormalization"
 
 
@@ -132,7 +132,7 @@ def test_mpo_from_opgraph():
     # enforce sparsity pattern according to quantum numbers
     for edge in graph.edges.values():
         qbonds_loc = [graph.nodes[nid].qnum for nid in edge.nids]
-        mask = ptn.qnumber_outer_sum([qsite, -qsite, [qbonds_loc[0]], [-qbonds_loc[1]]])[:, :, 0, 0]
+        mask = ptn.qnumber_outer_sum([[qbonds_loc[0]], qsite, -qsite, [-qbonds_loc[1]]])[0, :, :, 0]
         for opid, _ in edge.opics:
             opmap[opid] = np.where(mask == 0, opmap[opid], 0)
 
@@ -204,7 +204,7 @@ def test_mpo_add():
 
     # compare
     assert np.allclose(op.to_matrix(), op_ref, rtol=1e-12), \
-        "addition two MPOs must agree with matrix representation"
+        "addition of two MPOs must agree with matrix representation"
 
 
 def test_mpo_add_singlesite():
@@ -230,7 +230,7 @@ def test_mpo_add_singlesite():
 
     # compare
     assert np.allclose(op.to_matrix(), op_ref, rtol=1e-12), \
-        "addition two MPOs must agree with matrix representation"
+        "addition of two MPOs must agree with matrix representation"
 
 
 def test_mpo_sub():
@@ -257,7 +257,7 @@ def test_mpo_sub():
 
     # compare
     assert np.allclose(op.to_matrix(), op_ref, rtol=1e-12), \
-        "subtraction two MPOs must agree with matrix representation"
+        "subtraction of two MPOs must agree with matrix representation"
 
 
 def test_mpo_sub_singlesite():
@@ -283,7 +283,7 @@ def test_mpo_sub_singlesite():
 
     # compare
     assert np.allclose(op.to_matrix(), op_ref, rtol=1e-12), \
-        "subtraction two MPOs must agree with matrix representation"
+        "subtraction of two MPOs must agree with matrix representation"
 
 
 def test_mpo_multiply():
@@ -294,9 +294,11 @@ def test_mpo_multiply():
     qsite = rng.integers(-2, 3, size=3)
 
     # create random matrix product operators
-    op0 = ptn.MPO(qsite, [rng.integers(-2, 3, size=bi) for bi in [1, 10, 13, 24, 17, 9, 1]],
+    op0 = ptn.MPO(qsite, [rng.integers(-2, 3, size=bi)
+                          for bi in [1, 10, 13, 24, 17, 9, 1]],
                   fill="random", rng=rng)
-    op1 = ptn.MPO(qsite, [rng.integers(-2, 3, size=bi) for bi in [1, 8, 17, 11, 23, 13, 1]],
+    op1 = ptn.MPO(qsite, [rng.integers(-2, 3, size=bi)
+                          for bi in [1, 8, 17, 11, 23, 13, 1]],
                   fill="random", rng=rng)
 
     # MPO multiplication (composition)

@@ -16,7 +16,7 @@ def test_dmrg_singlesite():
     J =  4/5
     D =  8/3
     h = -2/7
-    hamiltonian = ptn.heisenberg_xxz_mpo(nsites, J, D, h)
+    hamiltonian = ptn.heisenberg_xxz_1d_mpo(nsites, J, D, h)
 
     # initial wavefunction as MPS with random entries
     qnum_sector = 0
@@ -63,12 +63,13 @@ def test_dmrg_twosite():
     J = -4/3
     D =  2/8
     h =  5/7
-    hamiltonian = ptn.heisenberg_xxz_mpo(nsites, J, D, h)
+    hamiltonian = ptn.heisenberg_xxz_1d_mpo(nsites, J, D, h)
 
     # initial wavefunction as MPS with random entries;
     # initial maximum bond dimension needs to be increased by DMRG algorithm
     qnum_sector = 4  # quantum number sector of ground state
-    psi = ptn.MPS.construct_random(nsites, hamiltonian.qsite, qnum_sector, max_vdim=18, dtype="real", rng=rng)
+    psi = ptn.MPS.construct_random(nsites, hamiltonian.qsite, qnum_sector,
+                                   max_vdim=18, dtype="real", rng=rng)
 
     en_min = ptn.dmrg_twosite(hamiltonian, psi, numsweeps)
     # value after last iteration

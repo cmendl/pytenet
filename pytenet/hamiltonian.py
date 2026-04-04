@@ -12,8 +12,8 @@ from .opchain import OpChain
 from .autop import AutOpNode, AutOpEdge, AutOp
 from .opgraph import OpGraphNode, OpGraphEdge, OpGraph
 
-__all__ = ["ising_mpo", "heisenberg_xxz_mpo", "heisenberg_xxz_spin1_mpo",
-           "bose_hubbard_mpo", "fermi_hubbard_mpo",
+__all__ = ["ising_1d_mpo", "heisenberg_xxz_1d_mpo", "heisenberg_xxz_spin1_1d_mpo",
+           "bose_hubbard_1d_mpo", "fermi_hubbard_1d_mpo",
            "linear_fermionic_mpo", "linear_spin_fermionic_mpo",
            "quadratic_fermionic_mpo", "quadratic_spin_fermionic_mpo",
            "molecular_hamiltonian_mpo", "molecular_hamiltonian_orbital_gauge_transform",
@@ -21,10 +21,10 @@ __all__ = ["ising_mpo", "heisenberg_xxz_mpo", "heisenberg_xxz_spin1_mpo",
            "encode_quantum_number_pair", "decode_quantum_number_pair"]
 
 
-def ising_mpo(nsites: int, J: float, h: float, g: float) -> MPO:
+def ising_1d_mpo(nsites: int, J: float, h: float, g: float) -> MPO:
     """
     Construct Ising Hamiltonian `sum J sz sz + h sz + g sx`
-    on a 1D lattice as MPO.
+    on a one-dimensional lattice as MPO.
 
     Args:
         nsites: number of lattice sites
@@ -76,10 +76,10 @@ def ising_mpo(nsites: int, J: float, h: float, g: float) -> MPO:
     return MPO.from_opgraph(qsite, graph, opmap)
 
 
-def heisenberg_xxz_mpo(nsites: int, J: float, D: float, h: float) -> MPO:
+def heisenberg_xxz_1d_mpo(nsites: int, J: float, D: float, h: float) -> MPO:
     """
     Construct XXZ Heisenberg Hamiltonian `sum J X X + J Y Y + D Z Z - h Z`
-    on a 1D lattice as MPO.
+    on a one-dimensional lattice as MPO.
 
     Args:
         nsites: number of lattice sites
@@ -116,16 +116,16 @@ def heisenberg_xxz_mpo(nsites: int, J: float, D: float, h: float) -> MPO:
     return _local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I)
 
 
-def heisenberg_xxz_spin1_mpo(nsites: int, J: float, D: float, h: float) -> MPO:
+def heisenberg_xxz_spin1_1d_mpo(nsites: int, J: float, D: float, h: float) -> MPO:
     """
     Construct spin-1 XXZ Heisenberg Hamiltonian `sum J X X + J Y Y + D Z Z - h Z`
-    on a 1D lattice as MPO.
+    on a one-dimensional lattice as MPO.
 
     Args:
-        nsites:  number of lattice sites
-        J:  J parameter
-        D:  Delta parameter
-        h:  field strength
+        nsites: number of lattice sites
+        J:      J parameter
+        D:      Delta parameter
+        h:      field strength
 
     Returns:
         MPO: spin-1 XXZ Heisenberg Hamiltonian
@@ -157,15 +157,15 @@ def heisenberg_xxz_spin1_mpo(nsites: int, J: float, D: float, h: float) -> MPO:
     return _local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I)
 
 
-def bose_hubbard_mpo(d: int, nsites: int, t: float, u: float, mu: float) -> MPO:
+def bose_hubbard_1d_mpo(nsites: int, d: int, t: float, u: float, mu: float) -> MPO:
     """
     Construct Bose-Hubbard Hamiltonian
     with nearest-neighbor hopping on a 1D lattice as MPO.
 
     Args:
+        nsites: number of lattice sites
         d:      physical dimension per site
                 (allowed local occupancies are 0, 1, ..., d - 1)
-        nsites: number of lattice sites
         t:      kinetic hopping parameter
         u:      interaction strength
         mu:     chemical potential
@@ -202,10 +202,10 @@ def bose_hubbard_mpo(d: int, nsites: int, t: float, u: float, mu: float) -> MPO:
     return _local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I)
 
 
-def fermi_hubbard_mpo(nsites: int, t: float, u: float, mu: float) -> MPO:
+def fermi_hubbard_1d_mpo(nsites: int, t: float, u: float, mu: float) -> MPO:
     """
     Construct Fermi-Hubbard Hamiltonian
-    with nearest-neighbor hopping on a 1D lattice as MPO.
+    with nearest-neighbor hopping on a one-dimensional lattice as MPO.
 
     States for each spin and site are `|0>` and `|1>`.
 
@@ -2401,17 +2401,17 @@ def decode_quantum_number_pair(qnum: int):
     return qa, qb
 
 
-def _local_opchains_to_mpo(qsite: Sequence[int], lopchains: Sequence[OpChain],
+def _local_opchains_to_mpo(qsite, lopchains: Sequence[OpChain],
                            size: int, opmap: Mapping, oid_identity: int) -> MPO:
     """
     Construct Hamiltonian as MPO based on local operator chains,
     which are shifted along a 1D lattice.
 
     Args:
-        qsite: physical quantum numbers at each site
-        lopchains: local operator chains
-        size: system size, i.e., number of lattice sites
-        opmap: local operators as dictionary, using operator IDs as keys
+        qsite:        physical quantum numbers at each site
+        lopchains:    local operator chains
+        size:         system size, i.e., number of lattice sites
+        opmap:        local operators as dictionary, using operator IDs as keys
         oid_identity: operator ID for identity map
 
     Returns:

@@ -2,30 +2,30 @@
 Tensor hypercontraction (THC) representation of molecular Hamiltonians.
 
 References:
-  - Robert M. Parrish, Edward G. Hohenstein, Todd J. Martínez, C. David Sherrill\n
-    Tensor hypercontraction. II. Least-squares renormalization\n
+  - Robert M. Parrish, Edward G. Hohenstein, Todd J. Martínez, C. David Sherrill
+    Tensor hypercontraction. II. Least-squares renormalization
     J. Chem. Phys. 137, 224106 (2012)
-  - Jianfeng Lu, Lexing Ying\n
+  - Jianfeng Lu, Lexing Ying
     Compression of the electron repulsion integral tensor
-    in tensor hypercontraction format with cubic scaling cost\n
+    in tensor hypercontraction format with cubic scaling cost
     J. Comput. Phys. 302, 329-335 (2015)
-  - Joonho Lee, Lin Lin, Martin Head-Gordon\n
+  - Joonho Lee, Lin Lin, Martin Head-Gordon
     Systematically improvable tensor hypercontraction:
     interpolative separable density-fitting for molecules applied to exact exchange,
-    second- and third-order Møller-Plesset perturbation theory\n
+    second- and third-order Møller-Plesset perturbation theory
     J. Chem. Theory Comput. 16, 243-263 (2020)
-  - Yu Wang, Maxine Luo, Matthias Reumann, Christian B. Mendl\n
+  - Yu Wang, Maxine Luo, Matthias Reumann, Christian B. Mendl
     Enhanced Krylov methods for molecular Hamiltonians:
-    Reduced memory cost and complexity scaling via tensor hypercontraction\n
+    Reduced memory cost and complexity scaling via tensor hypercontraction
     J. Chem. Theory Comput. 21, 6874-6886 (2025)
 """
 
 import copy
 import numpy as np
 from .hamiltonian import quadratic_spin_fermionic_mpo
-from .mps import MPS, add_mps
+from .mps import MPS, mps_add
 from .mpo import MPO
-from .operation import apply_mpo
+from .chain_ops import apply_mpo
 
 __all__ = ["THCSpinMolecularHamiltonian", "apply_thc_spin_molecular_hamiltonian"]
 
@@ -140,7 +140,7 @@ def apply_thc_spin_molecular_hamiltonian(hamiltonian: THCSpinMolecularHamiltonia
         for sigma in (0, 1):
             op_psi = _apply_operator_and_compress(hamiltonian.mpo_kin[i][sigma], psi, tol)
             if ret:
-                ret = add_mps(ret, op_psi, alpha=hamiltonian.en_kin[i])
+                ret = mps_add(ret, op_psi, alpha=hamiltonian.en_kin[i])
             else:
                 ret = op_psi
                 ret.a[0] *= hamiltonian.en_kin[i]

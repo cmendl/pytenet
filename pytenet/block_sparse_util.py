@@ -77,7 +77,7 @@ def sort_by_qnumbers(a, q0, q1):
     q0 = np.asarray(q0)
     q1 = np.asarray(q1)
 
-    # sort quantum numbers and arrange entries in 'a' accordingly;
+    # sort quantum numbers and arrange entries in `a` accordingly;
     # using mergesort to avoid permutations of identical quantum numbers
     idx0 = np.argsort(q0, kind="mergesort")
     idx1 = np.argsort(q1, kind="mergesort")
@@ -109,7 +109,7 @@ def block_sparse_qr(a, q0, q1):
     structure dictated by quantum numbers into account (that is, `a[i, j]` can
     only be non-zero if `q0[i] == q1[j]`).
 
-    The resulting 'r' matrix is not necessarily upper triangular due to
+    The resulting `r` matrix is not necessarily upper triangular due to
     the reordering of entries.
     """
     a = np.asarray(a)
@@ -124,12 +124,12 @@ def block_sparse_qr(a, q0, q1):
     if len(qis) == 0:
         assert np.linalg.norm(a) == 0
         # special case: no common quantum numbers;
-        # use dummy intermediate dimension 1 with all entries in 'r' set to zero
+        # use dummy intermediate dimension 1 with all entries in `r` set to zero
         q = np.zeros((a.shape[0], 1), dtype=a.dtype)
         r = np.zeros((1, a.shape[1]), dtype=a.dtype)
-        # single column of 'q' should have norm 1
+        # single column of `q` should have norm 1
         q[0, 0] = 1
-        # ensure non-zero entry in 'q' formally matches quantum numbers
+        # ensure non-zero entry in `q` formally matches quantum numbers
         qinterm = q0[:1]
         return (q, r, qinterm)
 
@@ -154,7 +154,7 @@ def block_sparse_qr(a, q0, q1):
         col_slice = slice_with_qnumber(qnum, q1)
 
         # perform QR decomposition of current block
-        qsub, rsub = np.linalg.qr(a[row_slice, col_slice], mode='reduced')
+        qsub, rsub = np.linalg.qr(a[row_slice, col_slice], mode="reduced")
 
         # update intermediate dimension
         dim_prev = dim_bond
@@ -261,12 +261,12 @@ def block_sparse_svd(a, q0, q1):
         u = np.zeros((a.shape[0], 1), dtype=a.dtype)
         v = np.zeros((1, a.shape[1]), dtype=a.dtype)
         s = np.zeros(1)
-        # single column of 'u' should have norm 1
+        # single column of `u` should have norm 1
         if a.shape[0] > 0:
             u[0, 0] = 1
-        # ensure non-zero entry in 'u' formally matches quantum numbers
+        # ensure non-zero entry in `u` formally matches quantum numbers
         q = q0[:1]
-        # 'v' must remain zero matrix to satisfy quantum number constraints
+        # `v` must remain zero matrix to satisfy quantum number constraints
         return (u, s, v, q)
 
     a, (idx0, q0), (idx1, q1) = sort_by_qnumbers(a, q0, q1)
