@@ -27,7 +27,7 @@ class MPO:
     right virtual bond quantum number.
     """
 
-    def __init__(self, qsite, qbonds, fill=0.0, rng=None):
+    def __init__(self, qsite, qbonds, fill: int | float | complex | str = 0.0, rng = None):
         """
         Create a matrix product operator.
 

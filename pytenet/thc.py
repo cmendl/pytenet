@@ -22,7 +22,7 @@ References:
 
 import copy
 import numpy as np
-from .hamiltonian import quadratic_spin_fermionic_mpo
+from .hamiltonian_quadratic_fermionic import quadratic_spin_fermionic_mpo
 from .mps import MPS, mps_add
 from .mpo import MPO
 from .chain_ops import apply_mpo
