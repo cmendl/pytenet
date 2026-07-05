@@ -24,6 +24,7 @@ from .hamiltonian.linear_fermionic    import *
 from .hamiltonian.quadratic_fermionic import *
 from .hamiltonian.molecular           import *
 from .hamiltonian.spin_molecular      import *
+from .hamiltonian.diagonal_molecular  import *
 from .hamiltonian.local_opchain       import *
 from .thc                             import *
 from .chain_ops                       import *
