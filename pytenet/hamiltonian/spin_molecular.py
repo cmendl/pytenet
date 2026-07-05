@@ -6,11 +6,11 @@ import itertools
 from collections.abc import Sequence
 from enum import IntEnum
 import numpy as np
-from .mpo import MPO
-from .opchain import OpChain
-from .opgraph import OpGraphNode, OpGraphEdge, OpGraph
-from .qnumber import encode_quantum_number_pair
-from .hamiltonian_molecular import MolecularOID, _molecular_hamiltonian_generate_operator_map
+from ..mpo import MPO
+from ..opchain import OpChain
+from ..opgraph import OpGraphNode, OpGraphEdge, OpGraph
+from ..qnumber import encode_quantum_number_pair
+from .molecular import MolecularOID, _molecular_hamiltonian_generate_operator_map
 
 __all__ = ["spin_molecular_hamiltonian_mpo"]
 

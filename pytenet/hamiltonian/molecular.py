@@ -5,9 +5,9 @@ Construct a molecular Hamiltonian as a matrix product operator (MPO).
 from collections.abc import Sequence
 from enum import IntEnum
 import numpy as np
-from .mpo import MPO
-from .opchain import OpChain
-from .opgraph import OpGraphNode, OpGraphEdge, OpGraph
+from ..mpo import MPO
+from ..opchain import OpChain
+from ..opgraph import OpGraphNode, OpGraphEdge, OpGraph
 
 __all__ = ["molecular_hamiltonian_mpo", "molecular_hamiltonian_orbital_gauge_transform"]
 

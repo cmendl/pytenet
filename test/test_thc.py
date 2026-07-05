@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import sparse
-from test_hamiltonian_spin_molecular import construct_spin_molecular_hamiltonian
+from hamiltonian.test_spin_molecular import construct_spin_molecular_hamiltonian
 import pytenet as ptn
 
 

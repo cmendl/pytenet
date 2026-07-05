@@ -1,5 +1,5 @@
 import numpy as np
-from test_hamiltonian_molecular import construct_molecular_hamiltonian
+from test_molecular import construct_molecular_hamiltonian
 import pytenet as ptn
 
 

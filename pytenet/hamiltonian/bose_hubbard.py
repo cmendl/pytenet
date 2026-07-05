@@ -4,9 +4,9 @@ Construct the Bose-Hubbard Hamiltonian as a matrix product operator (MPO).
 
 from enum import IntEnum
 import numpy as np
-from .mpo import MPO
-from .opchain import OpChain
-from .hamiltonian_util import local_opchains_to_mpo
+from ..mpo import MPO
+from ..opchain import OpChain
+from .local_opchain import local_opchains_to_mpo
 
 __all__ = ["bose_hubbard_1d_mpo"]
 

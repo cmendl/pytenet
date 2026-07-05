@@ -5,9 +5,9 @@ which are shifted along a 1D lattice.
 
 import copy
 from collections.abc import Sequence, Mapping
-from .mpo import MPO
-from .opchain import OpChain
-from .opgraph import OpGraph
+from ..mpo import MPO
+from ..opchain import OpChain
+from ..opgraph import OpGraph
 
 __all__ = ["local_opchains_to_mpo"]
 

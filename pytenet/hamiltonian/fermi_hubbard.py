@@ -4,10 +4,10 @@ Construct the Fermi-Hubbard Hamiltonian as a matrix product operator (MPO).
 
 from enum import IntEnum
 import numpy as np
-from .mpo import MPO
-from .opchain import OpChain
-from .qnumber import encode_quantum_number_pair
-from .hamiltonian_util import local_opchains_to_mpo
+from ..mpo import MPO
+from ..opchain import OpChain
+from ..qnumber import encode_quantum_number_pair
+from .local_opchain import local_opchains_to_mpo
 
 __all__ = ["fermi_hubbard_1d_mpo"]
 

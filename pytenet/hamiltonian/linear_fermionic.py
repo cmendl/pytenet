@@ -4,9 +4,9 @@ Represent a sum of fermionic creation or annihilation operators as a matrix prod
 
 from enum import IntEnum
 import numpy as np
-from .mpo import MPO
-from .opgraph import OpGraphNode, OpGraphEdge, OpGraph
-from .qnumber import encode_quantum_number_pair
+from ..mpo import MPO
+from ..opgraph import OpGraphNode, OpGraphEdge, OpGraph
+from ..qnumber import encode_quantum_number_pair
 
 __all__ = ["linear_fermionic_mpo", "linear_spin_fermionic_mpo"]
 

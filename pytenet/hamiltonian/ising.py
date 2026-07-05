@@ -4,9 +4,9 @@ Construct the Ising Hamiltonian as a matrix product operator (MPO).
 
 from enum import IntEnum
 import numpy as np
-from .mpo import MPO
-from .autop import AutOpNode, AutOpEdge, AutOp
-from .opgraph import OpGraph
+from ..mpo import MPO
+from ..autop import AutOpNode, AutOpEdge, AutOp
+from ..opgraph import OpGraph
 
 __all__ = ["ising_1d_mpo"]
 

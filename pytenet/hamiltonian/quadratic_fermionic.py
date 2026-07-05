@@ -5,9 +5,9 @@ as a matrix product operator (MPO).
 
 from enum import IntEnum
 import numpy as np
-from .mpo import MPO
-from .opgraph import OpGraphNode, OpGraphEdge, OpGraph
-from .qnumber import encode_quantum_number_pair
+from ..mpo import MPO
+from ..opgraph import OpGraphNode, OpGraphEdge, OpGraph
+from ..qnumber import encode_quantum_number_pair
 
 __all__ = ["quadratic_fermionic_mpo", "quadratic_spin_fermionic_mpo"]
 
