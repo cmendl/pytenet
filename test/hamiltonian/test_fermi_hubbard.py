@@ -6,24 +6,25 @@ import pytenet as ptn
 
 def test_fermi_hubbard_1d_mpo():
 
-    # number of lattice sites
-    nsites = 5
     # Hamiltonian parameters
     t  = 1.2
     u  = 2.7
     mu = 0.3
 
-    # construct MPO
-    h_mpo = ptn.fermi_hubbard_1d_mpo(nsites, t, u, mu)
-    # matrix representation, for comparison with reference
-    h_mat = h_mpo.to_matrix()
+    # number of lattice sites
+    for nsites in range(2, 6):
 
-    # reference Hamiltonian
-    h_ref = construct_fermi_hubbard_1d_hamiltonian(nsites, t, u, mu)
+        # construct the MPO
+        h_mpo = ptn.fermi_hubbard_1d_mpo(nsites, t, u, mu)
+        # matrix representation, for comparison with reference
+        h_mat = h_mpo.to_matrix()
 
-    # compare
-    assert np.allclose(h_mat, h_ref.todense()), \
-        "matrix representation of MPO and reference Hamiltonian must match"
+        # reference Hamiltonian
+        h_ref = construct_fermi_hubbard_1d_hamiltonian(nsites, t, u, mu)
+
+        # compare
+        assert np.allclose(h_mat, h_ref.todense()), \
+            "matrix representation of MPO and reference Hamiltonian must match"
 
 
 def construct_fermi_hubbard_1d_hamiltonian(nsites: int, t: float, u: float, mu: float):

@@ -9,20 +9,21 @@ def test_heisenberg_xxz_1d_mpo():
     J = 14.0/25
     D = 13.0/8
     h =  2.0/7
+
     # number of lattice sites
-    nsites = 7
+    for nsites in range(2, 8):
 
-    # construct MPO
-    h_mpo = ptn.heisenberg_xxz_1d_mpo(nsites, J, D, h)
-    # matrix representation, for comparison with reference
-    h_mat = h_mpo.to_matrix()
+        # construct the MPO
+        h_mpo = ptn.heisenberg_xxz_1d_mpo(nsites, J, D, h)
+        # matrix representation, for comparison with reference
+        h_mat = h_mpo.to_matrix()
 
-    # reference Hamiltonian
-    h_ref = construct_heisenberg_xxz_1d_hamiltonian(nsites, J, D, h)
+        # reference Hamiltonian
+        h_ref = construct_heisenberg_xxz_1d_hamiltonian(nsites, J, D, h)
 
-    # compare
-    assert np.allclose(h_mat, h_ref.todense()), \
-        "matrix representation of MPO and reference Hamiltonian must match"
+        # compare
+        assert np.allclose(h_mat, h_ref.todense()), \
+            "matrix representation of MPO and reference Hamiltonian must match"
 
 
 def test_heisenberg_xxz_spin1_1d_mpo():

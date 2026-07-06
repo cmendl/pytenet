@@ -243,26 +243,24 @@ def _diagonal_molecular_hamiltonian_graph_add_term(
         raise NotImplementedError
 
 
-def diagonal_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
+def diagonal_molecular_hamiltonian_mpo(tkin, uloc, vint, optimize=True) -> MPO:
     r"""
     Construct a molecular Hamiltonian with a diagonal interaction term as an MPO:
 
     .. math::
 
-        H = \sum_{i,j} t_{i,j} a^{\dagger}_i a_j + \frac{1}{2} \sum_{i,j} v_{i,j} n_i n_j
+        H = \sum_{i,j} t_{i,j} a^{\dagger}_i a_j + \sum_i u_i n_i + \sum_{i<j} v_{i,j} n_i n_j
     """
     tkin = np.asarray(tkin)
+    uloc = np.asarray(uloc)
     vint = np.asarray(vint)
     nsites = tkin.shape[0]
     assert tkin.shape == (nsites, nsites)
+    assert uloc.shape == (nsites,)
     assert vint.shape == (nsites, nsites)
 
-    # collect the separate number operators into a dedicated term
-    uloc = np.diag(tkin) + 0.5 * np.diag(vint)
-
-    # interaction terms \frac{1}{2} \sum_{i,j} v_{i,j} n_i n_j:
-    # can swap number operators such that i < j
-    gint = np.triu(0.5 * (vint + vint.T), k=1)
+    # account for the "diagonal" kinetic hopping terms by the local number operators
+    uloc = uloc + np.diag(tkin)
 
     if optimize:
         # optimize MPO bond dimensions based on bipartite graph theory
@@ -283,7 +281,7 @@ def diagonal_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
             for j in range(i + 1, nsites):  # i < j
                 opchains.append(OpChain(
                     [MolecularOID.N] + (j - i - 1)*[MolecularOID.I] + [MolecularOID.N],
-                    (j - i + 2)*[0], gint[i, j], i))
+                    (j - i + 2)*[0], vint[i, j], i))
         graph = OpGraph.from_opchains(opchains, nsites, 0)
     else:
         # explicit construction (typically faster, but does not optimize cases
@@ -302,13 +300,13 @@ def diagonal_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
         for i in range(nsites):
             _diagonal_molecular_hamiltonian_graph_add_term(
                 graph, nodes, [(i, MolecularOID.N)], uloc[i])
-        # interaction terms \sum_{i < j} v_{i,j} n_i n_j
+        # interaction terms \sum_{i<j} v_{i,j} n_i n_j
         for i in range(nsites):
             for j in range(i + 1, nsites):  # i < j
                 oplist = [(i, MolecularOID.N),
                           (j, MolecularOID.N)]
                 _diagonal_molecular_hamiltonian_graph_add_term(
-                    graph, nodes, oplist, gint[i, j])
+                    graph, nodes, oplist, vint[i, j])
 
     # skip consistency check for larger nsites (would take very long)
     if nsites <= 12:

@@ -769,7 +769,6 @@ def spin_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
 
     if optimize:
         # optimize MPO bond dimensions based on bipartite graph theory
-
         opchains = []
         # kinetic hopping terms \sum_{i,j,\sigma} t_{i,j} a^{\dagger}_{i,\sigma} a_{j,\sigma}
         for i in range(2*nsites):
@@ -848,7 +847,6 @@ def spin_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
                         opchains.append(SpinOperatorConverter.to_spin_opchain(
                             OpChain(oids, qnums, coeff, a)))
         graph = OpGraph.from_opchains(opchains, nsites, SpinMolecularOID.I)
-
     else:
         # explicit construction (typically faster, but does not optimize cases
         # of zero coefficients, and is slightly sub-optimal close to boundary)

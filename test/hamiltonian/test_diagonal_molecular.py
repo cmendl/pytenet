@@ -12,13 +12,14 @@ def test_diagonal_molecular_hamiltonian_mpo():
 
         # Hamiltonian parameters
         tkin = ptn.crandn(2 * (nsites,), rng)
-        vint = ptn.crandn(2 * (nsites,), rng)
+        uloc = ptn.crandn(nsites, rng)
+        vint = np.triu(ptn.crandn(2 * (nsites,), rng), k=1)
 
         # reference Hamiltonian
-        h_ref = construct_diagonal_molecular_hamiltonian(tkin, vint)
+        h_ref = construct_diagonal_molecular_hamiltonian(tkin, uloc, vint)
 
         for opt in (True, False):
-            h_mpo = ptn.diagonal_molecular_hamiltonian_mpo(tkin, vint, opt)
+            h_mpo = ptn.diagonal_molecular_hamiltonian_mpo(tkin, uloc, vint, opt)
 
             # theoretically predicted virtual bond dimensions
             b_theo = []
@@ -40,12 +41,13 @@ def test_diagonal_molecular_hamiltonian_mpo():
                 "matrix representation of MPO and reference Hamiltonian must match"
 
 
-def construct_diagonal_molecular_hamiltonian(tkin, vint):
+def construct_diagonal_molecular_hamiltonian(tkin, uloc, vint):
     """
     Construct the molecular Hamiltonian with a diagonal interaction term as a sparse matrix.
     """
     nmodes = tkin.shape[0]
     assert tkin.shape == (nmodes, nmodes)
+    assert uloc.shape == (nmodes,)
     assert vint.shape == (nmodes, nmodes)
 
     clist, alist, nlist = construct_fermi_operators(nmodes)
@@ -55,8 +57,10 @@ def construct_diagonal_molecular_hamiltonian(tkin, vint):
         sum(tkin[i, j] * (clist[i] @ alist[j])
             for i in range(nmodes)
             for j in range(nmodes)) + \
-        sum(0.5 * vint[i, j] * (nlist[i] @ nlist[j])
+        sum(uloc[i] * nlist[i]
+            for i in range(nmodes)) + \
+        sum(vint[i, j] * (nlist[i] @ nlist[j])
             for i in range(nmodes)
-            for j in range(nmodes))
+            for j in range(i + 1, nmodes))
     hamiltonian.eliminate_zeros()
     return hamiltonian

@@ -9,20 +9,21 @@ def test_ising_1d_mpo():
     J =  5.0/11
     h = -2.0/7
     g = 13.0/8
+
     # number of lattice sites
-    nsites = 7
+    for nsites in range(2, 8):
 
-    # construct MPO
-    h_mpo = ptn.ising_1d_mpo(nsites, J, h, g)
-    # matrix representation, for comparison with reference
-    h_mat = h_mpo.to_matrix()
+        # construct the MPO
+        h_mpo = ptn.ising_1d_mpo(nsites, J, h, g)
+        # matrix representation, for comparison with reference
+        h_mat = h_mpo.to_matrix()
 
-    # reference Hamiltonian
-    h_ref = construct_ising_1d_hamiltonian(nsites, J, h, g)
+        # reference Hamiltonian
+        h_ref = construct_ising_1d_hamiltonian(nsites, J, h, g)
 
-    # compare
-    assert np.allclose(h_mat, h_ref.todense()), \
-        "matrix representation of MPO and reference Hamiltonian must match"
+        # compare
+        assert np.allclose(h_mat, h_ref.todense()), \
+            "matrix representation of MPO and reference Hamiltonian must match"
 
 
 def construct_ising_1d_hamiltonian(nsites: int, J: float, h: float, g: float):

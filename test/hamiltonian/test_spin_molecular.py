@@ -8,20 +8,21 @@ def test_spin_molecular_hamiltonian_mpo():
     rng = np.random.default_rng()
 
     # number of spin-endowed lattice sites
-    nsites = 4
-    # Hamiltonian parameters
-    tkin = ptn.crandn(2 * (nsites,), rng)
-    vint = ptn.crandn(4 * (nsites,), rng)
+    for nsites in range(2, 6):
 
-    # reference Hamiltonian
-    h_ref = construct_spin_molecular_hamiltonian(tkin, vint)
+        # Hamiltonian parameters
+        tkin = ptn.crandn(2 * (nsites,), rng)
+        vint = ptn.crandn(4 * (nsites,), rng)
 
-    for opt in (True, False):
-        h_mpo = ptn.spin_molecular_hamiltonian_mpo(tkin, vint, opt)
+        # reference Hamiltonian
+        h_ref = construct_spin_molecular_hamiltonian(tkin, vint)
 
-        # compare matrix representations
-        assert np.allclose(h_mpo.to_matrix(), h_ref.todense()), \
-            "matrix representation of MPO and reference Hamiltonian must match"
+        for opt in (True, False):
+            h_mpo = ptn.spin_molecular_hamiltonian_mpo(tkin, vint, opt)
+
+            # compare matrix representations
+            assert np.allclose(h_mpo.to_matrix(), h_ref.todense()), \
+                "matrix representation of MPO and reference Hamiltonian must match"
 
 
 def construct_spin_molecular_hamiltonian(tkin, vint):
