@@ -212,7 +212,7 @@ def _diagonal_molecular_hamiltonian_graph_add_term(
         assert oid == MolecularOID.N
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [nodes.identity_l[i].nid, nodes.identity_r[i + 1].nid],
-                        [(MolecularOID.N, coeff)]))
+                        [(oid, coeff)]))
     elif len(oplist) == 2:
         (i, oid0), (j, oid1) = oplist
         assert i < j
@@ -243,40 +243,34 @@ def _diagonal_molecular_hamiltonian_graph_add_term(
         raise NotImplementedError
 
 
-def diagonal_molecular_hamiltonian_mpo(tkin, uloc, vint, optimize=True) -> MPO:
+def diagonal_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
     r"""
     Construct a molecular Hamiltonian with a diagonal interaction term as an MPO:
 
     .. math::
 
-        H = \sum_{i,j} t_{i,j} a^{\dagger}_i a_j + \sum_i u_i n_i + \sum_{i<j} v_{i,j} n_i n_j
+        H = \sum_{i,j} t_{i,j} a^{\dagger}_i a_j + \sum_{i<j} v_{i,j} n_i n_j
     """
     tkin = np.asarray(tkin)
-    uloc = np.asarray(uloc)
     vint = np.asarray(vint)
     nsites = tkin.shape[0]
     assert tkin.shape == (nsites, nsites)
-    assert uloc.shape == (nsites,)
     assert vint.shape == (nsites, nsites)
-
-    # account for the "diagonal" kinetic hopping terms by the local number operators
-    uloc = uloc + np.diag(tkin)
 
     if optimize:
         # optimize MPO bond dimensions based on bipartite graph theory
         opchains = []
-        # kinetic hopping terms \sum_{i \neq j} t_{i,j} a^{\dagger}_i a_j
+        # kinetic hopping terms \sum_{i,j} t_{i,j} a^{\dagger}_i a_j
         for i in range(nsites):
             for j in range(nsites):
                 if i == j:
-                    continue
-                (a, p), (b, q) = sorted([(i, MolecularOID.C), (j, MolecularOID.A)])
-                opchains.append(OpChain([p] + (b - a - 1)*[MolecularOID.Z] + [q],
-                                        [0] + (b - a)*[int(p)] + [0], tkin[i, j], a))
-        # on-site number operators \sum_i u_i n_i
-        for i in range(nsites):
-            opchains.append(OpChain([MolecularOID.N], [0, 0], uloc[i], i))
-        # interaction terms \sum_{i < j} v_{i,j} n_i n_j
+                    # diagonal hopping term
+                    opchains.append(OpChain([MolecularOID.N], [0, 0], tkin[i, i], i))
+                else:
+                    (a, p), (b, q) = sorted([(i, MolecularOID.C), (j, MolecularOID.A)])
+                    opchains.append(OpChain([p] + (b - a - 1)*[MolecularOID.Z] + [q],
+                                            [0] + (b - a)*[int(p)] + [0], tkin[i, j], a))
+        # interaction terms \sum_{i<j} v_{i,j} n_i n_j
         for i in range(nsites):
             for j in range(i + 1, nsites):  # i < j
                 opchains.append(OpChain(
@@ -289,17 +283,15 @@ def diagonal_molecular_hamiltonian_mpo(tkin, uloc, vint, optimize=True) -> MPO:
         assert nsites >= 2
         nodes = DiagonalMolecularOpGraphNodes(nsites)
         graph = nodes.generate_graph()
-        # kinetic hopping terms \sum_{i \neq j} t_{i,j} a^{\dagger}_i a_j
+        # kinetic hopping terms \sum_{i,j} t_{i,j} a^{\dagger}_i a_j
         for i in range(nsites):
             for j in range(nsites):
                 if i == j:
-                    continue
-                _diagonal_molecular_hamiltonian_graph_add_term(
-                    graph, nodes, [(i, MolecularOID.C), (j, MolecularOID.A)], tkin[i, j])
-        # on-site number operators \sum_i u_i n_i
-        for i in range(nsites):
-            _diagonal_molecular_hamiltonian_graph_add_term(
-                graph, nodes, [(i, MolecularOID.N)], uloc[i])
+                    _diagonal_molecular_hamiltonian_graph_add_term(
+                        graph, nodes, [(i, MolecularOID.N)], tkin[i, i])
+                else:
+                    _diagonal_molecular_hamiltonian_graph_add_term(
+                        graph, nodes, [(i, MolecularOID.C), (j, MolecularOID.A)], tkin[i, j])
         # interaction terms \sum_{i<j} v_{i,j} n_i n_j
         for i in range(nsites):
             for j in range(i + 1, nsites):  # i < j

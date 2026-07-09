@@ -638,7 +638,7 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
     else:
         # explicit construction (typically faster, but does not optimize cases
         # of zero coefficients, and is slightly sub-optimal close to boundary)
-        assert nsites >= 4
+        assert nsites >= 3
         nodes = MolecularOpGraphNodes(nsites)
         graph = nodes.generate_graph()
         # kinetic hopping terms \sum_{i,j} t_{i,j} a^{\dagger}_i a_j

@@ -1,5 +1,7 @@
 import numpy as np
+from scipy.sparse.linalg import norm
 from fermi_operators import construct_fermi_operators
+from test_molecular import construct_molecular_hamiltonian
 import pytenet as ptn
 
 
@@ -12,14 +14,23 @@ def test_diagonal_molecular_hamiltonian_mpo():
 
         # Hamiltonian parameters
         tkin = ptn.crandn(2 * (nsites,), rng)
-        uloc = ptn.crandn(nsites, rng)
         vint = np.triu(ptn.crandn(2 * (nsites,), rng), k=1)
 
         # reference Hamiltonian
-        h_ref = construct_diagonal_molecular_hamiltonian(tkin, uloc, vint)
+        h_ref = construct_diagonal_molecular_hamiltonian(tkin, vint)
+
+        # alternative construction based on generic molecular Hamiltonian
+        vint_full = np.zeros(4 * (nsites,), dtype=vint.dtype)
+        for i in range(nsites):
+            for j in range(i + 1, nsites):  # i < j
+                vint_full[i, j, i, j] = 2 * vint[i, j]
+        h_alt = construct_molecular_hamiltonian(tkin, vint_full)
+        assert norm(h_alt - h_ref) < 1e-13, \
+            "matrix representation of diagonal molecular Hamiltonian "\
+            "must match generic construction"
 
         for opt in (True, False):
-            h_mpo = ptn.diagonal_molecular_hamiltonian_mpo(tkin, uloc, vint, opt)
+            h_mpo = ptn.diagonal_molecular_hamiltonian_mpo(tkin, vint, opt)
 
             # theoretically predicted virtual bond dimensions
             b_theo = []
@@ -41,13 +52,12 @@ def test_diagonal_molecular_hamiltonian_mpo():
                 "matrix representation of MPO and reference Hamiltonian must match"
 
 
-def construct_diagonal_molecular_hamiltonian(tkin, uloc, vint):
+def construct_diagonal_molecular_hamiltonian(tkin, vint):
     """
     Construct the molecular Hamiltonian with a diagonal interaction term as a sparse matrix.
     """
     nmodes = tkin.shape[0]
     assert tkin.shape == (nmodes, nmodes)
-    assert uloc.shape == (nmodes,)
     assert vint.shape == (nmodes, nmodes)
 
     clist, alist, nlist = construct_fermi_operators(nmodes)
@@ -57,8 +67,6 @@ def construct_diagonal_molecular_hamiltonian(tkin, uloc, vint):
         sum(tkin[i, j] * (clist[i] @ alist[j])
             for i in range(nmodes)
             for j in range(nmodes)) + \
-        sum(uloc[i] * nlist[i]
-            for i in range(nmodes)) + \
         sum(vint[i, j] * (nlist[i] @ nlist[j])
             for i in range(nmodes)
             for j in range(i + 1, nmodes))

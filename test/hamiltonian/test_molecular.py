@@ -9,7 +9,7 @@ def test_molecular_hamiltonian_mpo():
     rng = np.random.default_rng()
 
     # number of fermionic modes
-    for nsites in range(4, 8):
+    for nsites in range(3, 8):
 
         # Hamiltonian parameters
         tkin = ptn.crandn(2 * (nsites,), rng)
