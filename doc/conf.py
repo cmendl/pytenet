@@ -28,9 +28,9 @@ copyright = "2018 - 2026, Christian B. Mendl"
 author = "Christian B. Mendl"
 
 # The short X.Y version
-version = "1.1"
+version = "1.3"
 # The full version, including alpha/beta/rc tags
-release = "1.1.0"
+release = "1.3.0"
 
 
 # -- General configuration ---------------------------------------------------

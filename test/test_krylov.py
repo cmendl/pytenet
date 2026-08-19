@@ -1,122 +1,166 @@
-import numpy as np
-from scipy.linalg import expm
+import math
+import time
+import functools
+import autoray as ar
+from autoray import numpy as np
+import torch
 import pytenet as ptn
 
 
 def test_lanczos_iteration():
 
-    rng = np.random.default_rng()
+    torch.set_default_dtype(torch.float64)
 
-    n = 256
-    numiter = 24
+    for backend in ["numpy", "torch"]:
+        with ar.backend_like(backend):
+            rng = ar.do("random.default_rng", int(time.time()))
 
-    # random Hermitian matrix
-    a = ptn.crandn((n, n), rng) / np.sqrt(n)
-    a = 0.5 * (a + a.conj().T)
+            n = 256
+            numiter = 24
 
-    # random complex starting vector
-    vstart = ptn.crandn(n, rng) / np.sqrt(n)
+            # random Hermitian matrix
+            a = ptn.crandn((n, n), rng=rng, scale=1/math.sqrt(n))
+            a = 0.5 * (a + a.conj().T)
 
-    # simply use `a` as linear transformation
-    alpha, beta, v = ptn.lanczos_iteration(lambda x: a @ x, vstart, numiter)
+            # random complex starting vector
+            vstart = ptn.crandn(n, rng=rng, scale=1/math.sqrt(n))
 
-    # check orthogonality of Lanczos vectors
-    assert np.allclose(v.T.conj() @ v, np.identity(numiter), rtol=1e-12), \
-        "matrix of Lanczos vectors must be orthonormalized"
+            if backend == "torch" and torch.cuda.is_available():
+                a = ar.to_device(a, "gpu")
+                vstart = ar.to_device(vstart, "gpu")
 
-    # Lanczos vectors must tridiagonalize `a`
-    t = np.diag(alpha) + np.diag(beta, 1) + np.diag(beta, -1)
-    assert np.allclose(v.conj().T @ a @ v, t, rtol=1e-12), \
-        "Lanczos vectors must tridiagonalize `a`"
+            # simply use `a` as linear transformation
+            alpha, beta, v = ptn.lanczos_iteration(functools.partial(lambda mat, x: mat @ x, a),
+                                                   vstart, numiter)
+
+            # check orthogonality of Lanczos vectors
+            assert np.allclose(v.T.conj() @ v,
+                               np.identity(numiter, like=v), rtol=1e-12), \
+                "matrix of Lanczos vectors must be orthonormalized"
+
+            # Lanczos vectors must tridiagonalize `a`
+            t = np.diag(alpha) + np.diag(beta, 1) + np.diag(beta, -1)
+            assert np.allclose(v.conj().T @ a @ v, ar.astype(t, a.dtype), rtol=1e-12), \
+                "Lanczos vectors must tridiagonalize `a`"
 
 
 def test_arnoldi_iteration():
 
-    rng = np.random.default_rng()
+    torch.set_default_dtype(torch.float64)
 
-    n = 256
-    numiter = 24
+    for backend in ["numpy", "torch"]:
+        with ar.backend_like(backend):
+            rng = ar.do("random.default_rng", int(time.time()))
 
-    # random matrix
-    a = ptn.crandn((n, n), rng)
-    # random complex starting vector
-    vstart = ptn.crandn(n, rng) / np.sqrt(n)
+            n = 256
+            numiter = 24
 
-    # simply use `a` as linear transformation
-    hess, v = ptn.arnoldi_iteration(lambda x: a @ x, vstart, numiter)
+            # random matrix
+            a = ptn.crandn((n, n), rng)
+            # random complex starting vector
+            vstart = ptn.crandn(n, rng=rng, scale=1/math.sqrt(n))
 
-    # check orthogonality of Arnoldi vectors
-    assert np.allclose(v.conj().T @ v, np.identity(v.shape[1]), rtol=1e-12), \
-        "matrix of Arnoldi vectors must be orthonormalized"
+            if backend == "torch" and torch.cuda.is_available():
+                a = ar.to_device(a, "gpu")
+                vstart = ar.to_device(vstart, "gpu")
 
-    assert np.allclose(v.conj().T @ a @ v, hess, rtol=1e-12), \
-        "Arnoldi vectors must transform `a` to upper Hessenberg form"
+            # simply use `a` as linear transformation
+            hess, v = ptn.arnoldi_iteration(functools.partial(lambda mat, x: mat @ x, a),
+                                            vstart, numiter)
+
+            # check orthogonality of Arnoldi vectors
+            assert np.allclose(v.conj().T @ v, np.identity(v.shape[1], like=v), rtol=1e-12), \
+                "matrix of Arnoldi vectors must be orthonormalized"
+
+            assert np.allclose(v.conj().T @ a @ v, hess, rtol=1e-12), \
+                "Arnoldi vectors must transform `a` to upper Hessenberg form"
 
 
 def test_eigh_krylov():
 
-    rng = np.random.default_rng()
+    torch.set_default_dtype(torch.float64)
 
-    n = 196
-    numiter = 30
-    numeig  = 2
+    for backend in ["numpy", "torch"]:
+        with ar.backend_like(backend):
+            rng = ar.do("random.default_rng", int(time.time()))
 
-    # random Hermitian matrix
-    a = ptn.crandn((n, n), rng) / np.sqrt(n)
-    a = 0.5 * (a + a.conj().T)
+            n = 196
+            numiter = 30
+            numeig  = 2
 
-    # random complex starting vector
-    vstart = ptn.crandn(n, rng) / np.sqrt(n)
+            # random Hermitian matrix
+            a = ptn.crandn((n, n), rng=rng, scale=1/math.sqrt(n))
+            a = 0.5 * (a + a.conj().T)
 
-    # simply use `a` as linear transformation;
-    w, u_ritz = ptn.eigh_krylov(lambda x: a @ x, vstart, numiter, numeig)
+            # random complex starting vector
+            vstart = ptn.crandn(n, rng=rng, scale=1/math.sqrt(n))
 
-    # check orthogonality of Ritz matrix
-    assert np.allclose(u_ritz.conj().T @ u_ritz, np.identity(numeig), rtol=1e-12), \
-        "matrix of Ritz eigenvectors must be orthonormalized"
+            if backend == "torch" and torch.cuda.is_available():
+                a = ar.to_device(a, "gpu")
+                vstart = ar.to_device(vstart, "gpu")
 
-    # check U^H a U = diag(w)
-    assert np.allclose(u_ritz.conj().T @ a @ u_ritz, np.diag(w), rtol=1e-12), \
-        "Ritz eigenvectors must diagonalize a within Krylov subspace"
+            # simply use `a` as linear transformation;
+            w, u_ritz = ptn.eigh_krylov(functools.partial(lambda mat, x: mat @ x, a),
+                                        vstart, numiter, numeig)
 
-    # reference eigenvalues
-    w_ref = np.linalg.eigvalsh(a)
+            # check orthogonality of Ritz matrix
+            assert np.allclose(u_ritz.conj().T @ u_ritz,
+                               np.identity(numeig, like=u_ritz), rtol=1e-12), \
+                "matrix of Ritz eigenvectors must be orthonormalized"
 
-    # compare lowest eigenvalues
-    assert abs(w[0] - w_ref[0]) < 0.001, \
-        "lowest Lanczos eigenvalue should approximate exact eigenvalue"
+            # check U^H a U = diag(w)
+            assert np.allclose(u_ritz.conj().T @ a @ u_ritz,
+                               np.diag(ar.astype(w, a.dtype)), rtol=1e-12), \
+                "Ritz eigenvectors must diagonalize a within Krylov subspace"
 
-    assert abs(w[1] - w_ref[1]) < 0.02, \
-        "second-lowest Lanczos eigenvalue should approximate exact eigenvalue"
+            # reference eigenvalues
+            w_ref = np.linalg.eigvalsh(a)
+
+            # compare lowest eigenvalues
+            assert abs(w[0] - w_ref[0]) < 0.001, \
+                "lowest Lanczos eigenvalue should approximate exact eigenvalue"
+
+            assert abs(w[1] - w_ref[1]) < 0.02, \
+                "second-lowest Lanczos eigenvalue should approximate exact eigenvalue"
 
 
 def test_expm_krylov():
 
-    rng = np.random.default_rng()
+    torch.set_default_dtype(torch.float64)
 
-    n = 320
-    numiter = 12
-    # time step
-    dt = 0.4 + 0.2j
+    for backend in ["numpy", "torch"]:
+        with ar.backend_like(backend):
+            rng = ar.do("random.default_rng", int(time.time()))
 
-    # random complex matrix
-    a = ptn.crandn((n, n), rng) / np.sqrt(n)
+            n = 320
+            numiter = 12
+            # time step
+            dt = 0.4 + 0.2j
 
-    # random complex vector
-    vec = ptn.crandn(n, rng) / np.sqrt(n)
+            # random complex matrix
+            a = ptn.crandn((n, n), rng=rng, scale=1/math.sqrt(n))
 
-    # Krylov subspace approximation of expm(dt*a) @ vec, general case
-    vt = ptn.expm_krylov(lambda x: a @ x, vec, dt, numiter, hermitian=False)
-    # reference
-    vt_ref = expm(dt*a) @ vec
-    assert np.allclose(vt, vt_ref, rtol=1e-11), \
-        "Krylov subspace approximation of expm(dt*a) @ vec should match reference"
+            # random complex vector
+            vec = ptn.crandn(n, rng=rng, scale=1/math.sqrt(n))
 
-    # symmetrize
-    a = 0.5 * (a + a.conj().T)
-    # Krylov subspace approximation of expm(dt*a) @ vec, Hermitian case
-    vt = ptn.expm_krylov(lambda x: a @ x, vec, dt, numiter, hermitian=True)
-    # reference
-    vt_ref = expm(dt*a) @ vec
-    assert np.allclose(vt, vt_ref, rtol=1e-11), \
-        "Krylov subspace approximation of expm(dt*a) @ vec should match reference"
+            if backend == "torch" and torch.cuda.is_available():
+                a = ar.to_device(a, "gpu")
+                vec = ar.to_device(vec, "gpu")
+
+            # Krylov subspace approximation of expm(dt*a) @ vec, general case
+            vt = ptn.expm_krylov(functools.partial(lambda mat, x: mat @ x, a),
+                                 vec, dt, numiter, hermitian=False)
+            # reference
+            vt_ref = ar.do("linalg.expm", dt*a) @ vec
+            assert np.allclose(vt, vt_ref, rtol=1e-11), \
+                "Krylov subspace approximation of expm(dt*a) @ vec should match reference"
+
+            # symmetrize
+            a = 0.5 * (a + a.conj().T)
+            # Krylov subspace approximation of expm(dt*a) @ vec, Hermitian case
+            vt = ptn.expm_krylov(functools.partial(lambda mat, x: mat @ x, a),
+                                 vec, dt, numiter, hermitian=True)
+            # reference
+            vt_ref = ar.do("linalg.expm", dt*a) @ vec
+            assert np.allclose(vt, vt_ref, rtol=1e-11), \
+                "Krylov subspace approximation of expm(dt*a) @ vec should match reference"

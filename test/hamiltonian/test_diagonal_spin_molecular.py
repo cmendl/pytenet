@@ -1,4 +1,7 @@
-import numpy as np
+import time
+import autoray as ar
+from autoray import numpy as np
+import torch
 from scipy.sparse.linalg import norm
 from test_diagonal_molecular import construct_diagonal_molecular_hamiltonian
 from test_spin_molecular import construct_spin_molecular_hamiltonian
@@ -7,48 +10,53 @@ import pytenet as ptn
 
 def test_diagonal_spin_molecular_hamiltonian_mpo():
 
-    rng = np.random.default_rng()
+    torch.set_default_dtype(torch.float64)
 
-    # number of fermionic modes
-    for nsites in range(2, 6):
+    for backend in ["numpy", "torch"]:
+        with ar.backend_like(backend):
+            rng = ar.do("random.default_rng", int(time.time()))
 
-        # Hamiltonian parameters
-        tkin = ptn.crandn(2 * (nsites,), rng)
-        # keep diagonal entries, corresponding to n_{i,\uparrow} n_{i,\downarrow} terms
-        vint = np.triu(ptn.crandn(2 * (nsites,), rng))
+            # number of fermionic modes
+            for nsites in range(2, 6):
 
-        # reference Hamiltonian
-        h_ref = construct_diagonal_spin_molecular_hamiltonian(tkin, vint)
+                # Hamiltonian parameters
+                tkin = ptn.crandn(2 * (nsites,), rng)
+                # keep diagonal entries, corresponding to n_{i,\uparrow} n_{i,\downarrow} terms
+                vint = np.triu(ptn.crandn(2 * (nsites,), rng))
 
-        # alternative construction based on generic spin molecular Hamiltonian
-        vint_full = np.zeros(4 * (nsites,), dtype=vint.dtype)
-        for i in range(nsites):
-            vint_full[i, i, i, i] = vint[i, i]
-            for j in range(i + 1, nsites):  # i < j
-                vint_full[i, j, i, j] = 2 * vint[i, j]
-        h_alt = construct_spin_molecular_hamiltonian(tkin, vint_full)
-        assert norm(h_alt - h_ref) < 1e-13, \
-            "matrix representation of diagonal spin molecular Hamiltonian "\
-            "must match generic construction"
+                # reference Hamiltonian
+                h_ref = construct_diagonal_spin_molecular_hamiltonian(tkin, vint)
 
-        for opt in (True, False):
-            h_mpo = ptn.diagonal_spin_molecular_hamiltonian_mpo(tkin, vint, opt)
+                # alternative construction based on generic spin molecular Hamiltonian
+                vint_full = np.zeros(4 * (nsites,), dtype=vint.dtype)
+                for i in range(nsites):
+                    vint_full[i, i, i, i] = vint[i, i]
+                    for j in range(i + 1, nsites):  # i < j
+                        vint_full[i, j, i, j] = 2 * vint[i, j]
+                h_alt = construct_spin_molecular_hamiltonian(tkin, vint_full)
+                assert norm(h_alt - h_ref) < 1e-13, \
+                    "matrix representation of diagonal spin molecular Hamiltonian "\
+                    "must match generic construction"
 
-            # theoretically predicted virtual bond dimensions
-            b_theo = []
-            for i in range(nsites + 1):
-                n = min(i, nsites - i)
-                # identity chains
-                b1 = 2 if 1 <= i <= nsites - 1 else 1
-                # a^{\dagger}_{i,\sigma}, a_{i,\sigma} and n_{i,\uparrow} + n_{i,\downarrow} chains,
-                # reaching from one boundary to the center
-                b2 = 5 * n
-                b_theo.append(b1 + b2)
-            assert h_mpo.bond_dims == b_theo
+                for opt in (True, False):
+                    h_mpo = ptn.diagonal_spin_molecular_hamiltonian_mpo(tkin, vint, opt)
 
-            # compare matrix representations
-            assert np.allclose(h_mpo.to_matrix(), h_ref.todense()), \
-                "matrix representation of MPO and reference Hamiltonian must match"
+                    # theoretically predicted virtual bond dimensions
+                    b_theo = []
+                    for i in range(nsites + 1):
+                        n = min(i, nsites - i)
+                        # identity chains
+                        b1 = 2 if 1 <= i <= nsites - 1 else 1
+                        # a^{\dagger}_{i,\sigma}, a_{i,\sigma}
+                        # and n_{i,\uparrow} + n_{i,\downarrow} chains,
+                        # reaching from one boundary to the center
+                        b2 = 5 * n
+                        b_theo.append(b1 + b2)
+                    assert h_mpo.bond_dims == b_theo
+
+                    # compare matrix representations
+                    assert np.allclose(h_mpo.to_matrix(), np.asarray(h_ref.toarray())), \
+                        "matrix representation of MPO and reference Hamiltonian must match"
 
 
 def construct_diagonal_spin_molecular_hamiltonian(tkin, vint):

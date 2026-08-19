@@ -1,4 +1,7 @@
-import numpy as np
+import time
+import autoray as ar
+from autoray import numpy as np
+import torch
 from scipy.sparse.linalg import norm
 from fermi_operators import construct_fermi_operators
 from test_molecular import construct_molecular_hamiltonian
@@ -7,55 +10,63 @@ import pytenet as ptn
 
 def test_diagonal_molecular_hamiltonian_mpo():
 
-    rng = np.random.default_rng()
+    torch.set_default_dtype(torch.float64)
 
-    # number of fermionic modes
-    for nsites in range(2, 11):
+    for backend in ["numpy", "torch"]:
+        with ar.backend_like(backend):
+            rng = ar.do("random.default_rng", int(time.time()))
 
-        # Hamiltonian parameters
-        tkin = ptn.crandn(2 * (nsites,), rng)
-        vint = np.triu(ptn.crandn(2 * (nsites,), rng), k=1)
+            # number of fermionic modes
+            for nsites in range(2, 11):
 
-        # reference Hamiltonian
-        h_ref = construct_diagonal_molecular_hamiltonian(tkin, vint)
+                # Hamiltonian parameters
+                tkin = ptn.crandn(2 * (nsites,), rng)
+                vint = np.triu(ptn.crandn(2 * (nsites,), rng), k=1)
 
-        # alternative construction based on generic molecular Hamiltonian
-        vint_full = np.zeros(4 * (nsites,), dtype=vint.dtype)
-        for i in range(nsites):
-            for j in range(i + 1, nsites):  # i < j
-                vint_full[i, j, i, j] = 2 * vint[i, j]
-        h_alt = construct_molecular_hamiltonian(tkin, vint_full)
-        assert norm(h_alt - h_ref) < 1e-13, \
-            "matrix representation of diagonal molecular Hamiltonian "\
-            "must match generic construction"
+                # reference Hamiltonian
+                h_ref = construct_diagonal_molecular_hamiltonian(tkin, vint)
 
-        for opt in (True, False):
-            h_mpo = ptn.diagonal_molecular_hamiltonian_mpo(tkin, vint, opt)
+                # alternative construction based on generic molecular Hamiltonian
+                vint_full = np.zeros(4 * (nsites,), dtype=vint.dtype)
+                for i in range(nsites):
+                    for j in range(i + 1, nsites):  # i < j
+                        vint_full[i, j, i, j] = 2 * vint[i, j]
+                h_alt = construct_molecular_hamiltonian(tkin, vint_full)
+                assert norm(h_alt - h_ref) < 1e-13, \
+                    "matrix representation of diagonal molecular Hamiltonian "\
+                    "must match generic construction"
 
-            # theoretically predicted virtual bond dimensions
-            b_theo = []
-            for i in range(nsites + 1):
-                n = min(i, nsites - i)
-                # identity chains
-                if opt:
-                    b1 = 2 if 1 < i < nsites - 1 else 1
-                else:
-                    # slightly sub-optimal
-                    b1 = 2 if 1 <= i <= nsites - 1 else 1
-                # a^{\dagger}_i, a_i and n_i chains, reaching from one boundary to the center
-                b2 = 3 * n
-                b_theo.append(b1 + b2)
-            assert h_mpo.bond_dims == b_theo
+                for opt in (True, False):
+                    h_mpo = ptn.diagonal_molecular_hamiltonian_mpo(tkin, vint, opt)
 
-            # compare matrix representations
-            assert np.allclose(h_mpo.to_matrix(), h_ref.todense()), \
-                "matrix representation of MPO and reference Hamiltonian must match"
+                    # theoretically predicted virtual bond dimensions
+                    b_theo = []
+                    for i in range(nsites + 1):
+                        n = min(i, nsites - i)
+                        # identity chains
+                        if opt:
+                            b1 = 2 if 1 < i < nsites - 1 else 1
+                        else:
+                            # slightly sub-optimal
+                            b1 = 2 if 1 <= i <= nsites - 1 else 1
+                        # a^{\dagger}_i, a_i and n_i chains,
+                        # reaching from one boundary to the center
+                        b2 = 3 * n
+                        b_theo.append(b1 + b2)
+                    assert h_mpo.bond_dims == b_theo
+
+                    # compare matrix representations
+                    assert np.allclose(h_mpo.to_matrix(), np.asarray(h_ref.toarray())), \
+                        "matrix representation of MPO and reference Hamiltonian must match"
 
 
 def construct_diagonal_molecular_hamiltonian(tkin, vint):
     """
     Construct the molecular Hamiltonian with a diagonal interaction term as a sparse matrix.
     """
+    # require NumPy arrays for scipy.sparse
+    tkin = ar.to_numpy(tkin)
+    vint = ar.to_numpy(vint)
     nmodes = tkin.shape[0]
     assert tkin.shape == (nmodes, nmodes)
     assert vint.shape == (nmodes, nmodes)

@@ -8,7 +8,7 @@ Reference:
     Phys. Rev. B 94, 165116 (2016) (arXiv:1408.5056)
 """
 
-import numpy as np
+from autoray import numpy as np
 from .mps import MPS, mps_merge_tensor_pair, mps_split_tensor_svd
 from .mpo import MPO, mpo_merge_tensor_pair
 from .chain_ops import (
@@ -18,12 +18,13 @@ from .chain_ops import (
         apply_local_hamiltonian,
         apply_local_bond_contraction)
 from .krylov import expm_krylov
-from .block_sparse_util import qnumber_flatten, is_qsparse, block_sparse_qr
+from .block_sparse_util import qnumber_flatten, is_qsparse, neg_qnumbers, block_sparse_qr
 
 __all__ = ["tdvp_singlesite", "tdvp_twosite"]
 
 
-def tdvp_singlesite(hamiltonian: MPO, psi: MPS, dt, numsteps: int, numiter_lanczos: int = 25):
+def tdvp_singlesite(hamiltonian: MPO, psi: MPS, dt: float | complex,
+                    numsteps: int, numiter_lanczos: int = 25):
     """
     Symmetric single-site TDVP integration.
     `psi` is overwritten in-place with the time-evolved state.
@@ -55,11 +56,12 @@ def tdvp_singlesite(hamiltonian: MPO, psi: MPS, dt, numsteps: int, numiter_lancz
     # initialize leftmost block by 1x1x1 identity
     rblocks = compute_right_operator_blocks(psi, hamiltonian)
     lblocks = [None for _ in range(nsites)]
-    lblocks[0] = np.array([[[1]]], dtype=rblocks[0].dtype)
+    lblocks[0] = np.array([[[1]]], dtype=rblocks[0].dtype, like=rblocks[0])
 
     # consistency check
     for i, rb in enumerate(rblocks):
-        assert is_qsparse(rb, [psi.qbonds[i+1], hamiltonian.qbonds[i+1], -psi.qbonds[i+1]]), \
+        assert is_qsparse(rb, [psi.qbonds[i+1], hamiltonian.qbonds[i+1],
+                               neg_qnumbers(psi.qbonds[i+1])]), \
             "sparsity pattern of operator blocks must match quantum numbers"
 
     for _ in range(numsteps):
@@ -81,7 +83,7 @@ def tdvp_singlesite(hamiltonian: MPO, psi: MPS, dt, numsteps: int, numiter_lancz
             # evolve `c` backward in time by half a time step
             c = _local_bond_step(lblocks[i+1], rblocks[i], c, -0.5*dt, numiter_lanczos)
             # update psi.a[i+1] tensor: multiply with c from left
-            psi.a[i+1] = np.tensordot(c, psi.a[i+1], (1, 0))
+            psi.a[i+1] = np.tensordot(c, psi.a[i+1], ([1], [0]))
 
         # evolve psi.a[nsites-1] forward in time by a full time step
         i = nsites - 1
@@ -92,16 +94,17 @@ def tdvp_singlesite(hamiltonian: MPO, psi: MPS, dt, numsteps: int, numiter_lancz
         for i in reversed(range(1, nsites)):
             # right-orthonormalize current psi.a[i]
             # flip left and right virtual bond dimensions
-            psi.a[i] = psi.a[i].transpose((2, 1, 0))
+            psi.a[i] = np.transpose(psi.a[i], (2, 1, 0))
             # perform QR decomposition
             s = psi.a[i].shape
             q, c, qbond = block_sparse_qr(
                 psi.a[i].reshape((s[0]*s[1], s[2])),
-                qnumber_flatten((-psi.qbonds[i+1], psi.qsite)), -psi.qbonds[i])
-            psi.qbonds[i] = -qbond
+                qnumber_flatten((neg_qnumbers(psi.qbonds[i+1]), psi.qsite)),
+                neg_qnumbers(psi.qbonds[i]))
+            psi.qbonds[i] = neg_qnumbers(qbond)
             # replace psi.a[i] by reshaped `q` matrix and
             # undo flip of left and right virtual bond dimensions
-            psi.a[i] = q.reshape((s[0], s[1], q.shape[1])).transpose((2, 1, 0))
+            psi.a[i] = np.transpose(q.reshape((s[0], s[1], q.shape[1])), (2, 1, 0))
             # update the right blocks
             rblocks[i-1] = contraction_operator_step_right(
                 psi.a[i], psi.a[i], hamiltonian.a[i], rblocks[i])
@@ -109,7 +112,7 @@ def tdvp_singlesite(hamiltonian: MPO, psi: MPS, dt, numsteps: int, numiter_lancz
             c = np.transpose(c)
             c = _local_bond_step(lblocks[i], rblocks[i-1], c, -0.5*dt, numiter_lanczos)
             # update psi.a[i-1] tensor: multiply with c from right
-            psi.a[i-1] = np.tensordot(psi.a[i-1], c, (2, 0))
+            psi.a[i-1] = np.tensordot(psi.a[i-1], c, ([2], [0]))
             # evolve psi.a[i-1] forward in time by half a time step
             psi.a[i-1] = _local_hamiltonian_step(
                 lblocks[i-1], rblocks[i-1], hamiltonian.a[i-1], psi.a[i-1], 0.5*dt, numiter_lanczos)
@@ -118,8 +121,8 @@ def tdvp_singlesite(hamiltonian: MPO, psi: MPS, dt, numsteps: int, numiter_lancz
     return nrm
 
 
-def tdvp_twosite(hamiltonian: MPO, psi: MPS, dt, numsteps: int,
-                 numiter_lanczos: int = 25, tol_split = 0):
+def tdvp_twosite(hamiltonian: MPO, psi: MPS, dt: float | complex, numsteps: int,
+                 numiter_lanczos: int = 25, tol_split: float = 0):
     """
     Symmetric two-site TDVP integration.
     `psi` is overwritten in-place with the time-evolved state.
@@ -153,11 +156,11 @@ def tdvp_twosite(hamiltonian: MPO, psi: MPS, dt, numsteps: int,
     # initialize leftmost block by 1x1x1 identity
     rblocks = compute_right_operator_blocks(psi, hamiltonian)
     lblocks = [None for _ in range(nsites)]
-    lblocks[0] = np.array([[[1]]], dtype=rblocks[0].dtype)
+    lblocks[0] = np.array([[[1]]], dtype=rblocks[0].dtype, like=rblocks[0])
 
     # consistency check
     for i, rb in enumerate(rblocks):
-        assert is_qsparse(rb, [psi.qbonds[i+1], hamiltonian.qbonds[i+1], -psi.qbonds[i+1]]), \
+        assert is_qsparse(rb, [psi.qbonds[i+1], hamiltonian.qbonds[i+1], neg_qnumbers(psi.qbonds[i+1])]), \
             "sparsity pattern of operator blocks must match quantum numbers"
 
     h2 = [mpo_merge_tensor_pair(hamiltonian.a[i], hamiltonian.a[i+1]) for i in range(nsites - 1)]

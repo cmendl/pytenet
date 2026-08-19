@@ -2,8 +2,9 @@
 Construct the Heisenberg Hamiltonian as a matrix product operator (MPO).
 """
 
+import math
 from enum import IntEnum
-import numpy as np
+from autoray import numpy as np
 from ..mpo import MPO
 from ..opchain import OpChain
 from .local_opchain import local_opchains_to_mpo
@@ -51,7 +52,7 @@ def heisenberg_xxz_1d_mpo(nsites: int, J: float, D: float, h: float) -> MPO:
                  OpChain([OID.SZ, OID.SZ], [0,  0, 0],   D,   0),
                  OpChain([OID.SZ        ], [0,  0   ],  -h,   0)]
     # convert to MPO
-    return local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I)
+    return local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I, float)
 
 
 def heisenberg_xxz_spin1_1d_mpo(nsites: int, J: float, D: float, h: float) -> MPO:
@@ -71,7 +72,7 @@ def heisenberg_xxz_spin1_1d_mpo(nsites: int, J: float, D: float, h: float) -> MP
     # physical quantum numbers
     qsite = [1, 0, -1]
     # spin operators
-    sq2 = np.sqrt(2.)
+    sq2 = math.sqrt(2.)
     sup = np.array([[0.,  sq2, 0.], [0.,  0.,  sq2], [0.,  0.,  0.]])
     sdn = np.array([[0.,  0.,  0.], [sq2, 0.,  0. ], [0.,  sq2, 0.]])
     sz  = np.array([[1.,  0.,  0.], [0.,  0.,  0. ], [0.,  0., -1.]])
@@ -95,4 +96,4 @@ def heisenberg_xxz_spin1_1d_mpo(nsites: int, J: float, D: float, h: float) -> MP
                  OpChain([OID.SZ, OID.SZ], [0,  0, 0],   D,   0),
                  OpChain([OID.SZ        ], [0,  0   ],  -h,   0)]
     # convert to MPO
-    return local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I)
+    return local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I, float)

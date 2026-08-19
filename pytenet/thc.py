@@ -21,7 +21,8 @@ References:
 """
 
 import copy
-import numpy as np
+import autoray as ar
+from autoray import numpy as np
 from .hamiltonian.quadratic_fermionic import quadratic_spin_fermionic_mpo
 from .mps import MPS, mps_add
 from .mpo import MPO
@@ -45,8 +46,9 @@ class THCSpinMolecularHamiltonian:
         assert tkin.shape[0] == tkin.shape[1]
         assert tkin.shape[0] >= 1
         assert np.allclose(tkin, tkin.conj().T)
-        assert np.isrealobj(thc_kernel)  # require real data types due to use of elementary THC MPOs
-        assert np.isrealobj(thc_transform)
+        # require real data types due to use of elementary THC MPOs
+        assert "float" in ar.get_dtype_name(thc_kernel)
+        assert "float" in ar.get_dtype_name(thc_transform)
         assert thc_kernel.ndim == 2
         assert thc_transform.ndim == 2
         assert thc_kernel.shape[0] == thc_kernel.shape[1]
@@ -68,12 +70,13 @@ class THCSpinMolecularHamiltonian:
                 [1, -1][sigma])
             for sigma in (0, 1)]
             for i in range(self.u_kin.shape[1])]
-        # elementary MPOs for the interaction (Coulomb) term in THC representation
+        # elementary MPOs for the interaction (Coulomb) term in THC representation;
+        # require consistent data type for application to an MPS
         self.mpo_thc = [[
             quadratic_spin_fermionic_mpo(
                 self.thc_transform[:, mu],
                 self.thc_transform[:, mu],
-                [1, -1][sigma])
+                [1, -1][sigma]).astype(self.tkin.dtype)
             for sigma in (0, 1)]
             for mu in range(self.thc_rank)]
 
@@ -91,15 +94,35 @@ class THCSpinMolecularHamiltonian:
         """
         return self.thc_kernel.shape[0]
 
-    def to_matrix(self, sparse_format:bool=False):
+    def to_device(self, device):
+        """
+        Move the internal tensors and elementary MPOs to the specified device.
+        """
+        self.tkin          = ar.to_device(self.tkin, device)
+        self.thc_kernel    = ar.to_device(self.thc_kernel, device)
+        self.thc_transform = ar.to_device(self.thc_transform, device)
+        self.en_kin        = ar.to_device(self.en_kin, device)
+        self.u_kin         = ar.to_device(self.u_kin, device)
+        # pylint: disable=consider-using-enumerate
+        for i in range(len(self.mpo_kin)):
+            for sigma in (0, 1):
+                self.mpo_kin[i][sigma].to_device(device)
+        for i in range(len(self.mpo_thc)):
+            for sigma in (0, 1):
+                self.mpo_thc[i][sigma].to_device(device)
+        # enable chaining
+        return self
+
+    def to_matrix(self, sparse_format: bool = False):
         """
         Generate the matrix representation of the Hamiltonian on the full Hilbert space.
         """
+        en_kin = ar.to_numpy(self.en_kin) if sparse_format else self.en_kin
         # kinetic term
-        mat = sum(self.en_kin[i] * self.mpo_kin[i][sigma].to_matrix(sparse_format)
+        mat = sum(en_kin[i] * self.mpo_kin[i][sigma].to_matrix(sparse_format)
                   for sigma in (0, 1)
                   for i in range(self.nsites))
-        # convert individual THC MPOs to sparse matrices
+        # convert individual THC MPOs to (sparse) matrices
         mat_thc = [[self.mpo_thc[mu][sigma].to_matrix(sparse_format)
                     for sigma in (0, 1)]
                     for mu in range(self.thc_rank)]
@@ -107,6 +130,9 @@ class THCSpinMolecularHamiltonian:
         lambda_kernel, u_kernel = np.linalg.eigh(self.thc_kernel)
         assert len(lambda_kernel) == self.thc_rank
         # add interaction terms
+        if sparse_format:
+            lambda_kernel = ar.to_numpy(lambda_kernel)
+            u_kernel      = ar.to_numpy(u_kernel)
         for i in range(self.thc_rank):
             g = sum(u_kernel[mu, i] * mat_thc[mu][sigma]
                     for sigma in (0, 1)

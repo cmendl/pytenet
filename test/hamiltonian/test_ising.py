@@ -1,29 +1,36 @@
-import numpy as np
+import autoray as ar
+from autoray import numpy as np
+import torch
 from scipy import sparse
 import pytenet as ptn
 
 
 def test_ising_1d_mpo():
 
-    # Hamiltonian parameters
-    J =  5.0/11
-    h = -2.0/7
-    g = 13.0/8
+    torch.set_default_dtype(torch.float64)
 
-    # number of lattice sites
-    for nsites in range(2, 8):
+    for backend in ["numpy", "torch"]:
+        with ar.backend_like(backend):
 
-        # construct the MPO
-        h_mpo = ptn.ising_1d_mpo(nsites, J, h, g)
-        # matrix representation, for comparison with reference
-        h_mat = h_mpo.to_matrix()
+            # Hamiltonian parameters
+            J =  5.0/11
+            h = -2.0/7
+            g = 13.0/8
 
-        # reference Hamiltonian
-        h_ref = construct_ising_1d_hamiltonian(nsites, J, h, g)
+            # number of lattice sites
+            for nsites in range(2, 8):
 
-        # compare
-        assert np.allclose(h_mat, h_ref.todense()), \
-            "matrix representation of MPO and reference Hamiltonian must match"
+                # construct the MPO
+                h_mpo = ptn.ising_1d_mpo(nsites, J, h, g)
+                # matrix representation, for comparison with reference
+                h_mat = h_mpo.to_matrix()
+
+                # reference Hamiltonian
+                h_ref = construct_ising_1d_hamiltonian(nsites, J, h, g)
+
+                # compare
+                assert np.allclose(h_mat, np.asarray(h_ref.toarray())), \
+                    "matrix representation of MPO and reference Hamiltonian must match"
 
 
 def construct_ising_1d_hamiltonian(nsites: int, J: float, h: float, g: float):

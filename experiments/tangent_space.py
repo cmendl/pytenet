@@ -9,7 +9,9 @@ Reference:
 """
 
 import copy
-import numpy as np
+import time
+import autoray as ar
+from autoray import numpy as np
 import scipy
 import pytenet as ptn
 
@@ -65,7 +67,7 @@ def tangent_space_projector(psi: ptn.MPS):
 
 def main():
 
-    rng = np.random.default_rng()
+    rng = ar.do("random.default_rng", int(time.time()))
 
     # physical dimension
     d = 3
@@ -76,7 +78,7 @@ def main():
     nsites = len(b) - 1
     print("nsites:", nsites)
 
-    psi = ptn.MPS(np.zeros(d, dtype=int), [np.zeros(bi, dtype=int) for bi in b],
+    psi = ptn.MPS(d * [0], [bi * [0] for bi in b],
                   fill="random", rng=rng)
 
     # construct MPS derivatives with respect to entries of the `a` tensors

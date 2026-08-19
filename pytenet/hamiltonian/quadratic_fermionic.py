@@ -4,7 +4,8 @@ as a matrix product operator (MPO).
 """
 
 from enum import IntEnum
-import numpy as np
+import autoray as ar
+from autoray import numpy as np
 from ..mpo import MPO
 from ..opgraph import OpGraphNode, OpGraphEdge, OpGraph
 from ..qnumber import encode_quantum_number_pair
@@ -121,7 +122,9 @@ def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
     assert graph.is_consistent()
 
     # convert to MPO
-    return MPO.from_opgraph([0, 1], graph, opmap)
+    dtype = complex if "complex" in ar.get_dtype_name(np.asarray(coeffc)) \
+                    or "complex" in ar.get_dtype_name(np.asarray(coeffa)) else float
+    return MPO.from_opgraph([0, 1], graph, opmap, dtype)
 
 
 def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
@@ -154,7 +157,7 @@ def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
     # number operator
     numop = np.array([[0., 0.], [0., 1.]])
     # Pauli-Z matrix required for Jordan-Wigner transformation
-    Z = np.array([[1., 0.], [0., -1.]])
+    z = np.array([[1., 0.], [0., -1.]])
     # operator map
     class OID(IntEnum):
         """
@@ -177,14 +180,14 @@ def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
         OID.IC: np.kron(id2, a_dag),
         OID.IA: np.kron(id2, a_ann),
         OID.IN: np.kron(id2, numop),
-        OID.ZC: np.kron(Z,   a_dag),
-        OID.ZA: np.kron(Z,   a_ann),
+        OID.ZC: np.kron(z,   a_dag),
+        OID.ZA: np.kron(z,   a_ann),
         OID.CI: np.kron(a_dag, id2),
         OID.AI: np.kron(a_ann, id2),
         OID.NI: np.kron(numop, id2),
-        OID.CZ: np.kron(a_dag, Z  ),
-        OID.AZ: np.kron(a_ann, Z  ),
-        OID.ZZ: np.kron(Z,     Z  ),
+        OID.CZ: np.kron(a_dag, z  ),
+        OID.AZ: np.kron(a_ann, z  ),
+        OID.ZZ: np.kron(z,     z  ),
     }
 
     # construct operator graph
@@ -265,4 +268,6 @@ def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
     assert graph.is_consistent()
 
     # convert to MPO
-    return MPO.from_opgraph(qsite, graph, opmap)
+    dtype = complex if "complex" in ar.get_dtype_name(np.asarray(coeffc)) \
+                    or "complex" in ar.get_dtype_name(np.asarray(coeffa)) else float
+    return MPO.from_opgraph(qsite, graph, opmap, dtype)

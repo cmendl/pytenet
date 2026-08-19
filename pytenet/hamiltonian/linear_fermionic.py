@@ -3,7 +3,8 @@ Represent a sum of fermionic creation or annihilation operators as a matrix prod
 """
 
 from enum import IntEnum
-import numpy as np
+import autoray as ar
+from autoray import numpy as np
 from ..mpo import MPO
 from ..opgraph import OpGraphNode, OpGraphEdge, OpGraph
 from ..qnumber import encode_quantum_number_pair
@@ -80,7 +81,8 @@ def linear_fermionic_mpo(coeff, ftype: str) -> MPO:
     assert graph.is_consistent()
 
     # convert to MPO
-    return MPO.from_opgraph([0, 1], graph, opmap)
+    dtype = complex if "complex" in ar.get_dtype_name(np.asarray(coeff)) else float
+    return MPO.from_opgraph([0, 1], graph, opmap, dtype)
 
 
 def linear_spin_fermionic_mpo(coeff, ftype: str, sigma: int) -> MPO:
@@ -173,4 +175,5 @@ def linear_spin_fermionic_mpo(coeff, ftype: str, sigma: int) -> MPO:
     assert graph.is_consistent()
 
     # convert to MPO
-    return MPO.from_opgraph(qsite, graph, opmap)
+    dtype = complex if "complex" in ar.get_dtype_name(np.asarray(coeff)) else float
+    return MPO.from_opgraph(qsite, graph, opmap, dtype)

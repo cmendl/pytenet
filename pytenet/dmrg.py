@@ -7,14 +7,14 @@ Reference:
     Ann. Phys. (N. Y.) 326, 96-192 (2011)
 """
 
-import numpy as np
+from autoray import numpy as np
 from .mps import (MPS, mps_local_orthonormalize_left_qr, mps_local_orthonormalize_right_qr,
                   mps_merge_tensor_pair, mps_split_tensor_svd)
 from .mpo import MPO, mpo_merge_tensor_pair
 from .chain_ops import (contraction_operator_step_right, contraction_operator_step_left,
                         compute_right_operator_blocks, apply_local_hamiltonian)
 from .krylov import eigh_krylov
-from .block_sparse_util import is_qsparse
+from .block_sparse_util import is_qsparse, neg_qnumbers
 
 __all__ = ["dmrg_singlesite", "dmrg_twosite"]
 
@@ -48,14 +48,15 @@ def dmrg_singlesite(hamiltonian: MPO, psi: MPS, numsweeps: int, numiter_lanczos:
     # initialize leftmost block by 1 x 1 x 1 identity
     rblocks = compute_right_operator_blocks(psi, hamiltonian)
     lblocks = [None for _ in range(nsites)]
-    lblocks[0] = np.array([[[1]]], dtype=rblocks[0].dtype)
+    lblocks[0] = np.array([[[1]]], dtype=rblocks[0].dtype, like=rblocks[0])
 
     # consistency check
     for i, rb in enumerate(rblocks):
-        assert is_qsparse(rb, (psi.qbonds[i+1], hamiltonian.qbonds[i+1], -psi.qbonds[i+1])), \
+        assert is_qsparse(rb, [psi.qbonds[i+1], hamiltonian.qbonds[i+1],
+                               neg_qnumbers(psi.qbonds[i+1])]), \
             "sparsity pattern of operator blocks must match quantum numbers"
 
-    en_min = np.zeros(numsweeps)
+    en_min = np.zeros(numsweeps, dtype=float, like=hamiltonian.a[0])
 
     # TODO: number of iterations should be determined by tolerance and some convergence measure
     for n in range(numsweeps):
@@ -85,7 +86,8 @@ def dmrg_singlesite(hamiltonian: MPO, psi: MPS, numsweeps: int, numiter_lanczos:
 
         # right-normalize leftmost tensor to ensure that `psi` is normalized
         psi.a[0], _, psi.qbonds[0] = mps_local_orthonormalize_right_qr(
-            psi.a[0], np.array([[[1]]]), psi.qsite, psi.qbonds[:2])
+            psi.a[0], np.array([[[1]]], dtype=psi.a[0].dtype, like=psi.a[0]),
+            psi.qsite, psi.qbonds[:2])
 
         # record energy after each sweep
         en_min[n] = en
@@ -123,14 +125,15 @@ def dmrg_twosite(hamiltonian: MPO, psi: MPS, numsweeps: int,
     # initialize leftmost block by 1x1x1 identity
     rblocks = compute_right_operator_blocks(psi, hamiltonian)
     lblocks = [None for _ in range(nsites)]
-    lblocks[0] = np.array([[[1]]], dtype=rblocks[0].dtype)
+    lblocks[0] = np.array([[[1]]], dtype=rblocks[0].dtype, like=rblocks[0])
 
     # consistency check
     for i, rb in enumerate(rblocks):
-        assert is_qsparse(rb, (psi.qbonds[i+1], hamiltonian.qbonds[i+1], -psi.qbonds[i+1])), \
+        assert is_qsparse(rb, [psi.qbonds[i+1], hamiltonian.qbonds[i+1],
+                               neg_qnumbers(psi.qbonds[i+1])]), \
             "sparsity pattern of operator blocks must match quantum numbers"
 
-    en_min = np.zeros(numsweeps)
+    en_min = np.zeros(numsweeps, dtype=float, like=hamiltonian.a[0])
 
     h2 = [mpo_merge_tensor_pair(hamiltonian.a[i], hamiltonian.a[i+1]) for i in range(nsites - 1)]
 
@@ -170,7 +173,8 @@ def dmrg_twosite(hamiltonian: MPO, psi: MPS, numsweeps: int,
 
         # right-normalize leftmost tensor to ensure that `psi` is normalized
         psi.a[0], _, psi.qbonds[0] = mps_local_orthonormalize_right_qr(
-            psi.a[0], np.array([[[1]]]), psi.qsite, psi.qbonds[:2])
+            psi.a[0], np.array([[[1]]], dtype=psi.a[0].dtype, like=psi.a[0]),
+            psi.qsite, psi.qbonds[:2])
 
         # record energy after each sweep
         en_min[n] = en

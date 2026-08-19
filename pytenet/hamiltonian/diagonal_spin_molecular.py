@@ -6,7 +6,8 @@ Construct a spin molecular Hamiltonian with a diagonal interaction term
 import itertools
 from collections.abc import Sequence
 from enum import IntEnum
-import numpy as np
+import autoray as ar
+from autoray import numpy as np
 from ..mpo import MPO
 from ..opchain import OpChain
 from ..opgraph import OpGraphNode, OpGraphEdge, OpGraph
@@ -441,4 +442,6 @@ def diagonal_spin_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
         assert graph.is_consistent()
     opmap = _diagonal_spin_molecular_hamiltonian_generate_operator_map()
     # convert to MPO
-    return MPO.from_opgraph(qsite, graph, opmap, compute_nid_map = not optimize)
+    dtype = complex if "complex" in ar.get_dtype_name(tkin) \
+                    or "complex" in ar.get_dtype_name(vint) else float
+    return MPO.from_opgraph(qsite, graph, opmap, dtype, compute_nid_map = not optimize)

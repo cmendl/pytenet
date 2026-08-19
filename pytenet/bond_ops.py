@@ -2,8 +2,9 @@
 Functions concerning virtual bonds.
 """
 
-import numpy as np
+from autoray import numpy as np
 from .block_sparse_util import block_sparse_svd
+from .util import argsort
 
 __all__ = ["retained_bond_indices", "split_block_sparse_matrix_svd"]
 
@@ -20,22 +21,22 @@ def von_neumann_entropy(sigma):
     return sum(-sq * np.log(sq))
 
 
-def retained_bond_indices(s, tol):
+def retained_bond_indices(s, tol) -> list:
     """
     Indices of retained singular values based on the specified tolerance.
     """
     w = np.linalg.norm(s)
     if w == 0:
-        return np.array([], dtype=int)
+        return []
 
     # normalized squares
     s = (s / w)**2
 
     # accumulate values from smallest to largest
-    sort_idx = np.argsort(s)
-    s[sort_idx] = np.cumsum(s[sort_idx])
+    sort_idx = argsort(s)
+    s[sort_idx] = np.cumsum(s[sort_idx], axis=0)
 
-    return np.where(s > tol)[0]
+    return [i for i in range(len(s)) if s[i] > tol]
 
 
 def split_block_sparse_matrix_svd(a, q0, q1, tol):
@@ -50,5 +51,5 @@ def split_block_sparse_matrix_svd(a, q0, q1, tol):
     u = u[:, idx]
     v = v[idx, :]
     s = s[idx]
-    q = q[idx]
-    return (u, s, v, q)
+    q = [q[i] for i in idx]
+    return u, s, v, q

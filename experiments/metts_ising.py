@@ -8,23 +8,25 @@ Reference:
     New J. Phys. 12, 055026 (2010) (arXiv:1002.1305)
 """
 
-import numpy as np
+import math
+import autoray as ar
+from autoray import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 import pytenet as ptn
 
 
-def random_bloch_basis(rng: np.random.Generator):
+def random_bloch_basis(rng):
     """
     Generate a uniformly random orthonormal Bloch basis.
     """
     theta = np.arccos(2*rng.uniform()-1)
-    phi   = 2*np.pi*rng.uniform()
+    phi   = 2*math.pi*rng.uniform()
     return np.array([[               np.cos(theta/2),               -np.sin(theta/2)],
                      [np.exp(1j*phi)*np.sin(theta/2), np.exp(1j*phi)*np.cos(theta/2)]])
 
 
-def collapse_random_cps(nsites: int, psi: np.ndarray, rng: np.random.Generator):
+def collapse_random_cps(nsites: int, psi: np.ndarray, rng):
     """"
     Sequentially collapse the wavefunction `psi` onto a classical product state (CPS)
     using a random local Bloch basis for each site.
@@ -58,7 +60,7 @@ def main():
     # number of lattice sites
     nsites = 7
 
-    # construct matrix representation of Ising Hamiltonian
+    # construct the matrix representation of the Ising Hamiltonian
     J =  1.0
     h =  0.8
     g = -0.375
@@ -73,7 +75,7 @@ def main():
     # partition function
     z = np.linalg.norm(rho_beta, "fro")**2
 
-    rng = np.random.default_rng(857)
+    rng = ar.do("random.default_rng", 857)
 
     # local operators
     op_a = site_operator(nsites, 2, ptn.crandn((2, 2), rng))

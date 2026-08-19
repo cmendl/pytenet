@@ -3,7 +3,7 @@ Construct the Ising Hamiltonian as a matrix product operator (MPO).
 """
 
 from enum import IntEnum
-import numpy as np
+from autoray import numpy as np
 from ..mpo import MPO
 from ..autop import AutOpNode, AutOpEdge, AutOp
 from ..opgraph import OpGraph
@@ -66,4 +66,4 @@ def ising_1d_mpo(nsites: int, J: float, h: float, g: float) -> MPO:
     assert autop.is_consistent()
     # convert to a graph and then to an MPO
     graph = OpGraph.from_automaton(autop, nsites)
-    return MPO.from_opgraph(qsite, graph, opmap)
+    return MPO.from_opgraph(qsite, graph, opmap, float)

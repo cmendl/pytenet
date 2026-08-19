@@ -3,9 +3,13 @@ Matrix product operator (MPO) class and associated functionality.
 """
 
 from collections.abc import Mapping
-import numpy as np
+import math
+import time
+import autoray as ar
+from autoray import numpy as np
 from scipy import sparse
-from .block_sparse_util import qnumber_flatten, is_qsparse, enforce_qsparsity, block_sparse_qr
+from .block_sparse_util import (qnumber_flatten, is_qsparse,
+    neg_qnumbers, enforce_qsparsity, block_sparse_qr)
 from .opgraph import OpGraph
 from .util import crandn
 
@@ -40,9 +44,8 @@ class MPO:
                   "postpone" to leave MPO tensors unallocated
             rng: (optional) random number generator for drawing entries
         """
-        # require NumPy arrays
-        self.qsite = np.array(qsite)
-        self.qbonds = [np.array(qb) for qb in qbonds]
+        self.qsite = list(qsite)
+        self.qbonds = [list(qb) for qb in qbonds]
         # create list of MPS tensors
         d = len(qsite)
         b = [len(qb) for qb in qbonds]
@@ -51,14 +54,14 @@ class MPO:
         elif fill == "random":
             # random complex entries
             if rng is None:
-                rng = np.random.default_rng()
-            self.a = [crandn((b[i], d, d, b[i+1]), rng) / np.sqrt(b[i]*d*b[i+1])
+                rng = ar.do("random.default_rng", int(time.time()))
+            self.a = [crandn((b[i], d, d, b[i+1]), rng=rng, scale=1/math.sqrt(b[i]*d*b[i+1]))
                       for i in range(len(b) - 1)]
         elif fill == "random real":
             # random real entries
             if rng is None:
-                rng = np.random.default_rng()
-            self.a = [rng.normal(size=(b[i], d, d, b[i+1])) / np.sqrt(b[i]*d*b[i+1])
+                rng = ar.do("random.default_rng", int(time.time()))
+            self.a = [rng.normal(size=(b[i], d, d, b[i+1]), scale=1/math.sqrt(b[i]*d*b[i+1]))
                       for i in range(len(b) - 1)]
         elif fill == "postpone":
             self.a = (len(b) - 1) * [None]
@@ -68,12 +71,16 @@ class MPO:
         if fill != "postpone":
             # enforce block sparsity structure dictated by quantum numbers
             for i, ai in enumerate(self.a):
-                enforce_qsparsity(ai, (self.qbonds[i], self.qsite, -self.qsite, -self.qbonds[i+1]))
+                enforce_qsparsity(ai, [
+                    self.qbonds[i],
+                    self.qsite,
+                    neg_qnumbers(self.qsite),
+                    neg_qnumbers(self.qbonds[i+1])])
         # can be set by `from_opgraph`
         self.nid_map = None
 
     @classmethod
-    def identity(cls, qsite, nsites: int, scale: float = 1, dtype=float):
+    def identity(cls, qsite, nsites: int, scale: float = 1, dtype = float):
         """
         Construct MPO representation of the identity operation.
         """
@@ -84,8 +91,8 @@ class MPO:
         return mpo
 
     @classmethod
-    def from_opgraph(cls, qsite, graph: OpGraph, opmap: Mapping,
-                     compute_nid_map=False):
+    def from_opgraph(cls, qsite, graph: OpGraph, opmap: Mapping, dtype,
+                     compute_nid_map = False):
         """
         Construct a MPO from an operator graph.
 
@@ -129,7 +136,7 @@ class MPO:
                 for i, nid in enumerate(nids1):
                     # record bond information (site location and index)
                     nid_map[nid] = (l, i)
-            a = np.zeros((len(nids0), d, d, len(nids1)))
+            a = np.zeros((len(nids0), d, d, len(nids1)), dtype=dtype)
             for i, nid in enumerate(nids0):
                 node = graph.nodes[nid]
                 for eid in node.eids[1]:
@@ -138,8 +145,6 @@ class MPO:
                     # update local operator in MPO tensor
                     # (supporting multiple edges between same pair of nodes)
                     daij = sum(c * opmap[k] for k, c in edge.opics)
-                    if np.iscomplexobj(daij):
-                        a = a.astype(complex)
                     a[i, :, :, j] += daij
             a_list.append(a)
             nids0 = nids1
@@ -151,7 +156,8 @@ class MPO:
         op.a = a_list
         # consistency check
         for i, ai in enumerate(op.a):
-            assert is_qsparse(ai, (op.qbonds[i], op.qsite, -op.qsite, -op.qbonds[i+1])), \
+            assert is_qsparse(ai, [op.qbonds[i], op.qsite,
+                                   neg_qnumbers(op.qsite), neg_qnumbers(op.qbonds[i+1])]), \
                 "sparsity pattern of MPO tensor does not match quantum numbers"
         # store node ID map in MPO
         if compute_nid_map:
@@ -174,13 +180,28 @@ class MPO:
             return []
         return [self.a[i].shape[0] for i in range(len(self.a))] + [self.a[-1].shape[3]]
 
+    def to_device(self, device):
+        """
+        Move the matrix product operator core tensors to the specified device.
+        """
+        self.a = [ar.to_device(ai, device) for ai in self.a]
+        # enable chaining
+        return self
+
+    def astype(self, dtype):
+        """
+        Cast the matrix product operator core tensors to the specified data type.
+        """
+        self.a = [ar.astype(ai, dtype) for ai in self.a]
+        # enable chaining
+        return self
+
     def zero_qnumbers(self):
         """
         Set all quantum numbers to zero (effectively disabling them).
         """
-        self.qsite.fill(0)
-        for qb in self.qbonds:
-            qb.fill(0)
+        self.qsite  = len(self.qsite) * [0]
+        self.qbonds = [len(qb) * [0] for qb in self.qbonds]
         # enable chaining
         return self
 
@@ -196,7 +217,8 @@ class MPO:
                     self.a[i], self.a[i+1], self.qsite, self.qbonds[i:i+2])
             # last tensor
             self.a[-1], t, self.qbonds[-1] = mpo_local_orthonormalize_left_qr(
-                self.a[-1], np.array([[[[1]]]]), self.qsite, self.qbonds[-2:])
+                self.a[-1], np.array([[[[1]]]], dtype=self.a[-1].dtype, like=self.a[-1]),
+                self.qsite, self.qbonds[-2:])
             # normalization factor (real-valued since diagonal of R matrix is real)
             assert t.shape == (1, 1, 1, 1)
             nrm = t[0, 0, 0, 0].real
@@ -211,7 +233,8 @@ class MPO:
                     self.a[i], self.a[i-1], self.qsite, self.qbonds[i:i+2])
             # first tensor
             self.a[0], t, self.qbonds[0] = mpo_local_orthonormalize_right_qr(
-                self.a[0], np.array([[[[1]]]]), self.qsite, self.qbonds[:2])
+                self.a[0], np.array([[[[1]]]], dtype=self.a[0].dtype, like=self.a[0]),
+                self.qsite, self.qbonds[:2])
             # normalization factor (real-valued since diagonal of R matrix is real)
             assert t.shape == (1, 1, 1, 1)
             nrm = t[0, 0, 0, 0].real
@@ -236,12 +259,12 @@ class MPO:
             return op
         else:
             n = len(self.qsite)
-            op = self.a[0]
+            op = ar.to_numpy(self.a[0])
             assert op.shape[0] == 1
             # keep right virtual bond dimension as column dimension
             op = sparse.csr_array(op.reshape((-1, op.shape[3])))
             for i in range(1, len(self.a)):
-                t = self.a[i]
+                t = ar.to_numpy(self.a[i])
                 assert t.shape[1] == len(self.qsite)
                 op_next_list = []
                 for j in range(len(self.qsite)):
@@ -260,7 +283,7 @@ class MPO:
 
     def __add__(self, other):
         """
-        Add MPO to another.
+        Add the MPO to another.
         """
         return _mpo_add(self, other)
 
@@ -272,7 +295,7 @@ class MPO:
 
     def __matmul__(self, other):
         """
-        Multiply MPO with another (composition along physical dimension).
+        Multiply the MPO with another (composition along physical dimension).
         """
         return _mpo_multiply(self, other)
 
@@ -285,12 +308,12 @@ def mpo_local_orthonormalize_left_qr(a, a_next, qsite, qbonds):
     # perform QR decomposition and replace `a` by reshaped `q` matrix
     s = a.shape
     assert len(s) == 4
-    q0 = qnumber_flatten((qbonds[0], qsite, -qsite))
+    q0 = qnumber_flatten((qbonds[0], qsite, neg_qnumbers(qsite)))
     q, r, qbond = block_sparse_qr(a.reshape((s[0]*s[1]*s[2], s[3])), q0, qbonds[1])
     a = q.reshape((s[0], s[1], s[2], q.shape[1]))
     # update `a_next` tensor: multiply with `r` from left
-    a_next = np.tensordot(r, a_next, (1, 0))
-    return (a, a_next, qbond)
+    a_next = np.tensordot(r, a_next, ([1], [0]))
+    return a, a_next, qbond
 
 
 def mpo_local_orthonormalize_right_qr(a, a_prev, qsite, qbonds):
@@ -299,23 +322,23 @@ def mpo_local_orthonormalize_right_qr(a, a_prev, qsite, qbonds):
     and update tensor at previous site.
     """
     # flip left and right virtual bond dimensions
-    a = a.transpose((3, 1, 2, 0))
+    a = np.transpose(a, (3, 1, 2, 0))
     # perform QR decomposition and replace `a` by reshaped `q` matrix
     s = a.shape
     assert len(s) == 4
-    q0 = qnumber_flatten((-qbonds[1], qsite, -qsite))
-    q, r, qbond = block_sparse_qr(a.reshape((s[0]*s[1]*s[2], s[3])), q0, -qbonds[0])
-    a = q.reshape((s[0], s[1], s[2], q.shape[1])).transpose((3, 1, 2, 0))
+    q0 = qnumber_flatten((neg_qnumbers(qbonds[1]), qsite, neg_qnumbers(qsite)))
+    q, r, qbond = block_sparse_qr(a.reshape((s[0]*s[1]*s[2], s[3])), q0, neg_qnumbers(qbonds[0]))
+    a = np.transpose(q.reshape((s[0], s[1], s[2], q.shape[1])), (3, 1, 2, 0))
     # update `a_prev` tensor: multiply with `r` from right
-    a_prev = np.tensordot(a_prev, r, (3, 1))
-    return (a, a_prev, -qbond)
+    a_prev = np.tensordot(a_prev, r, ([3], [1]))
+    return a, a_prev, neg_qnumbers(qbond)
 
 
 def mpo_merge_tensor_pair(a0, a1) -> np.ndarray:
     """
     Merge two neighboring MPO tensors.
     """
-    a = np.einsum(a0, (0, 1, 3, 6), a1, (6, 2, 4, 5), (0, 1, 2, 3, 4, 5), optimize=True)
+    a = np.einsum(a0, (0, 1, 3, 6), a1, (6, 2, 4, 5), (0, 1, 2, 3, 4, 5))
     # combine original physical dimensions
     s = a.shape
     a = a.reshape((s[0], s[1]*s[2], s[3]*s[4], s[5]))
@@ -332,7 +355,7 @@ def _mpo_add(op0: MPO, op1: MPO, alpha=1) -> MPO:
     nsites = op0.nsites
     assert nsites >= 1
     # physical quantum numbers must agree
-    assert np.array_equal(op0.qsite, op1.qsite)
+    assert op0.qsite == op1.qsite
     d = len(op0.qsite)
 
     # initialize with dummy tensors and bond quantum numbers
@@ -340,13 +363,14 @@ def _mpo_add(op0: MPO, op1: MPO, alpha=1) -> MPO:
 
     # combine virtual bond quantum numbers
     # leading and trailing (dummy) bond quantum numbers must agree
-    assert np.array_equal(op0.qbonds[ 0], op1.qbonds[ 0])
-    assert np.array_equal(op0.qbonds[-1], op1.qbonds[-1])
-    op.qbonds[ 0] = op0.qbonds[ 0].copy()
-    op.qbonds[-1] = op0.qbonds[-1].copy()
+    assert op0.qbonds[ 0] == op1.qbonds[ 0]
+    assert op0.qbonds[-1] == op1.qbonds[-1]
+    op.qbonds[ 0] = op0.qbonds[ 0]
+    op.qbonds[-1] = op0.qbonds[-1]
     # intermediate bond quantum numbers
     for i in range(1, nsites):
-        op.qbonds[i] = np.concatenate((op0.qbonds[i], op1.qbonds[i]))
+        # concatenate quantum numbers
+        op.qbonds[i] = op0.qbonds[i] + op1.qbonds[i]
 
     if nsites == 1:
         # simply add MPO tensors
@@ -359,14 +383,16 @@ def _mpo_add(op0: MPO, op1: MPO, alpha=1) -> MPO:
             s0 = op0.a[i].shape
             s1 = op1.a[i].shape
             # form block-diagonal tensor
-            op.a[i] = np.block([[[[op0.a[i], np.zeros((s0[0], d, d, s1[3]))]]],
-                                [[[np.zeros((s1[0], d, d, s0[3])), op1.a[i]]]]])
+            op.a[i] = np.concatenate(
+                        (np.concatenate((op0.a[i], np.zeros((s0[0], d, d, s1[3]), like=op0.a[i])), axis=3),
+                         np.concatenate((np.zeros((s1[0], d, d, s0[3]), like=op1.a[i]), op1.a[i]), axis=3)), axis=0)
         # rightmost tensor
         op.a[-1] = np.concatenate((op0.a[-1], op1.a[-1]), axis=0)
 
     # consistency check
     for i in range(nsites):
-        assert is_qsparse(op.a[i], (op.qbonds[i], op.qsite, -op.qsite, -op.qbonds[i+1])), \
+        assert is_qsparse(op.a[i], [op.qbonds[i], op.qsite,
+                                    neg_qnumbers(op.qsite), neg_qnumbers(op.qbonds[i+1])]), \
             "sparsity pattern of MPO tensor does not match quantum numbers"
 
     return op
@@ -380,7 +406,7 @@ def _mpo_multiply(op0: MPO, op1: MPO) -> MPO:
     assert op0.nsites == op1.nsites
     nsites = op0.nsites
     # physical quantum numbers must agree
-    assert np.array_equal(op0.qsite, op1.qsite)
+    assert op0.qsite == op1.qsite
 
     # initialize with dummy tensors and bond quantum numbers
     op = MPO(op0.qsite, (nsites + 1)*[[0]], fill="postpone")
@@ -391,12 +417,13 @@ def _mpo_multiply(op0: MPO, op1: MPO) -> MPO:
 
     for i in range(nsites):
         # multiply physical dimensions and reorder dimensions
-        op.a[i] = np.tensordot(op0.a[i], op1.a[i], (2, 1)).transpose((0, 3, 1, 4, 2, 5))
+        op.a[i] = np.transpose(np.tensordot(op0.a[i], op1.a[i], ([2], [1])), (0, 3, 1, 4, 2, 5))
         # merge virtual bonds
         s = op.a[i].shape
         assert len(s) == 6
         op.a[i] = op.a[i].reshape((s[0]*s[1], s[2], s[3], s[4]*s[5]))
         # consistency check
-        assert is_qsparse(op.a[i], (op.qbonds[i], op.qsite, -op.qsite, -op.qbonds[i+1])), \
+        assert is_qsparse(op.a[i], [op.qbonds[i], op.qsite,
+                                    neg_qnumbers(op.qsite), neg_qnumbers(op.qbonds[i+1])]), \
             "sparsity pattern of MPO tensor does not match quantum numbers"
     return op

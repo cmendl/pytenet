@@ -2,9 +2,12 @@
 Matrix product state (MPS) class and associated functionality.
 """
 
-import numpy as np
-from .block_sparse_util import (qnumber_outer_sum, qnumber_flatten,
-    is_qsparse, enforce_qsparsity, block_sparse_qr, block_sparse_eigh)
+import math
+import time
+import autoray as ar
+from autoray import numpy as np
+from .block_sparse_util import (qnumber_flatten, is_qsparse,
+    neg_qnumbers, enforce_qsparsity, block_sparse_qr, block_sparse_eigh)
 from .bond_ops import retained_bond_indices, split_block_sparse_matrix_svd
 from .util import crandn
 
@@ -38,9 +41,8 @@ class MPS:
                   "postpone" to leave MPS tensors unallocated
             rng: (optional) random number generator for drawing entries
         """
-        # require NumPy arrays
-        self.qsite = np.asarray(qsite)
-        self.qbonds = [np.asarray(qb) for qb in qbonds]
+        self.qsite = list(qsite)
+        self.qbonds = [list(qb) for qb in qbonds]
         # create list of MPS tensors
         d = len(qsite)
         b = [len(qb) for qb in qbonds]
@@ -51,14 +53,14 @@ class MPS:
         elif fill == "random":
             # random complex entries
             if rng is None:
-                rng = np.random.default_rng()
-            self.a = [crandn((b[i], d, b[i+1]), rng) / np.sqrt(b[i]*d*b[i+1])
+                rng = ar.do("random.default_rng", int(time.time()))
+            self.a = [crandn((b[i], d, b[i+1]), rng, scale=1/math.sqrt(b[i]*d*b[i+1]))
                       for i in range(len(b) - 1)]
         elif fill == "random real":
             # random real entries
             if rng is None:
-                rng = np.random.default_rng()
-            self.a = [rng.normal(size=(b[i], d, b[i+1])) / np.sqrt(b[i]*d*b[i+1])
+                rng = ar.do("random.default_rng", int(time.time()))
+            self.a = [rng.normal(size=(b[i], d, b[i+1]), scale=1/math.sqrt(b[i]*d*b[i+1]))
                       for i in range(len(b) - 1)]
         elif fill == "postpone":
             self.a = (len(b) - 1) * [None]
@@ -68,20 +70,19 @@ class MPS:
         if fill != "postpone":
             # enforce block sparsity structure dictated by quantum numbers
             for i, ai in enumerate(self.a):
-                enforce_qsparsity(ai, [self.qbonds[i], self.qsite, -self.qbonds[i+1]])
+                enforce_qsparsity(ai, [self.qbonds[i], self.qsite, neg_qnumbers(self.qbonds[i+1])])
 
     @classmethod
     def construct_random(cls, nsites: int, qsite, qnum_sector: int,
-                         max_vdim: int=256, dtype="complex", rng: np.random.Generator=None):
+                         max_vdim: int = 256, dtype = "complex", rng = None):
         """
         Construct a matrix product state with random normal tensor entries,
         given an overall quantum number sector and maximum virtual bond dimension.
         """
         assert nsites > 0
-        # require NumPy array
-        qsite = np.asarray(qsite)
+        qsite = list(qsite)
         if rng is None:
-            rng = np.random.default_rng()
+            rng = ar.do("random.default_rng", int(time.time()))
         qbonds = (nsites + 1) * [None]
         # dummy left virtual bond; set quantum number to zero
         qbonds[0] = [0]
@@ -91,24 +92,24 @@ class MPS:
         for l in range(1, (nsites + 1) // 2):
             # enumerate all combinations of left bond quantum numbers
             # and local physical quantum numbers
-            qnums_full = qnumber_outer_sum([qbonds[l - 1], qsite]).reshape(-1)
+            qnums_full = qnumber_flatten([qbonds[l - 1], qsite])
             if len(qnums_full) <= max_vdim:
                 qbonds[l] = qnums_full
             else:
                 # randomly select quantum numbers
                 idx = rng.choice(len(qnums_full), size=max_vdim, replace=False)
-                qbonds[l] = qnums_full[idx]
+                qbonds[l] = [qnums_full[i] for i in idx]
         # virtual bond quantum numbers on right half
         for l in reversed(range((nsites + 1) // 2, nsites)):
             # enumerate all combinations of right bond quantum numbers
             # and local physical quantum numbers
-            qnums_full = qnumber_outer_sum([qbonds[l + 1], -qsite]).reshape(-1)
+            qnums_full = qnumber_flatten([qbonds[l + 1], neg_qnumbers(qsite)])
             if len(qnums_full) <= max_vdim:
                 qbonds[l] = qnums_full
             else:
                 # randomly select quantum numbers
                 idx = rng.choice(len(qnums_full), size=max_vdim, replace=False)
-                qbonds[l] = qnums_full[idx]
+                qbonds[l] = [qnums_full[i] for i in idx]
         return cls(qsite, qbonds, fill=("random" if (dtype in (complex, "complex")) \
                                         else "random real"), rng=rng)
 
@@ -128,13 +129,28 @@ class MPS:
             return []
         return [self.a[i].shape[0] for i in range(len(self.a))] + [self.a[-1].shape[2]]
 
+    def to_device(self, device):
+        """
+        Move the matrix product state core tensors to the specified device.
+        """
+        self.a = [ar.to_device(ai, device) for ai in self.a]
+        # enable chaining
+        return self
+
+    def astype(self, dtype):
+        """
+        Cast the matrix product state core tensors to the specified data type.
+        """
+        self.a = [ar.astype(ai, dtype) for ai in self.a]
+        # enable chaining
+        return self
+
     def zero_qnumbers(self):
         """
         Set all quantum numbers to zero (effectively disabling them).
         """
-        self.qsite.fill(0)
-        for qb in self.qbonds:
-            qb.fill(0)
+        self.qsite  = len(self.qsite) * [0]
+        self.qbonds = [len(qb) * [0] for qb in self.qbonds]
         # enable chaining
         return self
 
@@ -151,7 +167,8 @@ class MPS:
                     self.a[i], self.a[i+1], self.qsite, self.qbonds[i:i+2])
             # last tensor
             self.a[-1], t, self.qbonds[-1] = mps_local_orthonormalize_left_qr(
-                self.a[-1], np.array([[[1]]]), self.qsite, self.qbonds[-2:])
+                self.a[-1], np.array([[[1]]], dtype=self.a[-1].dtype, like=self.a[-1]),
+                self.qsite, self.qbonds[-2:])
             # normalization factor (real-valued since diagonal of R matrix is real)
             assert t.shape == (1, 1, 1)
             nrm = t[0, 0, 0].real
@@ -166,7 +183,8 @@ class MPS:
                     self.a[i], self.a[i-1], self.qsite, self.qbonds[i:i+2])
             # first tensor
             self.a[0], t, self.qbonds[0] = mps_local_orthonormalize_right_qr(
-                self.a[0], np.array([[[1]]]), self.qsite, self.qbonds[:2])
+                self.a[0], np.array([[[1]]], dtype=self.a[0].dtype, like=self.a[0]),
+                self.qsite, self.qbonds[:2])
             # normalization factor (real-valued since diagonal of R matrix is real)
             assert t.shape == (1, 1, 1)
             nrm = t[0, 0, 0].real
@@ -205,34 +223,38 @@ class MPS:
             for i in range(len(self.a) - 1):
                 self.a[i], self.a[i+1], self.qbonds[i+1] = mps_local_orthonormalize_left_svd(
                     self.a[i], self.a[i+1], self.qsite, self.qbonds[i:i+2], tol)
-                assert is_qsparse(self.a[i], [self.qbonds[i], self.qsite, -self.qbonds[i+1]]), \
+                assert is_qsparse(self.a[i],
+                                  [self.qbonds[i], self.qsite, neg_qnumbers(self.qbonds[i+1])]), \
                     "sparsity pattern of MPS tensor does not match quantum numbers"
             # last tensor
             self.a[-1], t, self.qbonds[-1] = mps_local_orthonormalize_left_svd(
-                self.a[-1], np.array([[[1]]]), self.qsite, self.qbonds[-2:], tol)
-            assert is_qsparse(self.a[-1], [self.qbonds[-2], self.qsite, -self.qbonds[-1]]), \
+                self.a[-1], np.array([[[1]]], dtype=self.a[-1].dtype, like=self.a[-1]),
+                self.qsite, self.qbonds[-2:], tol)
+            assert is_qsparse(self.a[-1], [self.qbonds[-2], self.qsite, neg_qnumbers(self.qbonds[-1])]), \
                 "sparsity pattern of MPS tensor does not match quantum numbers"
             assert t.shape == (1, 1, 1)
             # absorb potential phase factor into MPS tensor
             self.a[-1] *= t[0, 0, 0] / abs(t[0, 0, 0])
-            return (nrm, abs(t[0, 0, 0]))
+            return nrm, abs(t[0, 0, 0])
         if direction == "right":
             # transform to left-canonical form first
             nrm = self.orthonormalize(mode="left")
             for i in reversed(range(1, len(self.a))):
                 self.a[i], self.a[i-1], self.qbonds[i] = mps_local_orthonormalize_right_svd(
                     self.a[i], self.a[i-1], self.qsite, self.qbonds[i:i+2], tol)
-                assert is_qsparse(self.a[i], [self.qbonds[i], self.qsite, -self.qbonds[i+1]]), \
+                assert is_qsparse(self.a[i], [self.qbonds[i], self.qsite, neg_qnumbers(self.qbonds[i+1])]), \
                     "sparsity pattern of MPS tensor does not match quantum numbers"
             # first tensor
             self.a[0], t, self.qbonds[0] = mps_local_orthonormalize_right_svd(
-                self.a[0], np.array([[[1]]]), self.qsite, self.qbonds[:2], tol)
-            assert is_qsparse(self.a[0], [self.qbonds[0], self.qsite, -self.qbonds[1]]), \
+                self.a[0], np.array([[[1]]], dtype=self.a[0].dtype, like=self.a[0]),
+                self.qsite, self.qbonds[:2], tol)
+            assert is_qsparse(self.a[0], [self.qbonds[0], self.qsite,
+                                          neg_qnumbers(self.qbonds[1])]), \
                 "sparsity pattern of MPS tensor does not match quantum numbers"
             assert t.shape == (1, 1, 1)
             # absorb potential phase factor into MPS tensor
             self.a[0] *= t[0, 0, 0] / abs(t[0, 0, 0])
-            return (nrm, abs(t[0, 0, 0]))
+            return nrm, abs(t[0, 0, 0])
         raise ValueError(f'`direction` = {direction} invalid; must be "left" or "right".')
 
     def _compress_density(self, tol: float):
@@ -254,40 +276,40 @@ class MPS:
         assert lblocks[-1][0, 0].real > 0
         nrm = np.sqrt(lblocks[-1][0, 0].real)
         # trivial initial tensors
-        b = np.array([[[1]]], dtype=self.a[-1].dtype)
+        b = np.array([[[1]]], dtype=self.a[-1].dtype, like=self.a[-1])
         # current `u` matrix
-        u = np.array([[[1]]], dtype=self.a[-1].dtype)
+        u = np.array([[[1]]], dtype=self.a[-1].dtype, like=self.a[-1])
         for i in reversed(range(1, self.nsites)):
             # compute new `b` block
-            b = np.tensordot(b, u.conj(), axes=((1, 2), (1, 2)))
-            b = np.tensordot(self.a[i], b, axes=((2,), (0,)))
+            b = np.tensordot(b, u.conj(), axes=([1, 2], [1, 2]))
+            b = np.tensordot(self.a[i], b, axes=([2], [0]))
             # compute density matrix
-            rho = np.tensordot(b, lblocks[i], axes=((0,), (0,)))
-            rho = np.tensordot(rho, b.conj(), axes=((2,), (0,)))
+            rho = np.tensordot(b, lblocks[i], axes=([0], [0]))
+            rho = np.tensordot(rho, b.conj(), axes=([2], [0]))
             # diagonalize density matrix
             assert rho.ndim == 4
             orig_shape = rho.shape[0:2]
-            rho = rho.reshape((np.prod(rho.shape[0:2]), np.prod(rho.shape[2:4])))
-            qnums_rho = qnumber_flatten((self.qsite, -self.qbonds[i+1]))
-            assert is_qsparse(rho, (qnums_rho, -qnums_rho))
+            rho = rho.reshape((math.prod(rho.shape[0:2]), math.prod(rho.shape[2:4])))
+            qnums_rho = qnumber_flatten((self.qsite, neg_qnumbers(self.qbonds[i+1])))
+            assert is_qsparse(rho, (qnums_rho, neg_qnumbers(qnums_rho)))
             u, evals, qnums_eig = block_sparse_eigh(rho, qnums_rho)
             # truncate small eigenvalues;
             # eigenvalues are real, but can be negative
             idx = retained_bond_indices(np.abs(evals), tol)
             u = u[:, idx]
             evals = evals[idx]
-            qnums_eig = -qnums_eig[idx]
+            qnums_eig = neg_qnumbers([qnums_eig[j] for j in idx])
             assert is_qsparse(u, (qnums_rho, qnums_eig))
-            u = u.reshape(orig_shape[0], orig_shape[1], u.shape[1]).transpose((2, 0, 1))
-            assert is_qsparse(u, (qnums_eig, self.qsite, -self.qbonds[i+1]))
+            u = np.transpose(u.reshape(orig_shape[0], orig_shape[1], u.shape[1]), (2, 0, 1))
+            assert is_qsparse(u, (qnums_eig, self.qsite, neg_qnumbers(self.qbonds[i+1])))
             self.a[i] = u
             self.qbonds[i] = qnums_eig
         # for the leftmost site, we merely need to find the block, as the bond is already truncated
-        b = np.tensordot(b, u.conj(), axes=((1, 2), (1, 2)))
-        b = np.tensordot(self.a[0], b, axes=((2,), (0,)))
+        b = np.tensordot(b, u.conj(), axes=([1, 2], [1, 2]))
+        b = np.tensordot(self.a[0], b, axes=([2], [0]))
         s = np.linalg.norm(b.reshape(-1))
         self.a[0] = b / s
-        return (nrm, s / nrm)
+        return nrm, s / nrm
 
     def to_vector(self) -> np.ndarray:
         """
@@ -377,7 +399,7 @@ def _mps_contraction_step_right(a: np.ndarray, b: np.ndarray, r: np.ndarray):
     # multiply with `a` tensor
     t = np.tensordot(a, r, 1)
     # multiply with conjugated b tensor
-    r_next = np.tensordot(t, b.conj(), axes=((1, 2), (1, 2)))
+    r_next = np.tensordot(t, b.conj(), axes=([1, 2], [1, 2]))
     return r_next
 
 
@@ -406,9 +428,9 @@ def _mps_contraction_step_left(a: np.ndarray, b: np.ndarray, l: np.ndarray):
     assert b.ndim == 3
     assert l.ndim == 2
     # multiply with conjugated `b` tensor
-    t = np.tensordot(l, b.conj(), axes=(1, 0))
+    t = np.tensordot(l, b.conj(), axes=([1], [0]))
     # multiply with `a` tensor
-    l_next = np.tensordot(a, t, axes=((0, 1), (0, 1)))
+    l_next = np.tensordot(a, t, axes=([0, 1], [0, 1]))
     return l_next
 
 
@@ -420,7 +442,7 @@ def _mps_compute_left_blocks(chi: MPS, psi: MPS):
     assert nsites == psi.nsites
     lblocks = [None for _ in range(nsites + 1)]
     # initialize leftmost dummy block
-    lblocks[0] = np.identity(1, dtype=psi.a[0].dtype)
+    lblocks[0] = np.identity(1, like=psi.a[0])
     # compute left environment blocks
     for i in range(1, nsites + 1):
         lblocks[i] = _mps_contraction_step_left(psi.a[i-1], chi.a[i-1], lblocks[i-1])
@@ -442,7 +464,7 @@ def mps_vdot(chi: MPS, psi: MPS):
     if psi.nsites == 0:
         return 0
     # initialize `t` by the identity matrix
-    t = np.identity(psi.a[-1].shape[2], dtype=psi.a[-1].dtype)
+    t = np.identity(psi.a[-1].shape[2], like=psi.a[-1])
     for i in reversed(range(psi.nsites)):
         t = _mps_contraction_step_right(psi.a[i], chi.a[i], t)
     # t should now be a 1 x 1 tensor
@@ -469,8 +491,8 @@ def mps_local_orthonormalize_left_qr(a, a_next, qsite, qbonds):
     q, r, qbond = block_sparse_qr(a.reshape((s[0]*s[1], s[2])), q0, qbonds[1])
     a = q.reshape((s[0], s[1], q.shape[1]))
     # update a_next tensor: multiply with `r` from left
-    a_next = np.tensordot(r, a_next, (1, 0))
-    return (a, a_next, qbond)
+    a_next = np.tensordot(r, a_next, ([1], [0]))
+    return a, a_next, qbond
 
 
 def mps_local_orthonormalize_right_qr(a, a_prev, qsite, qbonds):
@@ -479,16 +501,16 @@ def mps_local_orthonormalize_right_qr(a, a_prev, qsite, qbonds):
     and update the tensor at the previous site.
     """
     # flip left and right virtual bond dimensions
-    a = a.transpose((2, 1, 0))
+    a = np.transpose(a, (2, 1, 0))
     # perform QR decomposition and replace `a` by reshaped `q` matrix
     s = a.shape
     assert len(s) == 3
-    q0 = qnumber_flatten((-qbonds[1], qsite))
-    q, r, qbond = block_sparse_qr(a.reshape((s[0]*s[1], s[2])), q0, -qbonds[0])
-    a = q.reshape((s[0], s[1], q.shape[1])).transpose((2, 1, 0))
+    q0 = qnumber_flatten([neg_qnumbers(qbonds[1]), qsite])
+    q, r, qbond = block_sparse_qr(a.reshape((s[0]*s[1], s[2])), q0, neg_qnumbers(qbonds[0]))
+    a = np.transpose(q.reshape((s[0], s[1], q.shape[1])), (2, 1, 0))
     # update a_prev tensor: multiply with `r` from right
-    a_prev = np.tensordot(a_prev, r, (2, 1))
-    return (a, a_prev, -qbond)
+    a_prev = np.tensordot(a_prev, r, ([2], [1]))
+    return a, a_prev, neg_qnumbers(qbond)
 
 
 def mps_local_orthonormalize_left_svd(a, a_next, qsite, qbonds, tol: float):
@@ -504,8 +526,8 @@ def mps_local_orthonormalize_left_svd(a, a_next, qsite, qbonds, tol: float):
         a.reshape((s[0]*s[1], s[2])), q0, qbonds[1], tol)
     a = u.reshape((s[0], s[1], u.shape[1]))
     # update a_next tensor: multiply with (sigma @ v) from left
-    a_next = np.tensordot(sigma[:, None] * v, a_next, (1, 0))
-    return (a, a_next, qbond)
+    a_next = np.tensordot(sigma[:, None] * v, a_next, ([1], [0]))
+    return a, a_next, qbond
 
 
 def mps_local_orthonormalize_right_svd(a, a_prev, qsite, qbonds, tol: float):
@@ -516,40 +538,40 @@ def mps_local_orthonormalize_right_svd(a, a_prev, qsite, qbonds, tol: float):
     # perform SVD and replace `a` by reshaped `v` matrix
     s = a.shape
     assert len(s) == 3
-    q1 = qnumber_flatten([-qsite, qbonds[1]])
+    q1 = qnumber_flatten([neg_qnumbers(qsite), qbonds[1]])
     u, sigma, v, qbond = split_block_sparse_matrix_svd(
         a.reshape((s[0], s[1]*s[2])), qbonds[0], q1, tol)
     a = v.reshape((v.shape[0], s[1], s[2]))
     # update a_prev tensor: multiply with (u @ sigma) from right
-    a_prev = np.tensordot(a_prev, u * sigma, (2, 0))
-    return (a, a_prev, qbond)
+    a_prev = np.tensordot(a_prev, u * sigma, ([2], [0]))
+    return a, a_prev, qbond
 
 
 def mps_merge_tensor_pair(a0: np.ndarray, a1: np.ndarray) -> np.ndarray:
     """
     Merge two neighboring MPS tensors.
     """
-    a = np.einsum(a0, (0, 1, 4), a1, (4, 2, 3), (0, 1, 2, 3), optimize=True)
+    a = np.einsum(a0, (0, 1, 4), a1, (4, 2, 3), (0, 1, 2, 3))
     # combine original physical dimensions
     a = a.reshape((a.shape[0], a.shape[1]*a.shape[2], a.shape[3]))
     return a
 
 
-def mps_split_tensor_svd(a: np.ndarray, qsite0, qsite1, qbonds_outer, svd_distr: str, tol=0):
+def mps_split_tensor_svd(a: np.ndarray, qsite0, qsite1, qbonds_outer, svd_distr: str, tol: float = 0):
     """
     Split an MPS tensor with dimension `b0 x d0*d1 x b2` into two MPS tensors
     with dimensions `b0 x d0 x b1` and `b1 x d1 x b2`, respectively.
     """
     assert a.ndim == 3
-    qsite0 = np.asarray(qsite0)
-    qsite1 = np.asarray(qsite1)
+    qsite0 = list(qsite0)
+    qsite1 = list(qsite1)
     d0 = len(qsite0)
     d1 = len(qsite1)
     assert d0 * d1 == a.shape[1], "physical dimension of MPS tensor must be equal to d0 * d1"
     # reshape as matrix and split by SVD
     s = (a.shape[0], d0, d1, a.shape[2])
-    q0 = qnumber_flatten([ qbonds_outer[0], qsite0])
-    q1 = qnumber_flatten([-qsite1, qbonds_outer[1]])
+    q0 = qnumber_flatten([qbonds_outer[0], qsite0])
+    q1 = qnumber_flatten([neg_qnumbers(qsite1), qbonds_outer[1]])
     a0, sigma, a1, qbond = split_block_sparse_matrix_svd(
         a.reshape((s[0]*s[1], s[2]*s[3])), q0, q1, tol)
     a0 = a0.reshape((s[0], s[1], len(sigma)))
@@ -565,7 +587,7 @@ def mps_split_tensor_svd(a: np.ndarray, qsite0, qsite1, qbonds_outer, svd_distr:
         a1 = a1 * s[:, None, None]
     else:
         raise ValueError('`svd_distr` parameter must be "left", "right" or "sqrt".')
-    return (a0, a1, qbond)
+    return a0, a1, qbond
 
 
 def mps_add(mps0: MPS, mps1: MPS, alpha=1) -> MPS:
@@ -577,7 +599,7 @@ def mps_add(mps0: MPS, mps1: MPS, alpha=1) -> MPS:
     assert mps0.nsites == mps1.nsites
     nsites = mps0.nsites
     # physical quantum numbers must agree
-    assert np.array_equal(mps0.qsite, mps1.qsite)
+    assert mps0.qsite == mps1.qsite
     d = len(mps0.qsite)
 
     # initialize with dummy tensors and bond quantum numbers
@@ -585,13 +607,14 @@ def mps_add(mps0: MPS, mps1: MPS, alpha=1) -> MPS:
 
     # combine virtual bond quantum numbers
     # leading and trailing (dummy) bond quantum numbers must agree
-    assert np.array_equal(mps0.qbonds[ 0], mps1.qbonds[ 0])
-    assert np.array_equal(mps0.qbonds[-1], mps1.qbonds[-1])
-    mps.qbonds[ 0] = mps0.qbonds[ 0].copy()
-    mps.qbonds[-1] = mps0.qbonds[-1].copy()
+    assert mps0.qbonds[ 0] == mps1.qbonds[ 0]
+    assert mps0.qbonds[-1] == mps1.qbonds[-1]
+    mps.qbonds[ 0] = mps0.qbonds[ 0]
+    mps.qbonds[-1] = mps0.qbonds[-1]
     # intermediate bond quantum numbers
     for i in range(1, nsites):
-        mps.qbonds[i] = np.concatenate((mps0.qbonds[i], mps1.qbonds[i]))
+        # concatenate quantum numbers
+        mps.qbonds[i] = mps0.qbonds[i] + mps1.qbonds[i]
 
     if nsites == 1:
         # simply add MPS tensors
@@ -604,14 +627,15 @@ def mps_add(mps0: MPS, mps1: MPS, alpha=1) -> MPS:
             s0 = mps0.a[i].shape
             s1 = mps1.a[i].shape
             # form block-diagonal tensor
-            mps.a[i] = np.block([[[mps0.a[i], np.zeros((s0[0], d, s1[2]))]],
-                                 [[np.zeros((s1[0], d, s0[2])), mps1.a[i]]]])
+            mps.a[i] = np.concatenate(
+                (np.concatenate((mps0.a[i], np.zeros((s0[0], d, s1[2]), like=mps0.a[i])), axis=2),
+                 np.concatenate((np.zeros((s1[0], d, s0[2]), like=mps1.a[i]), mps1.a[i]), axis=2)), axis=0)
         # rightmost tensor
         mps.a[-1] = np.concatenate((mps0.a[-1], mps1.a[-1]), axis=0)
 
     # consistency check
     for i in range(nsites):
-        assert is_qsparse(mps.a[i], (mps.qbonds[i], mps.qsite, -mps.qbonds[i+1])), \
+        assert is_qsparse(mps.a[i], (mps.qbonds[i], mps.qsite, neg_qnumbers(mps.qbonds[i+1]))), \
             "sparsity pattern of MPS tensor does not match quantum numbers"
 
     return mps

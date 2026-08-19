@@ -4,7 +4,8 @@ Construct a molecular Hamiltonian as a matrix product operator (MPO).
 
 from collections.abc import Sequence
 from enum import IntEnum
-import numpy as np
+import autoray as ar
+from autoray import numpy as np
 from ..mpo import MPO
 from ..opchain import OpChain
 from ..opgraph import OpGraphNode, OpGraphEdge, OpGraph
@@ -663,7 +664,9 @@ def molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
         assert graph.is_consistent()
     opmap = _molecular_hamiltonian_generate_operator_map()
     # convert to MPO
-    mpo = MPO.from_opgraph([0, 1], graph, opmap, compute_nid_map = not optimize)
+    dtype = complex if "complex" in ar.get_dtype_name(tkin) \
+                    or "complex" in ar.get_dtype_name(vint) else float
+    mpo = MPO.from_opgraph([0, 1], graph, opmap, dtype, compute_nid_map = not optimize)
     # store node information in MPO, to identify virtual
     # bonds by creation and annihilation operators
     if not optimize:
@@ -679,10 +682,10 @@ def molecular_hamiltonian_orbital_gauge_transform(h: MPO, u, i: int):
     """
     u = np.asarray(u)
     assert u.shape == (2, 2)
-    assert np.allclose(u.conj().T @ u, np.identity(2))
+    assert np.allclose(u.conj().T @ u, np.identity(2, like=u))
     assert 0 <= i < h.nsites - 1
     # left gauge transformation matrix
-    v_l = np.identity(h.bond_dims[i], dtype=u.dtype)
+    v_l = np.identity(h.bond_dims[i], like=u)
     # a^{\dagger}_i operators connected to right terminal
     if i in h.nids_a_dag_r:
         if i in h.nids_a_dag_r[i]:
@@ -787,10 +790,10 @@ def molecular_hamiltonian_orbital_gauge_transform(h: MPO, u, i: int):
             v_l[j11, j01] = u[1, 0] * u[1, 1].conj()
             v_l[j11, j10] = u[1, 1] * u[1, 0].conj()
             v_l[j11, j11] = abs(u[1, 1])**2
-    assert np.allclose(v_l.conj().T @ v_l, np.identity(v_l.shape[1]))
+    assert np.allclose(v_l.conj().T @ v_l, np.identity(v_l.shape[1], like=v_l))
 
     # right gauge transformation matrix
-    v_r = np.identity(h.bond_dims[i + 2], dtype=u.dtype)
+    v_r = np.identity(h.bond_dims[i + 2], like=u)
     # a^{\dagger}_i operators connected to left terminal
     if i in h.nids_a_dag_l:
         if i + 2 in h.nids_a_dag_l[i]:
@@ -895,6 +898,6 @@ def molecular_hamiltonian_orbital_gauge_transform(h: MPO, u, i: int):
             v_r[j11, j01] = u[1, 0] * u[1, 1].conj()
             v_r[j11, j10] = u[1, 1] * u[1, 0].conj()
             v_r[j11, j11] = abs(u[1, 1])**2
-    assert np.allclose(v_r.conj().T @ v_r, np.identity(v_r.shape[1]))
+    assert np.allclose(v_r.conj().T @ v_r, np.identity(v_r.shape[1], like=v_r))
 
     return v_l, v_r

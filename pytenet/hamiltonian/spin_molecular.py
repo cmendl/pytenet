@@ -5,7 +5,8 @@ Construct a spin molecular Hamiltonian as a matrix product operator (MPO).
 import itertools
 from collections.abc import Sequence
 from enum import IntEnum
-import numpy as np
+import autoray as ar
+from autoray import numpy as np
 from ..mpo import MPO
 from ..opchain import OpChain
 from ..opgraph import OpGraphNode, OpGraphEdge, OpGraph
@@ -885,7 +886,9 @@ def spin_molecular_hamiltonian_mpo(tkin, vint, optimize=True) -> MPO:
         assert graph.is_consistent()
     opmap = _spin_molecular_hamiltonian_generate_operator_map()
     # convert to MPO
-    mpo = MPO.from_opgraph(qsite, graph, opmap, compute_nid_map=(not optimize))
+    dtype = complex if "complex" in ar.get_dtype_name(tkin) \
+                    or "complex" in ar.get_dtype_name(vint) else float
+    mpo = MPO.from_opgraph(qsite, graph, opmap, dtype, compute_nid_map=(not optimize))
     # store node information in MPO, to identify virtual
     # bonds by creation and annihilation operators
     if not optimize:

@@ -9,7 +9,8 @@ Reference:
 """
 
 import copy
-import numpy as np
+import autoray as ar
+from autoray import numpy as np
 from scipy.linalg import expm
 import matplotlib.pyplot as plt
 import pytenet as ptn
@@ -49,10 +50,10 @@ def main():
 
     # initial wavefunction as MPS with random entries
     b_max = 20
-    b = np.minimum(np.minimum(d**np.arange(nsites + 1), d**(nsites - np.arange(nsites + 1))), b_max)
+    b = [min(min(d**i, d**(nsites - i)), b_max) for i in range(nsites + 1)]
     print("b:", b)
-    rng = np.random.default_rng(42)
-    psi = ptn.MPS(h_mpo.qsite, [np.zeros(bi, dtype=int) for bi in b], fill="random", rng=rng)
+    rng = ar.do("random.default_rng", 42)
+    psi = ptn.MPS(h_mpo.qsite, [bi * [0] for bi in b], fill="random", rng=rng)
     # effectively clamp virtual bond dimension
     for i in range(nsites):
         psi.a[i][3:, :, :] = 0

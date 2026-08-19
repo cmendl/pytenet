@@ -2,18 +2,19 @@
 utility functions for handling block-sparse tensors with quantum number conservation.
 """
 
-import numpy as np
+from autoray import numpy as np
+from .util import argsort
 
 __all__ = [
     "qnumber_outer_sum", "common_qnumbers", "qnumber_flatten", "is_qsparse",
-    "enforce_qsparsity", "sort_by_qnumbers", "slice_with_qnumber",
-    "block_sparse_qr", "block_sparse_eigh", "block_sparse_svd"]
+    "enforce_qsparsity", "neg_qnumbers", "random_qnumbers", "sort_by_qnumbers",
+    "slice_with_qnumber", "block_sparse_qr", "block_sparse_eigh", "block_sparse_svd"]
 
 
-def qnumber_outer_sum(qnums):
+def qnumber_outer_sum(qnums, shift: int = 0):
     """
     Compute the sum of all combinations of quantum numbers in `qnums`,
-    and return the result as a tensor.
+    and return the result as nested lists.
 
     Example:
         >>> qnumber_outer_sum([[0, 2, -1], [0, 1]])
@@ -22,72 +23,102 @@ def qnumber_outer_sum(qnums):
          [-1,  0]]
     """
     if len(qnums) == 0:
-        return np.array(0)
-
-    t = qnums[0]
-    for i in range(1, len(qnums)):
-        t = np.add.outer(t, qnums[i])
-    return t
+        return shift
+    if len(qnums) == 1:
+        return [qn + shift for qn in qnums[0]]
+    return [qnumber_outer_sum(qnums[1:], qn + shift) for qn in qnums[0]]
 
 
-def common_qnumbers(qnums0, qnums1):
+def _unique(items) -> list:
+    """
+    Extract the unique entries from a sequence of items.
+    The output list is sorted.
+    """
+    output = []
+    for x in items:
+        if x not in output:
+            output.append(x)
+    return sorted(output)
+
+
+def common_qnumbers(qnums0, qnums1) -> list[int]:
     """
     Find common quantum numbers between two lists of quantum numbers.
     """
-    return np.intersect1d(qnums0, qnums1)
+    return [qn for qn in _unique(qnums0) if qn in qnums1]
 
 
-def qnumber_flatten(qnums):
+def _flatten_nested_list(nested_list):
+    """
+    Flatten recursively nested lists.
+    """
+    for item in nested_list:
+        if isinstance(item, list):
+            yield from _flatten_nested_list(item)
+        else:
+            yield item
+
+
+def qnumber_flatten(qnums) -> list[int]:
     """
     Combine quantum numbers into a single vector.
     """
-    return qnumber_outer_sum(qnums).reshape(-1)
+    return list(_flatten_nested_list(qnumber_outer_sum(qnums)))
 
 
-def is_qsparse(a, qnums):
+def is_qsparse(a, qnums) -> bool:
     """
     Test whether sparsity structure of `a` matches quantum numbers, i.e., if the
     quantum numbers corresponding to non-zero entries in `a` sum to zero.
     """
-    mask = qnumber_outer_sum(qnums)
+    mask = np.array(qnumber_outer_sum(qnums), dtype=int, like=a)
     return not np.any(np.where(mask == 0, 0, a))
 
 
 def enforce_qsparsity(a, qnums):
     """
-    Enforce sparsity pattern on `a` based on quantum numbers.
+    Enforce a sparsity pattern on `a` based on quantum numbers.
     """
-    mask = qnumber_outer_sum(qnums)
-    it = np.nditer(a, flags=["multi_index"], op_flags=["readwrite"])
-    for x in it:
-        if mask[it.multi_index] != 0:
-            x[...] = 0
+    mask = np.array(qnumber_outer_sum(qnums), dtype=int)
+    a[np.where(mask != 0)] = 0
+
+
+def neg_qnumbers(qnums) -> list[int]:
+    """
+    Negate a list of quantum numbers.
+    """
+    return [-qn for qn in qnums]
+
+
+def random_qnumbers(low: int, high: int, size: int, rng) -> list[int]:
+    """
+    Generate a list of random quantum numbers from `low` (inclusive) to `high` (exclusive).
+    """
+    qnums = rng.integers(low, high, size)
+    # convert to native integers
+    return [int(qn) for qn in qnums]
 
 
 def sort_by_qnumbers(a, q0, q1):
     """
-    Sorts a matrix according to quantum numbers.
+    Sort a matrix according to quantum numbers.
 
     Returns:
         a: sorted matrix
         (idx0, q0): indices that would sort the qnums, sorted quantum numbers for the rows
         (idx1, q1): indices that would sort the qnums, sorted quantum numbers for the columns
     """
-    # require NumPy arrays for indexing
-    q0 = np.asarray(q0)
-    q1 = np.asarray(q1)
-
     # sort quantum numbers and arrange entries in `a` accordingly;
-    # using mergesort to avoid permutations of identical quantum numbers
-    idx0 = np.argsort(q0, kind="mergesort")
-    idx1 = np.argsort(q1, kind="mergesort")
-    if np.any(idx0 - np.arange(len(idx0))):
+    # sorting has to be stable to avoid permutations of identical quantum numbers
+    idx0 = argsort(q0)
+    idx1 = argsort(q1)
+    if any(i - idx for i, idx in enumerate(idx0)):
         # if not sorted yet...
-        q0 = q0[idx0]
+        q0 = [q0[idx] for idx in idx0]
         a = a[idx0, :]
-    if np.any(idx1 - np.arange(len(idx1))):
+    if any(i - idx for i, idx in enumerate(idx1)):
         # if not sorted yet...
-        q1 = q1[idx1]
+        q1 = [q1[idx] for idx in idx1]
         a = a[:, idx1]
     return a, (idx0, q0), (idx1, q1)
 
@@ -97,10 +128,7 @@ def slice_with_qnumber(qn, qnums):
     Assuming the quantum numbers are sorted, find the first and last indices
     at which a given quantum number appears.
     """
-    iqn = np.where(qnums == qn)[0]
-    start = iqn[0]
-    end = iqn[-1] + 1
-    return slice(start, end)
+    return slice(qnums.index(qn), len(qnums) - qnums[::-1].index(qn))
 
 
 def block_sparse_qr(a, q0, q1):
@@ -116,7 +144,7 @@ def block_sparse_qr(a, q0, q1):
     assert a.ndim == 2
     assert len(q0) == a.shape[0]
     assert len(q1) == a.shape[1]
-    assert is_qsparse(a, [q0, -q1])
+    assert is_qsparse(a, [q0, neg_qnumbers(q1)])
 
     # find common quantum numbers
     qis = common_qnumbers(q0, q1)
@@ -125,13 +153,13 @@ def block_sparse_qr(a, q0, q1):
         assert np.linalg.norm(a) == 0
         # special case: no common quantum numbers;
         # use dummy intermediate dimension 1 with all entries in `r` set to zero
-        q = np.zeros((a.shape[0], 1), dtype=a.dtype)
-        r = np.zeros((1, a.shape[1]), dtype=a.dtype)
+        q = np.zeros((a.shape[0], 1), like=a)
+        r = np.zeros((1, a.shape[1]), like=a)
         # single column of `q` should have norm 1
         q[0, 0] = 1
         # ensure non-zero entry in `q` formally matches quantum numbers
         qinterm = q0[:1]
-        return (q, r, qinterm)
+        return q, r, qinterm
 
     a, (idx0, q0), (idx1, q1) = sort_by_qnumbers(a, q0, q1)
 
@@ -141,11 +169,11 @@ def block_sparse_qr(a, q0, q1):
     # keep track of intermediate dimension
     dim_bond = 0
 
-    q = np.zeros((a.shape[0], max_interm_dim), dtype=a.dtype)
-    r = np.zeros((max_interm_dim, a.shape[1]), dtype=a.dtype)
+    q = np.zeros((a.shape[0], max_interm_dim), like=a)
+    r = np.zeros((max_interm_dim, a.shape[1]), like=a)
 
     # corresponding intermediate quantum numbers
-    qinterm = np.zeros(max_interm_dim, dtype=q0.dtype)
+    qinterm = [0 for _ in range(max_interm_dim)]
 
     # for each shared quantum number...
     for qnum in qis:
@@ -162,7 +190,7 @@ def block_sparse_qr(a, q0, q1):
 
         q[row_slice, dim_prev:dim_bond] = qsub
         r[dim_prev:dim_bond, col_slice] = rsub
-        qinterm[dim_prev:dim_bond] = qnum
+        qinterm[dim_prev:dim_bond] = (dim_bond - dim_prev) * [qnum]
 
     assert dim_bond <= max_interm_dim
 
@@ -172,12 +200,12 @@ def block_sparse_qr(a, q0, q1):
     qinterm = qinterm[:dim_bond]
 
     # undo sorting of quantum numbers
-    if np.any(idx0 - np.arange(len(idx0))):
-        q = q[np.argsort(idx0), :]
-    if np.any(idx1 - np.arange(len(idx1))):
-        r = r[:, np.argsort(idx1)]
+    if any(i - idx for i, idx in enumerate(idx0)):
+        q = q[argsort(idx0), :]
+    if any(i - idx for i, idx in enumerate(idx1)):
+        r = r[:, argsort(idx1)]
 
-    return (q, r, qinterm)
+    return q, r, qinterm
 
 
 def block_sparse_eigh(a, q0):
@@ -192,10 +220,10 @@ def block_sparse_eigh(a, q0):
     assert a.ndim == 2
     assert a.shape[0] == a.shape[1]
     assert len(q0) == a.shape[0]
-    assert is_qsparse(a, [q0, -q0])
+    assert is_qsparse(a, [q0, neg_qnumbers(q0)])
 
     # find common quantum numbers
-    qis = set(q0)
+    qis = _unique(q0)
 
     a, (idx0, q0), (_, q1) = sort_by_qnumbers(a, q0, q0)
 
@@ -206,9 +234,10 @@ def block_sparse_eigh(a, q0):
     dim_bond = 0
 
     # allocate memory for unitary `u` and diagonal eval matrices
-    u = np.zeros((a.shape[0], max_interm_dim), dtype=a.dtype)
-    evals = np.zeros(max_interm_dim)  # `evals` vector corresponds to the diagonal matrix
-    q = np.zeros(max_interm_dim, dtype=q0.dtype)
+    u = np.zeros((a.shape[0], max_interm_dim), like=a)
+    # `eigvals` vector corresponds to the diagonal matrix
+    eigvals = np.zeros(max_interm_dim, dtype=float, like=a)
+    q = max_interm_dim * [0]
 
     # for each shared quantum number...
     for qnum in qis:
@@ -224,21 +253,21 @@ def block_sparse_eigh(a, q0):
         dim_bond += len(eval_sub)
 
         u[row_slice, dim_prev:dim_bond] = u_sub
-        evals[dim_prev:dim_bond] = eval_sub
-        q[dim_prev:dim_bond] = qnum
+        eigvals[dim_prev:dim_bond] = eval_sub
+        q[dim_prev:dim_bond] = (dim_bond - dim_prev) * [qnum]
 
     assert dim_bond <= max_interm_dim
 
     # use actual intermediate dimensions
     u = u[:, :dim_bond]
-    evals = evals[:dim_bond]
+    eigvals = eigvals[:dim_bond]
     q = q[:dim_bond]
 
     # undo sorting of quantum numbers
-    if np.any(idx0 - np.arange(len(idx0))):
-        u = u[np.argsort(idx0), :]
+    if any(i - idx for i, idx in enumerate(idx0)):
+        u = u[argsort(idx0), :]
 
-    return (u, evals, q)
+    return u, eigvals, q
 
 
 def block_sparse_svd(a, q0, q1):
@@ -249,7 +278,7 @@ def block_sparse_svd(a, q0, q1):
     assert a.ndim == 2
     assert len(q0) == a.shape[0]
     assert len(q1) == a.shape[1]
-    assert is_qsparse(a, [q0, -q1])
+    assert is_qsparse(a, [q0, neg_qnumbers(q1)])
 
     # find common quantum numbers
     qis = common_qnumbers(q0, q1)
@@ -258,16 +287,16 @@ def block_sparse_svd(a, q0, q1):
         assert np.linalg.norm(a) == 0
         # special case: no common quantum numbers;
         # use dummy intermediate dimension 1
-        u = np.zeros((a.shape[0], 1), dtype=a.dtype)
-        v = np.zeros((1, a.shape[1]), dtype=a.dtype)
-        s = np.zeros(1)
+        u = np.zeros((a.shape[0], 1), like=a)
+        v = np.zeros((1, a.shape[1]), like=a)
+        s = np.zeros(1, dtype=float, like=a)
         # single column of `u` should have norm 1
         if a.shape[0] > 0:
             u[0, 0] = 1
         # ensure non-zero entry in `u` formally matches quantum numbers
         q = q0[:1]
         # `v` must remain zero matrix to satisfy quantum number constraints
-        return (u, s, v, q)
+        return u, s, v, q
 
     a, (idx0, q0), (idx1, q1) = sort_by_qnumbers(a, q0, q1)
 
@@ -279,10 +308,10 @@ def block_sparse_svd(a, q0, q1):
 
     # allocate memory for U and V matrices, singular values and
     # corresponding intermediate quantum numbers
-    u = np.zeros((a.shape[0], max_interm_dim), dtype=a.dtype)
-    v = np.zeros((max_interm_dim, a.shape[1]), dtype=a.dtype)
-    s = np.zeros(max_interm_dim)
-    q = np.zeros(max_interm_dim, dtype=q0.dtype)
+    u = np.zeros((a.shape[0], max_interm_dim), like=a)
+    v = np.zeros((max_interm_dim, a.shape[1]), like=a)
+    s = np.zeros(max_interm_dim, dtype=float, like=a)
+    q = max_interm_dim * [0]
 
     # for each shared quantum number...
     for qnum in qis:
@@ -300,7 +329,7 @@ def block_sparse_svd(a, q0, q1):
         u[row_slice, dim_prev:dim_bond] = usub
         v[dim_prev:dim_bond, col_slice] = vsub
         s[dim_prev:dim_bond] = ssub
-        q[dim_prev:dim_bond] = qnum
+        q[dim_prev:dim_bond] = (dim_bond - dim_prev) * [qnum]
 
     assert dim_bond <= max_interm_dim
 
@@ -311,9 +340,9 @@ def block_sparse_svd(a, q0, q1):
     q = q[:dim_bond]
 
     # undo sorting of quantum numbers
-    if np.any(idx0 - np.arange(len(idx0))):
-        u = u[np.argsort(idx0), :]
-    if np.any(idx1 - np.arange(len(idx1))):
-        v = v[:, np.argsort(idx1)]
+    if any(i - idx for i, idx in enumerate(idx0)):
+        u = u[argsort(idx0), :]
+    if any(i - idx for i, idx in enumerate(idx1)):
+        v = v[:, argsort(idx1)]
 
-    return (u, s, v, q)
+    return u, s, v, q

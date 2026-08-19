@@ -1,31 +1,38 @@
-import numpy as np
+import autoray as ar
+from autoray import numpy as np
+import torch
 from scipy import sparse
 import pytenet as ptn
 
 
 def test_bose_hubbard_1d_mpo():
 
-    # Hamiltonian parameters
-    t  = 0.7
-    u  = 3.2
-    mu = 1.3
+    torch.set_default_dtype(torch.float64)
 
-    # number of lattice sites
-    for nsites in range(2, 7):
-        # physical dimension per site (maximal occupancy is d - 1)
-        for d in range(2, 5):
+    for backend in ["numpy", "torch"]:
+        with ar.backend_like(backend):
 
-            # construct the MPO
-            h_mpo = ptn.bose_hubbard_1d_mpo(nsites, d, t, u, mu)
-            # matrix representation, for comparison with reference
-            h_mat = h_mpo.to_matrix()
+            # Hamiltonian parameters
+            t  = 0.7
+            u  = 3.2
+            mu = 1.3
 
-            # reference Hamiltonian
-            h_ref = construct_bose_hubbard_1d_hamiltonian(nsites, d, t, u, mu)
+            # number of lattice sites
+            for nsites in range(2, 7):
+                # physical dimension per site (maximal occupancy is d - 1)
+                for d in range(2, 5):
 
-            # compare
-            assert np.allclose(h_mat, h_ref.todense()), \
-                "matrix representation of MPO and reference Hamiltonian must match"
+                    # construct the MPO
+                    h_mpo = ptn.bose_hubbard_1d_mpo(nsites, d, t, u, mu)
+                    # matrix representation, for comparison with reference
+                    h_mat = h_mpo.to_matrix()
+
+                    # reference Hamiltonian
+                    h_ref = construct_bose_hubbard_1d_hamiltonian(nsites, d, t, u, mu)
+
+                    # compare
+                    assert np.allclose(h_mat, np.asarray(h_ref.toarray())), \
+                        "matrix representation of MPO and reference Hamiltonian must match"
 
 
 def construct_bose_hubbard_1d_hamiltonian(nsites: int, d: int, t: float, u: float, mu: float):

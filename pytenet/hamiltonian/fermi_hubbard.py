@@ -3,7 +3,7 @@ Construct the Fermi-Hubbard Hamiltonian as a matrix product operator (MPO).
 """
 
 from enum import IntEnum
-import numpy as np
+from autoray import numpy as np
 from ..mpo import MPO
 from ..opchain import OpChain
 from ..qnumber import encode_quantum_number_pair
@@ -66,8 +66,8 @@ def fermi_hubbard_1d_mpo(nsites: int, t: float, u: float, mu: float) -> MPO:
         OID.IA: np.kron(id2, a_ann),
         OID.ZC: np.kron(z,   a_dag),
         OID.ZA: np.kron(z,   a_ann),
-        OID.NT: np.kron(numop, id2) + np.kron(id2, numop),  # n_up + n_dn
-        OID.NI: np.diag([0.25, -0.25, -0.25, 0.25])         # (n_up - 1/2) (n_dn - 1/2)
+        OID.NT: np.kron(numop, id2) + np.kron(id2, numop),     # n_up + n_dn
+        OID.NI: np.diag(np.array([0.25, -0.25, -0.25, 0.25]))  # (n_up - 1/2) (n_dn - 1/2)
     }
     # local two-site and single-site terms
     lopchains = [
@@ -82,4 +82,4 @@ def fermi_hubbard_1d_mpo(nsites: int, t: float, u: float, mu: float) -> MPO:
         # interaction u (n_up - 1/2) (n_dn - 1/2)
         OpChain([OID.NI], [0, 0],  u,  0)]
     # convert to MPO
-    return local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I)
+    return local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I, float)

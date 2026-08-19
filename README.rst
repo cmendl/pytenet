@@ -11,13 +11,20 @@ PyTeNet
 
 `PyTeNet <https://github.com/cmendl/pytenet>`_ is a Python implementation of quantum
 tensor network operations and simulations within the matrix product state framework,
-using NumPy to handle tensors.
+using `autoray <https://github.com/jcmgray/autoray>`_ to support various tensor library backends.
 
 Example usage for TDVP time evolution:
 
 .. code-block:: python
 
+    # # optional imports for alternative tensor backend
+    # import autoray as ar
+    # import torch
     import pytenet as ptn
+
+    # # optional: use a specific tensor backend (as an alternative to NumPy)
+    # # (indent all following lines)
+    # with ar.backend_like("torch"):
 
     # number of lattice sites (1D with open boundary conditions)
     nsites = 10
@@ -25,7 +32,12 @@ Example usage for TDVP time evolution:
     # construct matrix product operator representation of the
     # Heisenberg XXZ Hamiltonian (arguments are nsites, J, \Delta, h)
     h_mpo = ptn.heisenberg_xxz_1d_mpo(nsites, 1.0, 0.8, -0.1)
+    # require complex data type since the quantum state will be complex-valued
+    h_mpo.astype(complex)
     h_mpo.zero_qnumbers()
+    # # optional: move tensors to a GPU
+    # if torch.cuda.is_available():
+    #     h_mpo.to_device("gpu")
 
     # initial wavefunction as MPS with random entries
     # maximally allowed virtual bond dimensions
@@ -37,6 +49,9 @@ Example usage for TDVP time evolution:
         psi.a[i][b_init:, :, :] = 0
         psi.a[i][:, :, b_init:] = 0
     psi.orthonormalize(mode="left")
+    # # optional: move tensors to a GPU
+    # if torch.cuda.is_available():
+    #     psi.to_device("gpu")
 
     # time step can have both real and imaginary parts;
     # for real time evolution use purely imaginary dt!
@@ -53,10 +68,10 @@ Features
 - matrix product state and operator classes
 - construct common Hamiltonians as MPOs, straightforward to adapt to custom Hamiltonians
 - convert arbitrary operator chains to MPOs
-- TDVP time evolution (single- and two-site, both real and imaginary time)
-- generate vector / matrix representations of matrix product states / operators
-- Krylov subspace methods for local operations, like local energy minimization
 - single- and two-site DMRG algorithm
+- TDVP time evolution (single- and two-site, both real and imaginary time)
+- compute vector and matrix representations of matrix product states and operators, respectively
+- Krylov subspace methods for local operations, like local energy minimization
 - built-in support for additive quantum numbers
 
 

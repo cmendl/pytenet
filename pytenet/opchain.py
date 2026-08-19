@@ -3,7 +3,7 @@ Symbolic operator chain.
 """
 
 from collections.abc import Sequence, Mapping
-import numpy as np
+from autoray import numpy as np
 
 __all__ = ["OpChain"]
 

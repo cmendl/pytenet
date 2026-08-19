@@ -3,7 +3,7 @@ Construct the Bose-Hubbard Hamiltonian as a matrix product operator (MPO).
 """
 
 from enum import IntEnum
-import numpy as np
+from autoray import numpy as np
 from ..mpo import MPO
 from ..opchain import OpChain
 from .local_opchain import local_opchains_to_mpo
@@ -46,7 +46,7 @@ def bose_hubbard_1d_mpo(nsites: int, d: int, t: float, u: float, mu: float) -> M
         NI =  3
     opmap = {
         OID.B:  b_ann,
-        OID.I: np.identity(d),
+        OID.I:  np.identity(d),
         OID.BD: b_dag,
         OID.N:  numop,
         OID.NI: numop @ (numop - np.identity(d)) / 2 }
@@ -56,4 +56,4 @@ def bose_hubbard_1d_mpo(nsites: int, d: int, t: float, u: float, mu: float) -> M
                  OpChain([OID.N         ], [0,  0   ], -mu, 0),
                  OpChain([OID.NI        ], [0,  0   ],  u,  0)]
     # convert to MPO
-    return local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I)
+    return local_opchains_to_mpo(qsite, lopchains, nsites, opmap, OID.I, float)

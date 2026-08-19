@@ -13,7 +13,7 @@ __all__ = ["local_opchains_to_mpo"]
 
 
 def local_opchains_to_mpo(qsite, lopchains: Sequence[OpChain],
-                          size: int, opmap: Mapping, oid_identity: int) -> MPO:
+                          size: int, opmap: Mapping, oid_identity: int, dtype) -> MPO:
     """
     Construct a Hamiltonian as an MPO based on local operator chains,
     which are shifted along a 1D lattice.
@@ -24,6 +24,7 @@ def local_opchains_to_mpo(qsite, lopchains: Sequence[OpChain],
         size:         system size, i.e., number of lattice sites
         opmap:        local operators as dictionary, using operator IDs as keys
         oid_identity: operator ID for identity map
+        dtype:        data type of the MPO core tensors
 
     Returns:
         MPO: Hamiltonian as MPO
@@ -36,4 +37,4 @@ def local_opchains_to_mpo(qsite, lopchains: Sequence[OpChain],
             chain.istart = i
             opchains.append(chain)
     graph = OpGraph.from_opchains(opchains, size, oid_identity)
-    return MPO.from_opgraph(qsite, graph, opmap)
+    return MPO.from_opgraph(qsite, graph, opmap, dtype)

@@ -5,7 +5,7 @@ Operator graph internal data structure for generating MPO representations.
 from itertools import combinations
 from collections.abc import Sequence, Mapping, Callable
 import copy
-import numpy as np
+from autoray import numpy as np
 from .autop import AutOp
 from .opchain import OpChain
 from .bipartite_graph import BipartiteGraph, minimum_vertex_cover
@@ -61,7 +61,7 @@ class OpGraphEdge:
     Operator graph edge, representing a weighted sum of local operators
     which are indexed by their IDs.
     """
-    def __init__(self, eid: int, nids: Sequence[int], opics: Sequence[tuple[int, float]]):
+    def __init__(self, eid: int, nids: Sequence[int], opics: Sequence[tuple[int, float | complex]]):
         if len(nids) != 2:
             raise ValueError(f"expecting exactly two node IDs per edge, received {len(nids)}")
         self.eid   = eid

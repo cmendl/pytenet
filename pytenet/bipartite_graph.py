@@ -139,7 +139,8 @@ def minimum_vertex_cover(graph: BipartiteGraph):
     return sorted(list(u_cover)), sorted(list(v_cover))
 
 
-def _explore_alternating_paths(u_start: int, graph: BipartiteGraph, matching: Sequence[tuple[int, int]],
+def _explore_alternating_paths(u_start: int, graph: BipartiteGraph,
+                               matching: Sequence[tuple[int, int]],
                                u_visited: list[int], v_visited: list[int]):
     """
     Explore alternating paths originating from `u_start` by a depth-first search.

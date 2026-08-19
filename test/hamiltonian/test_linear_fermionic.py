@@ -1,58 +1,73 @@
-import numpy as np
+import time
+import autoray as ar
+from autoray import numpy as np
+import torch
 from fermi_operators import construct_fermi_operators
 import pytenet as ptn
 
 
 def test_linear_fermionic_mpo():
 
-    rng = np.random.default_rng()
+    torch.set_default_dtype(torch.float64)
 
-    # number of lattice sites
-    for nsites in range(2, 8):
-        # coefficients
-        coeff = ptn.crandn(nsites, rng)
+    for backend in ["numpy", "torch"]:
+        with ar.backend_like(backend):
+            rng = ar.do("random.default_rng", int(time.time()))
 
-        for ftype in ("c", "a"):
-            # construct the MPO
-            h_mpo = ptn.linear_fermionic_mpo(coeff, ftype)
-            assert h_mpo.bond_dims == [1] + (nsites - 1)*[2] + [1], \
-                "virtual bond dimensions must match theoretical prediction"
-            # matrix representation, for comparison with reference
-            h_mat = h_mpo.to_matrix()
+            # number of lattice sites
+            for nsites in range(2, 8):
+                # coefficients
+                coeff = ptn.crandn(nsites, rng=rng)
 
-            # reference operator
-            clist, alist, _ = construct_fermi_operators(nsites)
-            h_ref = sum(coeff[i] * (clist[i] if ftype == "c" else alist[i]) for i in range(nsites))
+                for ftype in ("c", "a"):
+                    # construct the MPO
+                    h_mpo = ptn.linear_fermionic_mpo(coeff, ftype)
+                    assert h_mpo.bond_dims == [1] + (nsites - 1)*[2] + [1], \
+                        "virtual bond dimensions must match theoretical prediction"
+                    # matrix representation, for comparison with reference
+                    h_mat = h_mpo.to_matrix()
 
-            # compare
-            assert np.allclose(h_mat, h_ref.todense()), \
-                "matrix representation of MPO and reference operator must match"
+                    # reference operator
+                    clist, alist, _ = construct_fermi_operators(nsites)
+                    coeff_np = ar.to_numpy(coeff)
+                    h_ref = sum(coeff_np[i] * (clist[i] if ftype == "c" else alist[i])
+                                for i in range(nsites))
+
+                    # compare
+                    assert np.allclose(h_mat, np.asarray(h_ref.toarray())), \
+                        "matrix representation of MPO and reference operator must match"
 
 
 def test_linear_spin_fermionic_mpo():
 
-    rng = np.random.default_rng()
+    torch.set_default_dtype(torch.float64)
 
-    # number of spin-endowed lattice sites
-    for nsites in range(2, 6):
-        # coefficients
-        coeff = ptn.crandn(nsites, rng)
+    for backend in ["numpy", "torch"]:
+        with ar.backend_like(backend):
+            rng = ar.do("random.default_rng", int(time.time()))
 
-        for ftype in ("c", "a"):
-            for sigma in (1, -1):
-                # construct the MPO
-                h_mpo = ptn.linear_spin_fermionic_mpo(coeff, ftype, sigma)
-                assert h_mpo.bond_dims == [1] + (nsites - 1)*[2] + [1], \
-                    "virtual bond dimensions must match theoretical prediction"
-                # matrix representation, for comparison with reference
-                h_mat = h_mpo.to_matrix()
+            # number of spin-endowed lattice sites
+            for nsites in range(2, 6):
+                # coefficients
+                coeff = ptn.crandn(nsites, rng)
 
-                # reference operator
-                clist, alist, _ = construct_fermi_operators(2*nsites)
-                offset = (0 if sigma == 1 else 1)
-                h_ref = sum(coeff[i] * (clist[2*i+offset] if ftype == "c" else alist[2*i+offset])
-                            for i in range(nsites))
+                for ftype in ("c", "a"):
+                    for sigma in (1, -1):
+                        # construct the MPO
+                        h_mpo = ptn.linear_spin_fermionic_mpo(coeff, ftype, sigma)
+                        assert h_mpo.bond_dims == [1] + (nsites - 1)*[2] + [1], \
+                            "virtual bond dimensions must match theoretical prediction"
+                        # matrix representation, for comparison with reference
+                        h_mat = h_mpo.to_matrix()
 
-                # compare
-                assert np.allclose(h_mat, h_ref.todense()), \
-                    "matrix representation of MPO and reference operator must match"
+                        # reference operator
+                        clist, alist, _ = construct_fermi_operators(2*nsites)
+                        offset = (0 if sigma == 1 else 1)
+                        coeff_np = ar.to_numpy(coeff)
+                        h_ref = sum(coeff_np[i] * (clist[2*i+offset] if ftype == "c"
+                                                   else alist[2*i+offset])
+                                    for i in range(nsites))
+
+                        # compare
+                        assert np.allclose(h_mat, np.asarray(h_ref.toarray())), \
+                            "matrix representation of MPO and reference operator must match"
