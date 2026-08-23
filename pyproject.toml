@@ -14,7 +14,7 @@ authors = [{ name = "Christian B. Mendl", email = "christian.b.mendl@gmail.com" 
 license = "BSD-2-Clause"
 requires-python = ">=3.6"
 dependencies = [
-    "autoray >= 0.10.0"
+    "autoray >= 0.10.0",
     "numpy",
     "scipy",
 ]
