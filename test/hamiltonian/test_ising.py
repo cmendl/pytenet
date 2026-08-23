@@ -39,8 +39,8 @@ def construct_ising_1d_hamiltonian(nsites: int, J: float, h: float, g: float):
     on a one-dimensional lattice as sparse matrix.
     """
     # Pauli-X and Z matrices
-    sigma_x = sparse.csr_matrix([[0., 1.], [1.,  0.]])
-    sigma_z = sparse.csr_matrix([[1., 0.], [0., -1.]])
+    sigma_x = sparse.csr_array([[0., 1.], [1.,  0.]])
+    sigma_z = sparse.csr_array([[1., 0.], [0., -1.]])
     # interaction terms and external field
     hint = sparse.kron(sigma_z, sigma_z)
     hamiltonian = \

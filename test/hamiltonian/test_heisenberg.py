@@ -67,9 +67,9 @@ def construct_heisenberg_xxz_1d_hamiltonian(nsites: int, J: float, D: float, h: 
     on a one-dimensional lattice as sparse matrix.
     """
     # spin operators
-    sup = np.array([[0.,  1.], [0.,  0. ]])
-    sdn = np.array([[0.,  0.], [1.,  0. ]])
-    sz  = np.array([[0.5, 0.], [0., -0.5]])
+    sup = sparse.csr_array([[0.,  1.], [0.,  0. ]])
+    sdn = sparse.csr_array([[0.,  0.], [1.,  0. ]])
+    sz  = sparse.csr_array([[0.5, 0.], [0., -0.5]])
     # interaction terms and external field
     hint = J * 0.5 * (sparse.kron(sup, sdn) + sparse.kron(sdn, sup)) + D * sparse.kron(sz, sz)
     hamiltonian = \
@@ -92,9 +92,9 @@ def construct_heisenberg_xxz_spin1_1d_hamiltonian(nsites: int, J: float, D: floa
     """
     # spin operators
     sq2 = math.sqrt(2.)
-    sup = np.array([[0.,  sq2, 0.], [0.,  0.,  sq2], [0.,  0.,  0.]])
-    sdn = np.array([[0.,  0.,  0.], [sq2, 0.,  0. ], [0.,  sq2, 0.]])
-    sz  = np.array([[1.,  0.,  0.], [0.,  0.,  0. ], [0.,  0., -1.]])
+    sup = sparse.csr_array([[0.,  sq2, 0.], [0.,  0.,  sq2], [0.,  0.,  0.]])
+    sdn = sparse.csr_array([[0.,  0.,  0.], [sq2, 0.,  0. ], [0.,  sq2, 0.]])
+    sz  = sparse.csr_array([[1.,  0.,  0.], [0.,  0.,  0. ], [0.,  0., -1.]])
     # interaction terms
     hint = J * 0.5 * (sparse.kron(sup, sdn) + sparse.kron(sdn, sup)) + D * sparse.kron(sz, sz)
     hamiltonian = \

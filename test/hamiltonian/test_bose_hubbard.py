@@ -1,3 +1,4 @@
+import math
 import autoray as ar
 from autoray import numpy as np
 import torch
@@ -41,13 +42,13 @@ def construct_bose_hubbard_1d_hamiltonian(nsites: int, d: int, t: float, u: floa
     with nearest-neighbor hopping on a one-dimensional lattice as a sparse matrix.
     """
     # bosonic creation and annihilation operators
-    b_dag = np.diag(np.sqrt(np.arange(1, d, dtype=float)), -1)
-    b_ann = np.diag(np.sqrt(np.arange(1, d, dtype=float)),  1)
+    b_dag = sparse.diags_array([math.sqrt(i) for i in range(1, d)], offsets=-1)
+    b_ann = sparse.diags_array([math.sqrt(i) for i in range(1, d)], offsets= 1)
     # number operator
-    numop = np.diag(np.arange(d, dtype=float))
+    numop = sparse.diags_array([float(i) for i in range(d)])
     # kinetic hopping terms, interaction terms and external field
     tkin = -t * (sparse.kron(b_dag, b_ann) + sparse.kron(b_ann, b_dag))
-    hint = 0.5 * u * (numop @ (numop - np.identity(d))) - mu * numop
+    hint = 0.5 * u * (numop @ (numop - sparse.identity(d))) - mu * numop
     hamiltonian = \
         sum(sparse.kron(sparse.identity(d**j),
             sparse.kron(tkin,
