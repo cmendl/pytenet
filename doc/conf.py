@@ -122,7 +122,7 @@ def linkcode_resolve(domain, info):
     else:
         linestart, linestop = linenum, linenum + len(source) - 1
 
-    return f"https://github.com/cmendl/pytenet/tree/main/{filepath}#L{linestart}-L{linestop}"
+    return f"https://github.com/cmendl/pytenet/tree/main/src/{filepath}#L{linestart}-L{linestop}"
 
 
 # -- Options for HTML output -------------------------------------------------

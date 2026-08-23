@@ -99,7 +99,7 @@ The full documentation is available at `pytenet.readthedocs.io <https://pytenet.
 
 Directory structure
 -------------------
-- **pytenet**: source code of the actual PyTeNet package
+- **src/pytenet**: source code of the actual PyTeNet package
 - **doc**: documentation and tutorials
 - **test**: unit tests (might serve as detailed documentation, too)
 - **experiments**: numerical experiments on more advanced, in-depth topics
