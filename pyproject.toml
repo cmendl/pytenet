@@ -2,9 +2,6 @@
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["pytenet"]
-
 [project]
 name = "pytenet"
 version = "1.3.0"
@@ -31,6 +28,12 @@ doc = [
 ]
 
 [project.urls]
-homepage = "https://github.com/cmendl/pytenet"
+homepage   = "https://github.com/cmendl/pytenet"
 repository = "https://github.com/cmendl/pytenet"
-issues = "https://github.com/cmendl/pytenet/issues"
+issues     = "https://github.com/cmendl/pytenet/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
