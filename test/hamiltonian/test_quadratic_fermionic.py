@@ -2,6 +2,7 @@ import time
 import autoray as ar
 from autoray import numpy as np
 from fermi_operators import construct_fermi_operators
+from scipy import sparse
 import pytenet as ptn
 
 
@@ -17,21 +18,26 @@ def test_quadratic_fermionic_mpo():
                 coeffc = ptn.crandn(nsites, rng)
                 coeffa = ptn.crandn(nsites, rng)
 
-                # construct the MPO
-                h_mpo = ptn.quadratic_fermionic_mpo(coeffc, coeffa)
-                assert h_mpo.bond_dims == [1] + (nsites - 1)*[4] + [1], \
-                    "virtual bond dimensions must match theoretical prediction"
-                # matrix representation, for comparison with reference
-                h_mat = h_mpo.to_matrix()
-                # reference operator
-                clist, alist, _ = construct_fermi_operators(nsites)
-                coeffc_np = ar.to_numpy(coeffc)
-                coeffa_np = ar.to_numpy(coeffa)
-                h_ref = sum(coeffc_np[i] * clist[i] for i in range(nsites)) \
-                      @ sum(coeffa_np[i] * alist[i] for i in range(nsites))
-                # compare
-                assert np.allclose(h_mat, np.asarray(h_ref.toarray())), \
-                    "matrix representation of MPO and reference operator must match"
+                for add_identity in (False, True):
+                    # construct the MPO
+                    h_mpo = ptn.quadratic_fermionic_mpo(coeffc, coeffa, add_identity=add_identity)
+                    assert h_mpo.bond_dims == [1] + (nsites - 1)*[4] + [1], \
+                        "virtual bond dimensions must match theoretical prediction"
+                    # matrix representation, for comparison with reference
+                    h_mat = h_mpo.to_matrix()
+
+                    # reference operator
+                    clist, alist, _ = construct_fermi_operators(nsites)
+                    coeffc_np = ar.to_numpy(coeffc)
+                    coeffa_np = ar.to_numpy(coeffa)
+                    h_ref = sum(coeffc_np[i] * clist[i] for i in range(nsites)) \
+                          @ sum(coeffa_np[i] * alist[i] for i in range(nsites))
+                    if add_identity:
+                        h_ref += sparse.identity(2**nsites)
+
+                    # compare
+                    assert np.allclose(h_mat, np.asarray(h_ref.toarray())), \
+                        "matrix representation of MPO and reference operator must match"
 
 
 def test_quadratic_spin_fermionic_mpo():
@@ -46,22 +52,26 @@ def test_quadratic_spin_fermionic_mpo():
                 coeffc = ptn.crandn(nsites, rng)
                 coeffa = ptn.crandn(nsites, rng)
 
-                for sigma in (1, -1):
-                    # construct the MPO
-                    h_mpo = ptn.quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma)
-                    assert h_mpo.bond_dims == [1] + (nsites - 1)*[4] + [1], \
-                        "virtual bond dimensions must match theoretical prediction"
-                    # matrix representation, for comparison with reference
-                    h_mat = h_mpo.to_matrix()
+                for add_identity in (False, True):
+                    for sigma in (1, -1):
+                        # construct the MPO
+                        h_mpo = ptn.quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma,
+                                                                 add_identity=add_identity)
+                        assert h_mpo.bond_dims == [1] + (nsites - 1)*[4] + [1], \
+                            "virtual bond dimensions must match theoretical prediction"
+                        # matrix representation, for comparison with reference
+                        h_mat = h_mpo.to_matrix()
 
-                    # reference operator
-                    clist, alist, _ = construct_fermi_operators(2*nsites)
-                    offset = (0 if sigma == 1 else 1)
-                    coeffc_np = ar.to_numpy(coeffc)
-                    coeffa_np = ar.to_numpy(coeffa)
-                    h_ref = sum(coeffc_np[i] * clist[2*i+offset] for i in range(nsites)) \
-                          @ sum(coeffa_np[i] * alist[2*i+offset] for i in range(nsites))
+                        # reference operator
+                        clist, alist, _ = construct_fermi_operators(2*nsites)
+                        offset = (0 if sigma == 1 else 1)
+                        coeffc_np = ar.to_numpy(coeffc)
+                        coeffa_np = ar.to_numpy(coeffa)
+                        h_ref = sum(coeffc_np[i] * clist[2*i+offset] for i in range(nsites)) \
+                              @ sum(coeffa_np[i] * alist[2*i+offset] for i in range(nsites))
+                        if add_identity:
+                            h_ref += sparse.identity(2**(2*nsites))
 
-                    # compare
-                    assert np.allclose(h_mat, np.asarray(h_ref.toarray())), \
-                        "matrix representation of MPO and reference operator must match"
+                        # compare
+                        assert np.allclose(h_mat, np.asarray(h_ref.toarray())), \
+                            "matrix representation of MPO and reference operator must match"

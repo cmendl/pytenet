@@ -13,7 +13,7 @@ from ..qnumber import encode_quantum_number_pair
 __all__ = ["quadratic_fermionic_mpo", "quadratic_spin_fermionic_mpo"]
 
 
-def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
+def quadratic_fermionic_mpo(coeffc, coeffa, add_identity: bool = False) -> MPO:
     r"""
     Represent a product of sums of fermionic creation and
     annihilation operators of the following form as an MPO:
@@ -21,6 +21,8 @@ def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
     .. math::
 
         op = (\sum_{i=1}^nsites coeffc_i a^{\dagger}_i) (\sum_{j=1}^nsites coeffa_j a_j)
+
+    `add_identity` indicates whether to add a logical identity operation.
     """
     assert len(coeffc) == len(coeffa)
     nsites = len(coeffc)
@@ -83,6 +85,12 @@ def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [identity_l[i].nid, identity_l[i + 1].nid], [(OID.I, 1.)]))
         eid_next += 1
+    if add_identity:
+        # connect identity string from left to right terminal
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[nsites - 1].nid,
+                                   identity_r[nsites    ].nid], [(OID.I, 1.)]))
+        eid_next += 1
     for i in range(1, nsites):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [identity_r[i].nid, identity_r[i + 1].nid], [(OID.I, 1.)]))
@@ -127,7 +135,7 @@ def quadratic_fermionic_mpo(coeffc, coeffa) -> MPO:
     return MPO.from_opgraph([0, 1], graph, opmap, dtype)
 
 
-def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
+def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int, add_identity: bool = False) -> MPO:
     r"""
     Represent a product of sums of fermionic creation and
     annihilation operators of the following form as an MPO,
@@ -137,6 +145,8 @@ def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
 
         op = (\sum_{i=1}^nsites coeffc_i a^{\dagger}_{i,\sigma})
              (\sum_{j=1}^nsites coeffa_j a_{j,\sigma})
+
+    `add_identity` indicates whether to add a logical identity operation.
     """
     assert len(coeffc) == len(coeffa)
     nsites = len(coeffc)
@@ -224,6 +234,12 @@ def quadratic_spin_fermionic_mpo(coeffc, coeffa, sigma: int) -> MPO:
     for i in range(nsites - 1):
         graph.add_connect_edge(
             OpGraphEdge(eid_next, [identity_l[i].nid, identity_l[i + 1].nid], [(OID.I, 1.)]))
+        eid_next += 1
+    if add_identity:
+        # connect identity string from left to right terminal
+        graph.add_connect_edge(
+            OpGraphEdge(eid_next, [identity_l[nsites - 1].nid,
+                                   identity_r[nsites    ].nid], [(OID.I, 1.)]))
         eid_next += 1
     for i in range(1, nsites):
         graph.add_connect_edge(
