@@ -50,7 +50,7 @@ def main():
 
     # initial wavefunction as MPS with random entries
     b_max = 20
-    b = [min(min(d**i, d**(nsites - i)), b_max) for i in range(nsites + 1)]
+    b = [min(d**i, d**(nsites - i), b_max) for i in range(nsites + 1)]
     print("b:", b)
     rng = ar.do("random.default_rng", 42)
     psi = ptn.MPS(h_mpo.qsite, [bi * [0] for bi in b], fill="random", rng=rng)
