@@ -85,6 +85,40 @@ def test_mps_orthonormalize():
                     "MPS tensor is not right-orthonormalized"
 
 
+def test_mps_norm():
+
+    torch.set_default_dtype(torch.float64)
+
+    for backend in ["numpy", "torch"]:
+        with ar.backend_like(backend):
+            rng = ar.do("random.default_rng", int(time.time()))
+
+            # physical quantum numbers
+            qsite = ptn.random_qnumbers(-2, 3, size=4, rng=rng)
+            # number of lattice sites
+            nsites = 6
+
+            # create a random matrix product state
+            psi = ptn.MPS.construct_random(
+                nsites, qsite, qnum_sector=1, max_vdim=15, rng=rng)
+            # rescale to achieve norm of order 1
+            for i in range(nsites):
+                psi.a[i] *= 5
+
+            if backend == "torch" and torch.cuda.is_available():
+                psi.to_device("gpu")
+
+            # calculate the norm of psi using the MPS representation
+            nrm = ptn.mps_norm(psi)
+
+            # reference value
+            nrm_ref = np.linalg.norm(psi.to_vector())
+
+            # compare
+            assert abs(nrm - nrm_ref) / max(abs(nrm_ref), 1e-12) < 1e-12, \
+                "matrix product state norm must match reference value"
+
+
 def test_mps_compress():
 
     torch.set_default_dtype(torch.float64)

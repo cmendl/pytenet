@@ -5,7 +5,8 @@ Higher-level tensor network operations on a chain topology.
 from autoray import numpy as np
 from .mps import MPS
 from .mpo import MPO
-from .block_sparse_util import qnumber_flatten, is_qsparse, neg_qnumbers
+from .block_sparse_util import qnumber_flatten, is_qsparse, neg_qnumbers, block_sparse_qr
+from .bond_ops import split_block_sparse_matrix_svd
 
 __all__ = ["contraction_operator_step_right", "contraction_operator_step_left",
            "compute_right_operator_blocks",
@@ -212,27 +213,94 @@ def mpo_density_average(rho: MPO, op: MPO):
     return t[0, 0]
 
 
-def apply_mpo(op: MPO, psi: MPS) -> MPS:
+def apply_mpo(op: MPO, psi: MPS, mode="direct", tol=0) -> MPS:
     """
     Apply an operator represented as MPO to a state in MPS form.
+
+    The Cholesky-based compression (CBC) method is described in
+    "Efficient application of tensor network operators to tensor network states" (see below).
+
+    Reference:
+        Richard M. Milbradt, Shuo Sun, Christian B. Mendl, Johnnie Gray, Garnet K.-L. Chan
+        Efficient application of tensor network operators to tensor network states
+        arXiv:2601.19650
     """
     # quantum numbers on physical sites must match
     assert psi.qsite == op.qsite
     assert psi.nsites == op.nsites
-    # bond quantum numbers
-    qbonds = [qnumber_flatten((op.qbonds[i], psi.qbonds[i])) for i in range(psi.nsites + 1)]
-    op_psi = MPS(psi.qsite, qbonds, fill="postpone")
-    for i in range(psi.nsites):
-        a = np.tensordot(op.a[i], psi.a[i], axes=([2], [1]))
-        a = np.transpose(a, (0, 3, 1, 2, 4))
-        # group virtual bonds
-        s = a.shape
-        a = a.reshape((s[0]*s[1], s[2], s[3]*s[4]))
-        op_psi.a[i] = a
-        assert is_qsparse(op_psi.a[i], [op_psi.qbonds[i], op_psi.qsite,
-                                        neg_qnumbers(op_psi.qbonds[i+1])]), \
-            "sparsity pattern of MPS tensor does not match quantum numbers"
-    return op_psi
+    assert psi.nsites > 0
+    # (initial) bond quantum numbers, will be updated for CBC mode
+    qbonds_init = [qnumber_flatten((op.qbonds[i], psi.qbonds[i])) for i in range(psi.nsites + 1)]
+    op_psi = MPS(op.qsite, qbonds_init, fill="postpone")
+    if mode == "direct":
+        for i in range(psi.nsites):
+            a = np.einsum(op.a[i], (0, 2, 5, 3), psi.a[i], (1, 5, 4), (0, 1, 2, 3, 4))
+            # group virtual bonds
+            s = a.shape
+            a = a.reshape((s[0]*s[1], s[2], s[3]*s[4]))
+            op_psi.a[i] = a
+            assert is_qsparse(op_psi.a[i], [op_psi.qbonds[i], op_psi.qsite,
+                                            neg_qnumbers(op_psi.qbonds[i+1])]), \
+                "sparsity pattern of MPS tensor does not match quantum numbers"
+        return op_psi
+    elif mode in ("cbc", "CBC"):
+        if psi.nsites == 1:
+            # special case
+            a = np.einsum(op.a[0], (0, 2, 5, 3), psi.a[0], (1, 5, 4), (0, 1, 2, 3, 4))
+            # group virtual bonds
+            s = a.shape
+            a = a.reshape((s[0]*s[1], s[2], s[3]*s[4]))
+            op_psi.a[0] = a
+            return op_psi
+        assert psi.a[0].shape[0] == 1 and op.a[0].shape[0] == 1
+        # dummy left block
+        lblock = np.array([[[1]]], dtype=psi.a[0].dtype, like=psi.a[0])
+        lblocks = [lblock]
+        lqbonds = [qnumber_flatten((op.qbonds[0], psi.qbonds[0]))]
+        for i in range(psi.nsites):
+            # contract left block with MPS and MPO tensors
+            t = np.tensordot(lblock, psi.a[i], axes=([2], [0]))
+            t = np.einsum(t, (0, 4, 5, 3), op.a[i], (4, 1, 5, 2), (0, 1, 2, 3))
+            s = t.shape
+            if i < psi.nsites - 1:
+                q0 = qnumber_flatten((lqbonds[i], op.qsite))
+                q1 = qnumber_flatten((op.qbonds[i + 1], psi.qbonds[i + 1]))
+                _, sigma, v, qbond = split_block_sparse_matrix_svd(
+                    t.reshape((s[0]*s[1], s[2]*s[3])), q0, q1, tol)
+                lblock = np.reshape(sigma[:, None] * v, (v.shape[0], s[2], s[3]))
+                lblocks.append(lblock)
+                lqbonds.append(qbond)
+            else:
+                # rightmost site
+                assert t.shape[2] == 1 and t.shape[3] == 1
+                q0 = qnumber_flatten((op.qsite, neg_qnumbers(op_psi.qbonds[i + 1])))
+                q1 = neg_qnumbers(lqbonds[i])
+                q, _, qinterm = block_sparse_qr(t.reshape((s[0], s[1])).T, q0, q1)
+                op_psi.a[i] = np.reshape(q.T, (q.shape[1], q.shape[0], 1))
+                op_psi.qbonds[i] = neg_qnumbers(qinterm)
+        # dummy right block
+        rblock = np.array([[[1]]], dtype=psi.a[-1].dtype, like=psi.a[-1])
+        for i in reversed(range(psi.nsites - 1)):
+            rblock = contraction_operator_step_right(
+                    psi.a[i + 1], op_psi.a[i + 1], op.a[i + 1], rblock)
+            b = apply_local_hamiltonian(
+                    psi.a[i], op.a[i], np.transpose(lblocks[i], (2, 1, 0)), rblock)
+            if i > 0:
+                s = b.shape
+                q0 = qnumber_flatten((op.qsite, neg_qnumbers(op_psi.qbonds[i + 1])))
+                q, _, qinterm = block_sparse_qr(b.reshape((s[0], s[1]*s[2])).T,
+                                                q0, neg_qnumbers(lqbonds[i]))
+                op_psi.a[i] = np.reshape(q.T, (q.shape[1], b.shape[1], b.shape[2]))
+                op_psi.qbonds[i] = neg_qnumbers(qinterm)
+            else:
+                op_psi.a[i] = b
+        for i in range(op_psi.nsites):
+            assert is_qsparse(op_psi.a[i], [op_psi.qbonds[i], op_psi.qsite,
+                              neg_qnumbers(op_psi.qbonds[i+1])]), \
+                "sparsity pattern of MPS tensor does not match quantum numbers"
+        return op_psi
+    else:
+        raise ValueError(f'`mode` = {mode} invalid; must be "direct" or "CBC".')
 
 
 def apply_local_hamiltonian(a: np.ndarray, w: np.ndarray, l: np.ndarray, r: np.ndarray):
